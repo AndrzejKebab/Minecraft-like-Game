@@ -4,6 +4,8 @@ using UnityEngine;
 
 public class World : MonoBehaviour
 {
+	[SerializeField] private int seed;
+	[SerializeField] private BiomeAttributes biomeAttributes;
 	[SerializeField] private Transform player;
 	[SerializeField] private Vector3 spawnPosition;
 	[field:SerializeField] public Material Material { get; private set; }
@@ -19,6 +21,8 @@ public class World : MonoBehaviour
 
 	private void Start()
 	{
+		Random.InitState(seed);
+
 		spawnPosition = new Vector3((VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2, VoxelData.ChunkHeight + 2, (VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2);
 
 		GenerateWorld();	
@@ -39,9 +43,9 @@ public class World : MonoBehaviour
 
 	private void GenerateWorld()
 	{
-		for(int x = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; x < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; x++)
+		for (int x = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; x < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; x++)
 		{
-			for(int z = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; z < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; z++)
+			for (int z = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; z < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; z++)
 			{
 				CreateNewChunk(x, z);
 			}
@@ -63,7 +67,7 @@ public class World : MonoBehaviour
 
 		List<ChunkCoord> previouslyActiveChunks = new List<ChunkCoord>(activeChunks);
 
-		for(int x = coord.x - VoxelData.ViewDistanceInChunks; x < coord.x + VoxelData.ViewDistanceInChunks; x++)
+		for (int x = coord.x - VoxelData.ViewDistanceInChunks; x < coord.x + VoxelData.ViewDistanceInChunks; x++)
 		{
 			for (int z = coord.z - VoxelData.ViewDistanceInChunks; z < coord.z + VoxelData.ViewDistanceInChunks; z++)
 			{
@@ -80,7 +84,7 @@ public class World : MonoBehaviour
 					}
 				}
 
-				for(int i = 0; i < previouslyActiveChunks.Count; i++)
+				for (int i = 0; i < previouslyActiveChunks.Count; i++)
 				{
 					if (previouslyActiveChunks[i].Equals(new ChunkCoord(x, z)))
 					{
@@ -98,26 +102,55 @@ public class World : MonoBehaviour
 
 	public byte GetVoxel(Vector3 position)
 	{
+
+		int _yPosition = Mathf.FloorToInt(position.y);
+
 		if (!IsVoxelInWorld(position))
 		{
 			return 0;
 		}
-		else if (position.y < 1)
+
+		if (_yPosition == 0)
 		{
 			return 1;
 		}
-		else if (position.y == VoxelData.ChunkHeight - 1)
+
+		int _terrainHeight = Mathf.FloorToInt(biomeAttributes.TerrainHeight * HeightMap.Get2DPerlin(new Vector2(position.x, position.z), 0, biomeAttributes.TerrainScale)) + biomeAttributes.SolidGroundHeight;
+		byte _voxelValue = 0;
+
+		if (_yPosition == _terrainHeight)
 		{
-			return 2;
+			_voxelValue = 2;
 		}
-		else if (position.y >= VoxelData.ChunkHeight - 6 && position.y < VoxelData.ChunkHeight - 1)
+		else if (_yPosition < _terrainHeight && _yPosition > _terrainHeight - 6)
 		{
-			return 3;
+			_voxelValue = 3;
+		}
+		else if (_yPosition > _terrainHeight)
+		{
+			return 0;
 		}
 		else
 		{
-			return 4;
+			_voxelValue = 4;
 		}
+
+		if (_voxelValue == 2)
+		{
+			foreach(Lode lode in biomeAttributes.Lodes)
+			{
+				if(_yPosition > lode.MinHeight && _yPosition < lode.MaxHeight)
+				{
+					if(HeightMap.Get3DPerlin(position, lode.NoiseOffset, lode.Scale, lode.Threshold))
+					{
+						_voxelValue = lode.BlockID;
+					}
+				}
+			}
+		}		
+		
+		return _voxelValue;
+		
 	}
 
 	private void CreateNewChunk(int x, int z)
@@ -128,7 +161,7 @@ public class World : MonoBehaviour
 
 	private bool IsChunkInWorld (ChunkCoord coord)
 	{
-		if(coord.x > 0 && coord.x < VoxelData.WorldSizeInChunks - 1 && coord.z > 0 && coord.z < VoxelData.WorldSizeInChunks - 1)
+		if (coord.x > 0 && coord.x < VoxelData.WorldSizeInChunks - 1 && coord.z > 0 && coord.z < VoxelData.WorldSizeInChunks - 1)
 		{
 			return true;
 		}
@@ -140,7 +173,7 @@ public class World : MonoBehaviour
 
 	private bool IsVoxelInWorld(Vector3 position)
 	{
-		if(position.x >= 0 && position.x < VoxelData.WorldSizeInVoxels && position.y >= 0 && position.y < VoxelData.ChunkHeight && position.z >= 0 && position.z < VoxelData.WorldSizeInVoxels)
+		if (position.x >= 0 && position.x < VoxelData.WorldSizeInVoxels && position.y >= 0 && position.y < VoxelData.ChunkHeight && position.z >= 0 && position.z < VoxelData.WorldSizeInVoxels)
 		{
 			return true;
 		}
@@ -167,7 +200,7 @@ public class BlockType
 
 	public int GetTextureID (int faceIndexID)
 	{
-		switch(faceIndexID)
+		switch (faceIndexID)
 		{
 			case 0:
 				return backFaceTextture;

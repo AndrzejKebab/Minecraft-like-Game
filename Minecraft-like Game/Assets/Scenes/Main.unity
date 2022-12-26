@@ -312,6 +312,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74af25273e25f3645a41c900dde7c02e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  seed: 0
+  biomeAttributes: {fileID: 11400000, guid: 51e5cf8d7f7b11e43982a13609aa1d12, type: 2}
   player: {fileID: 330585546}
   spawnPosition: {x: 0, y: 0, z: 0}
   <Material>k__BackingField: {fileID: 2100000, guid: 2c74bebc8edb092458d2a994e0141330,
@@ -357,6 +359,14 @@ MonoBehaviour:
     bottomFaceTextture: 0
     leftFaceTextture: 0
     rightFaceTextture: 0
+  - <BlockName>k__BackingField: Sand
+    <isSolid>k__BackingField: 1
+    backFaceTextture: 10
+    frontFaceTextture: 10
+    topFaceTextture: 10
+    bottomFaceTextture: 10
+    leftFaceTextture: 10
+    rightFaceTextture: 10
   - <BlockName>k__BackingField: Furnace
     <isSolid>k__BackingField: 1
     backFaceTextture: 13
