@@ -50,7 +50,6 @@ public class World : MonoBehaviour
 				CreateNewChunk(x, z);
 			}
 		}
-
 		player.position = spawnPosition;
 	}
 
@@ -63,13 +62,13 @@ public class World : MonoBehaviour
 
 	private void CheckViewDistance()
 	{
-		ChunkCoord coord = GetChunkCoordFromVector3(player.position);
+		ChunkCoord _coord = GetChunkCoordFromVector3(player.position);
 
-		List<ChunkCoord> previouslyActiveChunks = new List<ChunkCoord>(activeChunks);
+		List<ChunkCoord> _previouslyActiveChunks = new List<ChunkCoord>(activeChunks);
 
-		for (int x = coord.x - VoxelData.ViewDistanceInChunks; x < coord.x + VoxelData.ViewDistanceInChunks; x++)
+		for (int x = _coord.x - VoxelData.ViewDistanceInChunks; x < _coord.x + VoxelData.ViewDistanceInChunks; x++)
 		{
-			for (int z = coord.z - VoxelData.ViewDistanceInChunks; z < coord.z + VoxelData.ViewDistanceInChunks; z++)
+			for (int z = _coord.z - VoxelData.ViewDistanceInChunks; z < _coord.z + VoxelData.ViewDistanceInChunks; z++)
 			{
 				if (IsChunkInWorld(new ChunkCoord(x, z)))
 				{
@@ -84,17 +83,17 @@ public class World : MonoBehaviour
 					}
 				}
 
-				for (int i = 0; i < previouslyActiveChunks.Count; i++)
+				for (int i = 0; i < _previouslyActiveChunks.Count; i++)
 				{
-					if (previouslyActiveChunks[i].Equals(new ChunkCoord(x, z)))
+					if (_previouslyActiveChunks[i].Equals(new ChunkCoord(x, z)))
 					{
-						previouslyActiveChunks.RemoveAt(i);
+						_previouslyActiveChunks.RemoveAt(i);
 					}
 				}
 			}
 		}
 
-		foreach(ChunkCoord chunk in previouslyActiveChunks)
+		foreach(ChunkCoord chunk in _previouslyActiveChunks)
 		{
 			chunks[chunk.x, chunk.z].IsActive = false;
 		}
@@ -135,33 +134,32 @@ public class World : MonoBehaviour
 			_voxelValue = 4;
 		}
 
-		if (_voxelValue == 2)
+		if (_voxelValue == 4)
 		{
 			foreach(Lode lode in biomeAttributes.Lodes)
 			{
 				if(_yPosition > lode.MinHeight && _yPosition < lode.MaxHeight)
 				{
-					if(HeightMap.Get3DPerlin(position, lode.NoiseOffset, lode.Scale, lode.Threshold))
+					if(HeightMap.Get3DPerlin(position, lode.NoiseOffset, lode.Scale, lode.MinThreshold, lode.MaxThreshold))
 					{
 						_voxelValue = lode.BlockID;
 					}
 				}
 			}
 		}		
-		
-		return _voxelValue;
-		
+		return _voxelValue;		
 	}
 
 	private void CreateNewChunk(int x, int z)
 	{
+		if (!IsChunkInWorld(new ChunkCoord(x, z))) return;
 		chunks[x, z] = new Chunk(new ChunkCoord(x, z), this);
 		activeChunks.Add(new ChunkCoord(x, z));
 	}
 
 	private bool IsChunkInWorld (ChunkCoord coord)
 	{
-		if (coord.x > 0 && coord.x < VoxelData.WorldSizeInChunks - 1 && coord.z > 0 && coord.z < VoxelData.WorldSizeInChunks - 1)
+		if (coord.x >= 0 && coord.x < VoxelData.WorldSizeInChunks && coord.z >= 0 && coord.z < VoxelData.WorldSizeInChunks)
 		{
 			return true;
 		}

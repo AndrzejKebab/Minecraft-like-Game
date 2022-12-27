@@ -9,7 +9,7 @@ public static class HeightMap
 		return Mathf.PerlinNoise((position.x + 0.1f) / VoxelData.ChunkWidth * scale + offset, (position.y + 0.1f) / VoxelData.ChunkWidth * scale + offset);
 	}
 
-	public static bool Get3DPerlin(Vector3 position, float offset, float scale, float threshold)
+	public static bool Get3DPerlin(Vector3 position, float offset, float scale, float minThreshold, float maxThreshold)
 	{
 		float x = (position.x + offset + 0.1f) * scale;
 		float y = (position.y + offset + 0.1f) * scale;
@@ -23,7 +23,7 @@ public static class HeightMap
 		float CB = Mathf.PerlinNoise(z, y);
 		float CA = Mathf.PerlinNoise(z, x);
 
-		if((AB + BC + AC + BA + CB + CA) / 6 < threshold)
+		if((AB + BC + AC + BA + CB + CA) / 6 >= minThreshold && (AB + BC + AC + BA + CB + CA) / 6 <= maxThreshold)
 		{
 			return true;
 		}

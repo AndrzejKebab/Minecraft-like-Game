@@ -21,6 +21,7 @@ public class Lode
 	public int MinHeight;
 	public int MaxHeight;
 	public float Scale;
-	public float Threshold;
+	public float MinThreshold;
+	public float MaxThreshold;
 	public float NoiseOffset;
 }
