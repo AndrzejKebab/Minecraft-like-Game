@@ -17,7 +17,7 @@ public class Chunk
 	private List<int> triangles = new List<int>();
 	private List<Vector2> uvs = new List<Vector2>();
 
-	private byte[,,] voxelMap = new byte[VoxelData.ChunkWidth, VoxelData.ChunkHeight, VoxelData.ChunkWidth];
+	public byte[,,] voxelMap = new byte[VoxelData.ChunkWidth, VoxelData.ChunkHeight, VoxelData.ChunkWidth];
 
 	private World world;
 
