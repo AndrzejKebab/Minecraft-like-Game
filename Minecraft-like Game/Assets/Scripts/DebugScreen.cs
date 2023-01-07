@@ -1,7 +1,7 @@
-using TMPro;
+﻿using TMPro;
 using UnityEngine;
 
-public class DebugScreen : MonoBehaviour
+public class DebugScreen : MonoBehaviour 
 {
 	private World world;
 	private TextMeshProUGUI debugText;
@@ -12,7 +12,7 @@ public class DebugScreen : MonoBehaviour
 	private int halfWorldSizeInVoxels;
 	private int halfWorldSizeInChunks;
 
-	private void Start()
+	private void Start() 
 	{
 		world = GameObject.Find("World").GetComponent<World>();
 		debugText = GetComponentInChildren<TextMeshProUGUI>();
@@ -21,21 +21,21 @@ public class DebugScreen : MonoBehaviour
 		halfWorldSizeInChunks = VoxelData.WorldSizeInChunks / 2;
 	}
 
-	private void Update()
+	private void Update() 
 	{
 		string _debugText = "Minecraft-Like Game";
 		_debugText += "\n";
 		_debugText += frameRate + " FPS";
-		_debugText += "\n";
-		_debugText += "XYZ:" + (Mathf.FloorToInt(world.Player.transform.position.x) - halfWorldSizeInVoxels) + " / " + Mathf.FloorToInt(world.Player.transform.position.y) + " / " + (Mathf.FloorToInt(world.Player.transform.position.z) - halfWorldSizeInVoxels);
+		_debugText += "\n\n";
+		_debugText += "XYZ: " + (Mathf.FloorToInt(world.Player.transform.position.x) - halfWorldSizeInVoxels) + " / " + Mathf.FloorToInt(world.Player.transform.position.y) + " / " + (Mathf.FloorToInt(world.Player.transform.position.z) - halfWorldSizeInVoxels);
 		_debugText += "\n";
 		_debugText += "Chunk: " + (world.PlayerChunkCoord.x - halfWorldSizeInChunks) + " / " + (world.PlayerChunkCoord.z - halfWorldSizeInChunks);
 
 		debugText.text = _debugText;
 
-		if(timer > 1)
+		if (timer > 1f) 
 		{
-			frameRate = (int)(1 / Time.unscaledDeltaTime);
+			frameRate = (int)(1f / Time.unscaledDeltaTime);
 			timer = 0;
 		}
 		else
