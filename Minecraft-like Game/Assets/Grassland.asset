@@ -20,7 +20,21 @@ MonoBehaviour:
   - NodeName: Cave
     BlockID: 0
     MinHeight: 5
-    MaxHeight: 500
-    Scale: 0.075
-    Threshold: 0.3
+    MaxHeight: 245
+    Scale: 0.05
+    Threshold: 0.5
     NoiseOffset: 666
+  - NodeName: Dirt
+    BlockID: 4
+    MinHeight: 150
+    MaxHeight: 250
+    Scale: 0.1
+    Threshold: 0.6
+    NoiseOffset: 123
+  - NodeName: Sand
+    BlockID: 5
+    MinHeight: 50
+    MaxHeight: 125
+    Scale: 0.15
+    Threshold: 0.6
+    NoiseOffset: 0

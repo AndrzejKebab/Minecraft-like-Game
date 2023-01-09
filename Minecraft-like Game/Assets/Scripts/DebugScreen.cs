@@ -3,8 +3,8 @@ using UnityEngine;
 
 public class DebugScreen : MonoBehaviour 
 {
-	private World world;
-	private TextMeshProUGUI debugText;
+	[SerializeField] private World world;
+	[SerializeField] private TextMeshProUGUI debugText;
 
 	private float frameRate;
 	private float timer;
@@ -14,9 +14,6 @@ public class DebugScreen : MonoBehaviour
 
 	private void Start() 
 	{
-		world = GameObject.Find("World").GetComponent<World>();
-		debugText = GetComponentInChildren<TextMeshProUGUI>();
-
 		halfWorldSizeInVoxels = VoxelData.WorldSizeInVoxels / 2;
 		halfWorldSizeInChunks = VoxelData.WorldSizeInChunks / 2;
 	}

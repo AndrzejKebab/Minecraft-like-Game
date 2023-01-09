@@ -2,7 +2,6 @@
 
 public static class Noise
 {
-
 	public static float Get2DPerlin(Vector2 position, float offset, float scale)
 	{
 		//float _value;
@@ -19,18 +18,20 @@ public static class Noise
 	public static bool Get3DPerlin(Vector3 position, float offset, float scale, float threshold)
 	{
 		float x = (position.x + offset + 0.1f) * scale;
-		float y = (position.y + offset + 0.1f) * scale;
-		float z = (position.z + offset + 0.1f) * scale;
+		float y = (position.y + offset + 0.4f) * scale;
+		float z = (position.z + offset + 0.9f) * scale;
 
-		float AB = Mathf.PerlinNoise(x, y);
-		float BC = Mathf.PerlinNoise(y, z);
-		float AC = Mathf.PerlinNoise(x, z);
+		float mod = 1.1f * scale;
 
-		float BA = Mathf.PerlinNoise(y, x);
-		float CB = Mathf.PerlinNoise(z, y);
-		float CA = Mathf.PerlinNoise(z, x);
+		float AB = Mathf.PerlinNoise(x + mod, y - mod);
+		float BC = Mathf.PerlinNoise(y - mod, z + mod);
+		float AC = Mathf.PerlinNoise(x + mod, z - mod);
 
-		if ((AB + BC + AC + BA + CB + CA) / 6 < threshold)
+		float BA = Mathf.PerlinNoise(y - mod, x + mod);
+		float CB = Mathf.PerlinNoise(z + mod, y - mod);
+		float CA = Mathf.PerlinNoise(z - mod, x + mod);
+
+		if ((AB + BC + AC + BA + CB + CA) / 6f > threshold)
 		{
 			return true;
 		}
