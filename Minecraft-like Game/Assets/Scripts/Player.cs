@@ -29,16 +29,13 @@ public class Player : MonoBehaviour
 	[SerializeField] private float checkIncrement = 0.01f;
 	[SerializeField] private float reach = 8f;
 
-	[SerializeField] private TextMeshProUGUI selectedBlockText;
-	[SerializeField] private byte selectedBlockIndex = 1;
+	public byte SelectedBlockIndex = 1;
 
 	private void Start() 
 	{
 		cam = GameObject.Find("Main Camera").transform;
 		world = GameObject.Find("World").GetComponent<World>();
 		Cursor.lockState = CursorLockMode.Locked;
-
-		selectedBlockText.text = world.BlockTypes[selectedBlockIndex].BlockName + " Block Selected";
 	}
 
 	private void FixedUpdate()
@@ -102,25 +99,6 @@ public class Player : MonoBehaviour
 
 		if (IsGrounded && Input.GetButtonDown("Jump")) jumpRequest = true;
 
-		float _scroll = Input.GetAxis("Mouse ScrollWheel");
-
-		if(_scroll != 0)
-		{
-			if(_scroll > 0)
-			{
-				selectedBlockIndex++;
-			}
-			else
-			{
-				selectedBlockIndex--;
-			}
-
-			if(selectedBlockIndex > (byte)(world.BlockTypes.Length - 1)) selectedBlockIndex = 1;
-			if(selectedBlockIndex < 1) selectedBlockIndex = (byte)(world.BlockTypes.Length - 1);
-
-			selectedBlockText.text = world.BlockTypes[selectedBlockIndex].BlockName + " Block Selected";
-		}
-
 		if(highlightBlock.gameObject.activeSelf)
 		{
 			if(Input.GetMouseButtonDown(0))
@@ -130,7 +108,7 @@ public class Player : MonoBehaviour
 
 			if (Input.GetMouseButtonDown(1))
 			{
-				world.GetChunkFromVector3(placeBlock.position).EditVoxel(placeBlock.position, selectedBlockIndex);
+				world.GetChunkFromVector3(placeBlock.position).EditVoxel(placeBlock.position, SelectedBlockIndex);
 			}
 		}
 	}

@@ -12,9 +12,13 @@ public class Chunk
 	private int vertexIndex = 0;
 	private List<Vector3> vertices = new List<Vector3> ();
 	private List<int> triangles = new List<int> ();
+	private List<int> transparentTriangles = new List<int>();
+	private Material[] materials = new Material[2];
 	private List<Vector2> uvs = new List<Vector2> ();
 
 	public byte[,,] VoxelMap = new byte[VoxelData.ChunkWidth, VoxelData.ChunkHeight, VoxelData.ChunkWidth];
+
+	public Queue<VoxelMod> modifications = new Queue<VoxelMod>();
 
 	private World world;
 
@@ -37,7 +41,10 @@ public class Chunk
 		meshFilter = chunkObject.AddComponent<MeshFilter>();
 		meshRenderer = chunkObject.AddComponent<MeshRenderer>();
 
-		meshRenderer.material = world.Material;
+		materials[0] = world.Material;
+		materials[1] = world.TransparentMaterial;
+		meshRenderer.materials = materials;
+
 		chunkObject.transform.SetParent(world.transform);
 		chunkObject.transform.position = new Vector3(coord.x * VoxelData.ChunkWidth, 0f, coord.z * VoxelData.ChunkWidth);
 		chunkObject.name = "Chunk " + coord.x + ", " + coord.z;
@@ -63,8 +70,15 @@ public class Chunk
 
 	}
 
-	private void UpdateChunk () 
+	public void UpdateChunk () 
 	{
+		while(modifications.Count > 0)
+		{
+			VoxelMod v = modifications.Dequeue();
+			Vector3 pos = v.Position -= position;
+			VoxelMap[(int)pos.x, (int)pos.y, (int)pos.z] = v.ID;
+		}
+
 		ClearMeshData();
 
 		for (int y = 0; y < VoxelData.ChunkHeight; y++) 
@@ -86,6 +100,7 @@ public class Chunk
 		vertexIndex = 0;
 		vertices.Clear();
 		triangles.Clear();
+		transparentTriangles.Clear();
 		uvs.Clear();
 	}
 
@@ -152,9 +167,9 @@ public class Chunk
 		int y = Mathf.FloorToInt (pos.y);
 		int z = Mathf.FloorToInt (pos.z);
 
-		if (!IsVoxelInChunk(x, y, z)) return world.CheckForVoxel(pos + position);
+		if (!IsVoxelInChunk(x, y, z)) return world.CheckIfVoxelTransparent(pos + position);
 
-		return world.BlockTypes[VoxelMap [x, y, z]].IsSolid;
+		return world.BlockTypes[VoxelMap [x, y, z]].IsTransparent;
 	}
 
 	public byte GetVoxelFromGlobalVector3 (Vector3 pos) 
@@ -171,12 +186,13 @@ public class Chunk
 
 	private void UpdateMeshData (Vector3 pos) 
 	{
+		byte BlockID = VoxelMap[(int)pos.x, (int)pos.y, (int)pos.z];
+		bool _isTransparent = world.BlockTypes[BlockID].IsTransparent;
+
 		for (int p = 0; p < 6; p++) 
 		{ 
-			if (!CheckVoxel(pos + VoxelData.FaceChecks[p])) 
+			if (CheckVoxel(pos + VoxelData.FaceChecks[p])) 
 			{
-				byte BlockID = VoxelMap[(int)pos.x, (int)pos.y, (int)pos.z];
-
 				vertices.Add (pos + VoxelData.VoxelVerticles [VoxelData.VoxelTriangles [p, 0]]);
 				vertices.Add (pos + VoxelData.VoxelVerticles [VoxelData.VoxelTriangles [p, 1]]);
 				vertices.Add (pos + VoxelData.VoxelVerticles [VoxelData.VoxelTriangles [p, 2]]);
@@ -184,12 +200,25 @@ public class Chunk
 
 				AddTexture(world.BlockTypes[BlockID].GetTextureID(p));
 
-				triangles.Add (vertexIndex);
-				triangles.Add (vertexIndex + 1);
-				triangles.Add (vertexIndex + 2);
-				triangles.Add (vertexIndex + 2);
-				triangles.Add (vertexIndex + 1);
-				triangles.Add (vertexIndex + 3);
+				if(!_isTransparent)
+				{
+					triangles.Add(vertexIndex);
+					triangles.Add(vertexIndex + 1);
+					triangles.Add(vertexIndex + 2);
+					triangles.Add(vertexIndex + 2);
+					triangles.Add(vertexIndex + 1);
+					triangles.Add(vertexIndex + 3);
+				}
+				else
+				{
+					transparentTriangles.Add(vertexIndex);
+					transparentTriangles.Add(vertexIndex + 1);
+					transparentTriangles.Add(vertexIndex + 2);
+					transparentTriangles.Add(vertexIndex + 2);
+					transparentTriangles.Add(vertexIndex + 1);
+					transparentTriangles.Add(vertexIndex + 3);
+				}
+
 				vertexIndex += 4;
 			}
 		}
@@ -200,7 +229,9 @@ public class Chunk
 		Mesh mesh = new Mesh ();
 		mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 		mesh.vertices = vertices.ToArray ();
-		mesh.triangles = triangles.ToArray ();
+		mesh.subMeshCount = 2;
+		mesh.SetTriangles(triangles.ToArray(), 0);
+		mesh.SetTriangles(transparentTriangles.ToArray(), 1);
 		mesh.uv = uvs.ToArray ();
 
 		mesh.RecalculateNormals ();

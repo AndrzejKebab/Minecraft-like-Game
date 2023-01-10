@@ -16,6 +16,12 @@ MonoBehaviour:
   SolidGroundHeight: 255
   TerrainHeight: 145
   TerrainScale: 0.3
+  TreeZoneScale: 1.3
+  TreeZoneThreshold: 0.6
+  TreePlacementScale: 15
+  TreePlacementThreshold: 0.8
+  MaxTreeSize: 16
+  MinTreeSize: 6
   Lodes:
   - NodeName: Cave
     BlockID: 0
