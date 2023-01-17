@@ -12,35 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 604863bef2f81714b90b56811bb2841f, type: 3}
   m_Name: Grassland
   m_EditorClassIdentifier: 
-  BiomeAttributesName: Grass Land
-  SolidGroundHeight: 255
-  TerrainHeight: 145
-  TerrainScale: 0.3
-  TreeZoneScale: 1.3
-  TreeZoneThreshold: 0.6
-  TreePlacementScale: 15
-  TreePlacementThreshold: 0.8
-  MaxTreeSize: 16
-  MinTreeSize: 6
-  Lodes:
-  - NodeName: Cave
-    BlockID: 0
-    MinHeight: 5
-    MaxHeight: 245
-    Scale: 0.05
-    Threshold: 0.5
-    NoiseOffset: 666
-  - NodeName: Dirt
-    BlockID: 4
-    MinHeight: 150
-    MaxHeight: 250
-    Scale: 0.1
-    Threshold: 0.6
-    NoiseOffset: 123
-  - NodeName: Sand
-    BlockID: 5
-    MinHeight: 50
-    MaxHeight: 125
-    Scale: 0.15
-    Threshold: 0.6
-    NoiseOffset: 0
+  biomeName: GrassLand
+  solidGroundHeight: 255
+  terrainHeight: 145
+  terrainScale: 0.3
+  treeZoneScale: 1.3
+  treeZoneThreshold: 0.6
+  treePlacementScale: 15
+  treePlacementThreshold: 0.8
+  maxTreeHeight: 15
+  minTreeHeight: 5
+  lodes: []

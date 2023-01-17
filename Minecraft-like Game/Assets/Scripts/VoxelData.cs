@@ -1,60 +1,77 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections;
+using Unity.Collections;
+using UnityEngine;
+using Unity.Mathematics;
 
-public static class VoxelData 
+public enum Block : byte
 {
-	public static readonly int ChunkWidth = 25;
-	public static readonly int ChunkHeight = 500;
-	public static readonly int WorldSizeInChunks = 10;
+	Null = 0,
+	Air = 1,
+	Stone = 2,
+}
 
-	public static int WorldSizeInVoxels 
+public enum Direction
+{
+	Forward = 0,
+	Right = 1,
+	Back = 2,
+	Left = 3,
+	Up = 4,
+	Down = 5,
+}
+
+public struct VoxelData 
+{
+	[ReadOnly]
+	public static readonly NativeArray<int3> Vertices = new NativeArray<int3>(8, Allocator.Persistent)
 	{
-		get { return WorldSizeInChunks * ChunkWidth; }
+		[0] = new int3(1, 1, 1),
+		[1] = new int3(0, 1, 1),
+		[2] = new int3(0, 0, 1),
+		[3] = new int3(1, 0, 1),
+		[4] = new int3(0, 1, 0),
+		[5] = new int3(1, 1, 0),
+		[6] = new int3(1, 0, 0),
+		[7] = new int3(0, 0, 0)
+	};
+
+	[ReadOnly]
+	public static readonly NativeArray<int> Triangles = new NativeArray<int>(24, Allocator.Persistent)
+	{
+		[0] = 0,	[1] = 1,	[2] = 2,	[3] = 3,
+		[4] = 5,	[5] = 0,	[6] = 3,	[7] = 6,
+		[8] = 4,	[9] = 5,	[10] = 6,	[11] = 7,
+		[12] = 1,	[13] = 4,	[14] = 7,	[15] = 2,
+		[16] = 5,	[17] = 4,	[18] = 1,	[19] = 0,
+		[20] = 3,	[21] = 2,	[22] = 7,	[23] = 6
+	};
+}
+
+public static class BlockExtensions
+{
+	public static int GetBlockIndex(int3 position) => position.x + position.z * 16 + position.y * 16 * 16;
+
+	public static bool IsEmpty(this Block block) => block == Block.Air;
+
+	public static int3 GetPositionInDirection(Direction direction, int x, int y, int z)
+	{
+		switch (direction)
+		{
+			case Direction.Forward:
+				return new int3(x, y, z + 1);
+			case Direction.Right:
+				return new int3(x + 1, y, z);
+			case Direction.Back:
+				return new int3(x, y, z - 1);
+			case Direction.Left:
+				return new int3(x - 1, y, z);
+			case Direction.Up:
+				return new int3(x, y + 1, z);
+			case Direction.Down:
+				return new int3(x, y - 1, z);
+			default:
+				throw new ArgumentOutOfRangeException(nameof(direction), direction, null);
+		}
 	}
-
-	public static readonly int ViewDistanceInChunks = 5;
-
-	public static readonly int TextureAtlasSizeInBlocks = 16;
-	public static float NormalizedBlockTextureSize {	get { return 1f / (float)TextureAtlasSizeInBlocks; }	}
-
-	public static readonly Vector3[] VoxelVerticles = new Vector3[8] 
-	{
-		new Vector3(0.0f, 0.0f, 0.0f),
-		new Vector3(1.0f, 0.0f, 0.0f),
-		new Vector3(1.0f, 1.0f, 0.0f),
-		new Vector3(0.0f, 1.0f, 0.0f),
-		new Vector3(0.0f, 0.0f, 1.0f),
-		new Vector3(1.0f, 0.0f, 1.0f),
-		new Vector3(1.0f, 1.0f, 1.0f),
-		new Vector3(0.0f, 1.0f, 1.0f),
-	};
-
-	public static readonly Vector3[] FaceChecks = new Vector3[6] 
-	{
-		new Vector3(0.0f, 0.0f, -1.0f),
-		new Vector3(0.0f, 0.0f, 1.0f),
-		new Vector3(0.0f, 1.0f, 0.0f),
-		new Vector3(0.0f, -1.0f, 0.0f),
-		new Vector3(-1.0f, 0.0f, 0.0f),
-		new Vector3(1.0f, 0.0f, 0.0f)
-	};
-
-	public static readonly int[,] VoxelTriangles = new int[6,4] 
-	{
-		{0, 3, 1, 2}, // Back Face
-		{5, 6, 4, 7}, // Front Face
-		{3, 7, 2, 6}, // Top Face
-		{1, 5, 0, 4}, // Bottom Face
-		{4, 7, 0, 3}, // Left Face
-		{1, 2, 5, 6} // Right Face
-	};
-
-	public static readonly Vector2[] VoxelUvs = new Vector2[4] 
-	{
-		new Vector2 (0.0f, 0.0f),
-		new Vector2 (0.0f, 1.0f),
-		new Vector2 (1.0f, 0.0f),
-		new Vector2 (1.0f, 1.0f)
-	};
-
-
 }
