@@ -6,73 +6,99 @@ using UnityEngine;
 
 public class Chunk : MonoBehaviour
 {
-	private  MeshFilter meshFilter;
+	private MeshRenderer meshRenderer;
+	private MeshFilter meshFilter;
+
+	private NativeArray<bool> voxelMap;
+
+	private JobHandle chunkJobHandle;
+	private ChunkJob.MeshData meshData;
+
 
 	private void Awake()
 	{
+		meshRenderer = GetComponent<MeshRenderer>();
 		meshFilter = GetComponent<MeshFilter>();
 	}
 
 	private void Start()
 	{
-		var _position = transform.position;
+		voxelMap = new NativeArray<bool>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
 
-		var blocks = new NativeArray<Block>(4096, Allocator.TempJob);
+		PopulateVoxelMap();
+		CreateMeshDataJob();
+		
+		CreateMesh();
+	}
 
-		for(int x = 0; x < 16; x++)
+	private void PopulateVoxelMap()
+	{
+		for (int y = 0; y < VoxelData.ChunkHeight; y++)
 		{
-			for (int z = 0; z < 16; z++)
+			for (int x = 0; x < VoxelData.ChunkWidth; x++)
 			{
-				var y = Mathf.FloorToInt(Mathf.PerlinNoise((_position.x + x) * 0.15f, (_position.z + z) * 0.15f) * 16);
-
-				for (int i = 0; i < y; i++)
+				for (int z = 0; z < VoxelData.ChunkWidth; z++)
 				{
-					blocks[BlockExtensions.GetBlockIndex(new int3(x, i, z))] = Block.Stone;
-				}
-
-				for (int i = y; i < 16; i++)
-				{
-					blocks[BlockExtensions.GetBlockIndex(new int3(x, i, z))] = Block.Air;
+					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = true;
 				}
 			}
 		}
+	}
 
-		var meshData = new ChunkJob.MeshData()
+	private void CreateMeshDataJob()
+	{
+		meshData = new ChunkJob.MeshData()
 		{
-			Vertices = new NativeList<int3>(Allocator.TempJob),
-			Triangles = new NativeList<int>(Allocator.TempJob)
+			MeshVertices = new NativeList<int3>(Allocator.TempJob),
+			MeshTriangles = new NativeList<int>(Allocator.TempJob),
+			MeshUVs = new NativeList<int2>(Allocator.TempJob)
 		};
 
-		var jobHandle = new ChunkJob
+		chunkJobHandle = new ChunkJob
 		{
 			meshData = meshData,
 			chunkData = new ChunkJob.ChunkData
 			{
-				Blocks = blocks
+				VoxelMap = voxelMap
 			},
+
 			blockData = new ChunkJob.BlockData
 			{
-				Vertices = VoxelData.Vertices,
-				Triangles = VoxelData.Triangles
-			}
-		}.Schedule();
+				BlockVertices = VoxelData.VoxelVertices,
+				BlockTriangles = VoxelData.VoxelTriangles,
+				BlockUVs = VoxelData.VoxelUVs,
+				BlockFaceChecks = VoxelData.FaceChecks
+			},
 
-		jobHandle.Complete();
+			ChunkHeight = VoxelData.ChunkHeight,
+			ChunkWidth = VoxelData.ChunkWidth
+
+		}.Schedule();
+	}
+
+	private void CreateMesh()
+	{
+		chunkJobHandle.Complete();
 
 		Mesh mesh = new Mesh();
 		mesh.MarkDynamic();
-		mesh.vertices = meshData.Vertices.ToArray().Select(vertex => new Vector3(vertex.x, vertex.y, vertex.z)).ToArray();
-		mesh.triangles = meshData.Triangles.ToArray();
+
+		mesh.vertices = meshData.MeshVertices.ToArray().Select(vertex => new Vector3(vertex.x, vertex.y, vertex.z)).ToArray();
+		mesh.triangles = meshData.MeshTriangles.ToArray();
+		mesh.uv = meshData.MeshUVs.ToArray().Select(uvs => new Vector2(uvs.x, uvs.y)).ToArray();
+
 		mesh.RecalculateNormals();
 		mesh.RecalculateBounds();
 		mesh.RecalculateTangents();
 		mesh.RecalculateUVDistributionMetrics();
-		mesh.Optimize();
+		//mesh.Optimize();
 
 		meshFilter.mesh = mesh;
 
-		meshData.Triangles.Dispose();
-		meshData.Vertices.Dispose();
-		blocks.Dispose();
+		meshData.MeshTriangles.Dispose();
+		meshData.MeshVertices.Dispose();
+		meshData.MeshUVs.Dispose();
+		voxelMap.Dispose();
 	}
+
 }
