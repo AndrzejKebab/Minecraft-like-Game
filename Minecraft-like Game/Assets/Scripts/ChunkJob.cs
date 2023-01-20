@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
@@ -10,20 +11,21 @@ public struct ChunkJob : IJob
 	{
 		public NativeList<int3> MeshVertices;
 		public NativeList<int> MeshTriangles;
-		public NativeList<int2> MeshUVs;
+		public NativeList<float2> MeshUVs;
 	}
 
 	public struct BlockData
 	{
 		public NativeArray<int3> BlockVertices;
 		public NativeArray<int> BlockTriangles;
-		public NativeArray<int2> BlockUVs;
+		public NativeArray<float2> BlockUVs;
 		public NativeArray<int3> BlockFaceChecks;
 	}
 
 	public struct ChunkData
 	{
-		public NativeArray<bool> VoxelMap;
+		public NativeArray<ushort> VoxelMap;
+		public NativeArray<BlockType> BlockTypes;
 	}
 
 	[WriteOnly] 
@@ -36,6 +38,10 @@ public struct ChunkJob : IJob
 	private int vertexIndex;
 	public int ChunkWidth;
 	public int ChunkHeight;
+	public int TextureAtlasSize;
+	public float NormalizedTextureAtlas;
+	public int WorldSizeInVoxels;
+	public int3 Position;
 
 	public void Execute()
 	{
@@ -56,11 +62,30 @@ public struct ChunkJob : IJob
 		}
 	}
 
+	private bool IsVoxelInChunk(int3 pos)
+	{
+		if (pos.x < 0 || pos.x > ChunkWidth - 1 ||
+		    pos.y < 0 || pos.y > ChunkHeight - 1 ||
+		    pos.z < 0 || pos.z > ChunkWidth - 1)
+		{
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+	}
+
 	private bool CheckVoxel(int3 pos)
 	{
-		if (pos.x < 0 || pos.x > ChunkWidth - 1 || pos.y < 0 || pos.y > ChunkHeight - 1 || pos.z < 0 || pos.z > ChunkWidth - 1) return false;
-
-		return chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)];
+		if (!IsVoxelInChunk(pos))
+		{
+			return chunkData.BlockTypes[GetVoxel(pos + Position)].IsSolid;
+		}
+		else
+		{
+			return chunkData.BlockTypes[chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)]].IsSolid;
+		}
 	}
 
 	private void AddVoxelDataToChunk(int3 pos)
@@ -69,16 +94,14 @@ public struct ChunkJob : IJob
 		{
 			if (!CheckVoxel(pos + blockData.BlockFaceChecks[p]))
 			{
+				var blockID = chunkData.BlockTypes[chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)]].BlockID;
 				var _vertices = GetFaceVertices(p, pos);
 
 				meshData.MeshVertices.AddRange(_vertices);
 
 				_vertices.Dispose();
 
-				meshData.MeshUVs.Add(blockData.BlockUVs[0]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[1]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[2]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[3]);
+				AddTexture(chunkData.BlockTypes[blockID].GetTexture2D(p));
 
 				meshData.MeshTriangles.Add(vertexIndex);
 				meshData.MeshTriangles.Add(vertexIndex + 1);
@@ -104,4 +127,52 @@ public struct ChunkJob : IJob
 
 		return _faceVertices;
 	}
+
+	private void AddTexture(int textureID)
+	{
+		float y = textureID / TextureAtlasSize;
+		float x = textureID - (y * TextureAtlasSize);
+
+		x *= NormalizedTextureAtlas;
+		y *= NormalizedTextureAtlas;
+
+		y = 1f - y - NormalizedTextureAtlas;
+
+		meshData.MeshUVs.Add(new float2(x, y));
+		meshData.MeshUVs.Add(new float2(x, y + NormalizedTextureAtlas));
+		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y));
+		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas));
+	}
+
+	public ushort GetVoxel(int3 pos)
+	{
+		if (!IsVoxelInWorld(pos))
+			return 0;
+		if (pos.y < 1)
+		{
+			return 1;
+		}
+		else if (pos.y == ChunkHeight - 1)
+		{
+			return 3;
+		}
+		else
+		{
+			return 2;
+		}
+	}
+	private bool IsVoxelInWorld(int3 pos)
+	{
+		if (pos.x >= 0 && pos.x < WorldSizeInVoxels &&
+		    pos.y >= 0 && pos.y < ChunkHeight &&
+		    pos.z >= 0 && pos.z < WorldSizeInVoxels)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
 }
