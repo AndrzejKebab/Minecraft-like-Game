@@ -4,11 +4,11 @@ using Unity.Mathematics;
 public static class VoxelData
 {
 	public static readonly short ChunkWidth = 16;
-	public static readonly short ChunkHeight = 247;
+	public static readonly short ChunkHeight = 512;
 
 	public static readonly int WorldSizeInChunks = 100;
 
-	public static readonly byte ViewDistanceInChunks = 5; 
+	public static readonly byte ViewDistanceInChunks = 16; 
 
 	public static int WorldSizeInVoxels
 	{

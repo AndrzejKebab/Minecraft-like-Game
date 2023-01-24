@@ -10,16 +10,16 @@ public class CharacterMovement : MonoBehaviour
 	private Vector3 velocity;
 	private float rotateHorizontal;
 	private float rotateVertical;
-	private float fallMultiplier = 3.5f;
+	private float fallMultiplier = 1.5f;
 	public bool IsPlayer;
 	public bool IsSprinting;
-	private Rigidbody rigidbody;
+	private Rigidbody rb;
 	private Transform cam;
 	[SerializeField] private bool isGrounded;
 
 	private void Awake()
 	{
-		rigidbody = GetComponent<Rigidbody>();
+		rb = GetComponent<Rigidbody>();
 		if (IsPlayer)
 		{
 			cam = GameObject.Find("Main Camera").transform;
@@ -35,7 +35,7 @@ public class CharacterMovement : MonoBehaviour
 			cam.Rotate(Vector3.right * -rotateVertical);
 		}
 
-		isGrounded = Physics.Raycast(transform.position, Vector3.down, 0.2f, groundMask);
+		isGrounded = Physics.Raycast(transform.position, Vector3.down, 0.3f, groundMask);
 	}
 
 	public void SetVelocity(Vector3 velocityVector)
@@ -58,7 +58,8 @@ public class CharacterMovement : MonoBehaviour
 	{
 		if(isGrounded)
 		{
-			rigidbody.AddForce(transform.up * jumpForce, ForceMode.Impulse);
+			rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+			//velocity += transform.up * jumpForce;
 			isGrounded = false;
 		}
 	}
@@ -67,16 +68,16 @@ public class CharacterMovement : MonoBehaviour
 	{
 		if(IsSprinting)
 		{
-			rigidbody.velocity = velocity * sprintSpeed;
+			rb.velocity = velocity * sprintSpeed;
 		}
 		else
 		{
-			rigidbody.velocity = velocity * moveSpeed;
+			rb.velocity = velocity * moveSpeed;
 		}
-
-		if (rigidbody.velocity.y > 0)
+		
+		if (rb.velocity.y < 0)
 		{
-			rigidbody.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1);
+			rb.velocity += transform.up * Physics.gravity.y * fallMultiplier;
 		}
 	}
 }

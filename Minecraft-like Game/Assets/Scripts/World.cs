@@ -1,11 +1,15 @@
 ﻿using System.Collections.Generic;
 using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class World : MonoBehaviour
 {
 	[SerializeField] private Transform playerTransform;
 	[SerializeField] private Vector3 playerSpawnPosition;
+	[SerializeField] private int seed;
+	[field:SerializeField] public BiomeAttributes biomeAttributes { get; private set; }
 	[field:SerializeField] public Material Material { get; private set; }
 	[SerializeField] public BlockType[] blockTypes;
 
@@ -41,9 +45,10 @@ public class World : MonoBehaviour
 
 	private void Start()
 	{
+		Random.InitState(seed);
 		playerSpawnPosition = new Vector3((VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2,
-										VoxelData.ChunkHeight,
-										(VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2);
+											VoxelData.ChunkHeight,
+											(VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2);
 		
 		GenerateWorld();
 
@@ -85,6 +90,7 @@ public class World : MonoBehaviour
 	{
 		ChunkCoord _coord = GetChunkCoordFromVector3(playerTransform.position);
 		List<ChunkCoord> _previuslyActiveChunks = new List<ChunkCoord>(activeChunks);
+		activeChunks.Clear();
 
 		playerLastChunkCoord = playerChunkCoord;
 
@@ -101,11 +107,11 @@ public class World : MonoBehaviour
 					else if (!chunks[x, z].IsActive)
 					{
 						chunks[x, z].IsActive = true;
-						activeChunks.Add(new ChunkCoord(x, z));
 					}
+					activeChunks.Add(new ChunkCoord(x, z));
 				}
 
-				for (int i = 0; i < _previuslyActiveChunks.Count; i++)
+				for (int i = _previuslyActiveChunks.Count - 1; i > -1; i--)
 				{
 					if (_previuslyActiveChunks[i].Equals(new ChunkCoord(x, z)))
 					{
@@ -119,36 +125,18 @@ public class World : MonoBehaviour
 		{
 			chunks[c.X, c.Z].IsActive = false;
 		}
-	}
-
-	public ushort GetVoxel(Vector3 pos)
-	{
-		if (!IsVoxelInWorld(pos))
-			return 0;
-		if (pos.y < 1)
-		{
-			return  blockTypes[1].BlockID;
-		}
-		else if (pos.y == VoxelData.ChunkHeight - 1)
-		{
-			return blockTypes[3].BlockID;
-		}
-		else
-		{
-			return blockTypes[2].BlockID;
-		}
+		_previuslyActiveChunks.Clear();
 	}
 
 	private void CreateNewChunk(int x, int z)
 	{
 		chunks[x, z] = new Chunk(new ChunkCoord(x, z), this);
-		activeChunks.Add(new ChunkCoord(x, z));
 	}
 
 	private bool IsChunkInWorld(ChunkCoord coord)
 	{
-		if (coord.X > 0 && coord.X < VoxelData.WorldSizeInChunks &&
-		    coord.Z > 0 && coord.Z < VoxelData.WorldSizeInChunks)
+		if (coord.X >= 0 && coord.X < VoxelData.WorldSizeInChunks &&
+		    coord.Z >= 0 && coord.Z < VoxelData.WorldSizeInChunks)
 		{
 			return true;
 		}
@@ -157,12 +145,63 @@ public class World : MonoBehaviour
 			return false;
 		}
 	}
+}
 
-	private bool IsVoxelInWorld(Vector3 pos)
+public static class WorldExtensions
+{
+	public static ushort GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, int3 biomeAttributes)
 	{
-		if (pos.x >= 0 && pos.x < VoxelData.WorldSizeInVoxels &&
-		    pos.y >= 0 && pos.y < VoxelData.ChunkHeight &&
-		    pos.z >= 0 && pos.z < VoxelData.WorldSizeInVoxels)
+		int _yPos = Mathf.FloorToInt(pos.y);
+		float _terrainHeight = NoiseGenerator.Get2DPerlin(new float2(pos.x, pos.z), 0, biomeAttributes.z);
+		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.x) + biomeAttributes.y;
+
+		ushort _voxelValue = 2;
+
+		if (!IsVoxelInWorld(pos, ChunkHeight, WorldSizeInVoxels))
+		{
+			return 0; // if not in world return air
+		}
+		if (pos.y == 0)
+		{
+			return 1; // if bottom of chunk return bedrock
+		}
+
+		if (_yPos > _terrainHeight)
+		{
+			if (_yPos <= 192)
+			{
+				_voxelValue = 5; // if above ground and below 64 return cobblestone(in future water)
+			}
+			else
+			{
+				_voxelValue = 0; // if above ground return air
+			}
+		}
+		else if(_yPos == _terrainHeight)
+		{
+			_voxelValue = 3; // if on ground height return grassblock
+		}
+		else if(_yPos < _terrainHeight && _yPos > _terrainHeight - 6)
+		{
+			_voxelValue = 4; // if below ground and above ground - 6 return dirt
+		}
+		//else if(_yPos <= 64)
+		//{
+		//	_voxelValue = 5; // if below 64 and voxel is air return cobblestone(in future water)
+		//}
+		//else
+		//{
+		//	_voxelValue = 2; // return stone
+		//}
+
+		return _voxelValue;
+	}
+
+	public static bool IsVoxelInWorld(float3 pos, int ChunkHeight, int WorldSizeInVoxels)
+	{
+		if (pos.x >= 0 && pos.x < WorldSizeInVoxels &&
+		    pos.y >= 0 && pos.y < ChunkHeight &&
+		    pos.z >= 0 && pos.z < WorldSizeInVoxels)
 		{
 			return true;
 		}

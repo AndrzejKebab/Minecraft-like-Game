@@ -3,7 +3,6 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using static UnityEditor.PlayerSettings;
 
 public class Chunk
 {
@@ -21,11 +20,19 @@ public class Chunk
 
 	private World world;
 
+	private bool isActive;
+
 	public Chunk(ChunkCoord _coord, World _world)
 	{
 		world = _world;
 		coord = _coord;
+		isActive = true;
 
+		Initialise();
+	}
+
+	private void Initialise()
+	{
 		chunkObject = new GameObject();
 
 		meshFilter = chunkObject.AddComponent<MeshFilter>();
@@ -52,7 +59,7 @@ public class Chunk
 			{
 				for (int z = 0; z < VoxelData.ChunkWidth; z++)
 				{
-					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = world.GetVoxel(new Vector3(x, y, z) + position);
+					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = WorldExtensions.GetVoxel(new Vector3(x, y, z) + position, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, new int3(world.biomeAttributes.SolidGroundHeight, world.biomeAttributes.BiomeHeight, world.biomeAttributes.BiomeScale));
 				}
 			}
 		}
@@ -62,11 +69,15 @@ public class Chunk
 	{
 		get
 		{
-			return chunkObject.activeSelf;
+			return isActive;
 		}
 		set
 		{
-			chunkObject.SetActive(value);
+			isActive = value;
+			if (chunkObject != null)
+			{
+				chunkObject.SetActive(value);
+			}
 		}
 	}
 
@@ -93,7 +104,10 @@ public class Chunk
 			chunkData = new ChunkJob.ChunkData
 			{
 				VoxelMap = voxelMap,
-				BlockTypes = world.BlockTypes
+				BlockTypes = world.BlockTypes,
+				SolidBiomeHeight = world.biomeAttributes.SolidGroundHeight,
+				BiomeHeight = world.biomeAttributes.BiomeHeight,
+				BiomeScale = world.biomeAttributes.BiomeScale
 				
 			},
 
@@ -119,6 +133,7 @@ public class Chunk
 		chunkJobHandle.Complete();
 
 		Mesh mesh = new Mesh();
+		mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 		mesh.MarkDynamic();
 
 		mesh.vertices = meshData.MeshVertices.ToArray().Select(vertex => new Vector3(vertex.x, vertex.y, vertex.z)).ToArray();
@@ -139,10 +154,9 @@ public class Chunk
 		meshData.MeshUVs.Dispose();
 		voxelMap.Dispose();
 	}
-
 }
 
-public class ChunkCoord
+public struct ChunkCoord
 {
 	public int X;
 	public int Z;
@@ -154,12 +168,8 @@ public class ChunkCoord
 	}
 
 	public bool Equals(ChunkCoord other)
-	{
-		if (other == null)
-		{
-			return false;
-		}
-		else if(other.X == X && other.Z == Z)
+	{ 
+		if(other.X == X && other.Z == Z)
 		{
 			return true;
 		}

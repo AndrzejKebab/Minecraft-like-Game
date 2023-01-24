@@ -26,6 +26,9 @@ public struct ChunkJob : IJob
 	{
 		public NativeArray<ushort> VoxelMap;
 		public NativeArray<BlockType> BlockTypes;
+		public int BiomeHeight;
+		public int SolidBiomeHeight;
+		public int BiomeScale;
 	}
 
 	[WriteOnly] 
@@ -56,7 +59,10 @@ public struct ChunkJob : IJob
 			{
 				for (int z = 0; z < ChunkWidth; z++)
 				{
-					AddVoxelDataToChunk(new int3(x, y, z));
+					if (chunkData.BlockTypes[chunkData.VoxelMap[x + ChunkWidth * (y + ChunkHeight * z)]].IsSolid)
+					{
+						AddVoxelDataToChunk(new int3(x, y, z));
+					}
 				}
 			}
 		}
@@ -80,7 +86,7 @@ public struct ChunkJob : IJob
 	{
 		if (!IsVoxelInChunk(pos))
 		{
-			return chunkData.BlockTypes[GetVoxel(pos + Position)].IsSolid;
+			return chunkData.BlockTypes[WorldExtensions.GetVoxel(pos + Position, ChunkHeight, WorldSizeInVoxels, new int3(chunkData.SolidBiomeHeight, chunkData.BiomeHeight, chunkData.BiomeScale))].IsSolid;
 		}
 		else
 		{
@@ -143,36 +149,4 @@ public struct ChunkJob : IJob
 		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y));
 		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas));
 	}
-
-	public ushort GetVoxel(int3 pos)
-	{
-		if (!IsVoxelInWorld(pos))
-			return 0;
-		if (pos.y < 1)
-		{
-			return 1;
-		}
-		else if (pos.y == ChunkHeight - 1)
-		{
-			return 3;
-		}
-		else
-		{
-			return 2;
-		}
-	}
-	private bool IsVoxelInWorld(int3 pos)
-	{
-		if (pos.x >= 0 && pos.x < WorldSizeInVoxels &&
-		    pos.y >= 0 && pos.y < ChunkHeight &&
-		    pos.z >= 0 && pos.z < WorldSizeInVoxels)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
-
 }

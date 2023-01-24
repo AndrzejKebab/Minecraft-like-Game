@@ -9,17 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 604863bef2f81714b90b56811bb2841f, type: 3}
+  m_Script: {fileID: 11500000, guid: 853bbbca27c3a0a4993b5834e56edde5, type: 3}
   m_Name: Grassland
   m_EditorClassIdentifier: 
-  biomeName: GrassLand
-  solidGroundHeight: 255
-  terrainHeight: 145
-  terrainScale: 0.3
-  treeZoneScale: 1.3
-  treeZoneThreshold: 0.6
-  treePlacementScale: 15
-  treePlacementThreshold: 0.8
-  maxTreeHeight: 15
-  minTreeHeight: 5
-  lodes: []
+  BiomeName: Grassland
+  SolidGroundHeight: 192
+  BiomeHeight: 192
+  BiomeScale: 200
