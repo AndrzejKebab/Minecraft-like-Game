@@ -2,7 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
@@ -24,7 +23,7 @@ public struct ChunkJob : IJob
 
 	public struct ChunkData
 	{
-		public NativeArray<ushort> VoxelMap;
+		public NativeArray<short> VoxelMap;
 		public NativeArray<BlockType> BlockTypes;
 		public int BiomeHeight;
 		public int SolidBiomeHeight;

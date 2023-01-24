@@ -9,9 +9,9 @@ public static class NoiseGenerator
 			float _sampleX = position.x / scale + offset.x;
 			float _sampleY = position.y / scale + offset.y;
 
-			float _value = Mathf.PerlinNoise(_sampleX, _sampleY);
+			float _value = noise.cnoise(new float2(_sampleX, _sampleY));
 
-			//return Mathf.InverseLerp(-1, 1, _value);
-			return _value;
+			return Mathf.InverseLerp(-1, 1, _value);
+			//return _value;
 	}
 }

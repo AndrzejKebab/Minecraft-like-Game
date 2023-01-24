@@ -11,9 +11,9 @@ public class Chunk
 	private MeshFilter meshFilter;
 	private MeshCollider meshCollider;
 
-	public ChunkCoord coord;
+	public int2 coord;
 
-	private NativeArray<ushort> voxelMap = new NativeArray<ushort>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
+	private NativeArray<short> voxelMap = new NativeArray<short>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
 
 	private JobHandle chunkJobHandle;
 	private ChunkJob.MeshData meshData;
@@ -22,7 +22,7 @@ public class Chunk
 
 	private bool isActive;
 
-	public Chunk(ChunkCoord _coord, World _world)
+	public Chunk(int2 _coord, World _world)
 	{
 		world = _world;
 		coord = _coord;
@@ -41,8 +41,8 @@ public class Chunk
 
 		meshRenderer.material = world.Material;
 		chunkObject.transform.SetParent(world.transform);
-		chunkObject.transform.position = new Vector3(coord.X * VoxelData.ChunkWidth, 0, coord.Z * VoxelData.ChunkWidth);
-		chunkObject.name = $"Chunk [{coord.X}, {coord.Z}]";
+		chunkObject.transform.position = new Vector3(coord.x * VoxelData.ChunkWidth, 0, coord.y * VoxelData.ChunkWidth);
+		chunkObject.name = $"Chunk [{coord.x}, {coord.y}]";
 		chunkObject.layer = LayerMask.NameToLayer("Chunk");
 
 		PopulateVoxelMap();
@@ -123,7 +123,7 @@ public class Chunk
 			ChunkWidth = VoxelData.ChunkWidth,
 			TextureAtlasSize = VoxelData.TextureAtlasSizeInBlocks,
 			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
-			Position = math.int3(position),
+			Position = new int3(position),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels
 		}.Schedule();
 	}
@@ -153,29 +153,5 @@ public class Chunk
 		meshData.MeshVertices.Dispose();
 		meshData.MeshUVs.Dispose();
 		voxelMap.Dispose();
-	}
-}
-
-public struct ChunkCoord
-{
-	public int X;
-	public int Z;
-
-	public ChunkCoord(int x, int z)
-	{
-		X = x;
-		Z = z;
-	}
-
-	public bool Equals(ChunkCoord other)
-	{ 
-		if(other.X == X && other.Z == Z)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
 	}
 }

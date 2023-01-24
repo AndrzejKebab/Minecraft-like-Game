@@ -4,9 +4,9 @@ using Unity.Mathematics;
 public static class VoxelData
 {
 	public static readonly short ChunkWidth = 16;
-	public static readonly short ChunkHeight = 512;
+	public static readonly short ChunkHeight = 256;
 
-	public static readonly int WorldSizeInChunks = 100;
+	public static readonly int WorldSizeInChunks = 100000;
 
 	public static readonly byte ViewDistanceInChunks = 16; 
 
@@ -27,7 +27,6 @@ public static class VoxelData
 		}
 	}
 
-	[ReadOnly]
 	public static readonly NativeArray<int3> VoxelVertices = new NativeArray<int3>(8, Allocator.Persistent)
 	{
 		[0] = new int3(0, 0, 0),
@@ -40,7 +39,6 @@ public static class VoxelData
 		[7] = new int3(0, 1, 1)
 	};
 
-	[ReadOnly]
 	public static readonly NativeArray<int> VoxelTriangles = new NativeArray<int>(24, Allocator.Persistent)
 	{
 		[0] = 0,	[1] = 3,	[2] = 1,	[3] = 2,
@@ -51,7 +49,6 @@ public static class VoxelData
 		[20] = 1,	[21] = 2,	[22] = 5,	[23] = 6
 	};
 
-	[ReadOnly] 
 	public static readonly NativeArray<float2> VoxelUVs = new NativeArray<float2>(4, Allocator.Persistent)
 	{
 		[0] = new float2(0, 0),
@@ -60,7 +57,6 @@ public static class VoxelData
 		[3] = new float2(1, 1)
 	};
 
-	[ReadOnly]
 	public static readonly NativeArray<int3> FaceChecks = new NativeArray<int3>(6, Allocator.Persistent)
 	{
 		[0] = new int3(0, 0, -1),

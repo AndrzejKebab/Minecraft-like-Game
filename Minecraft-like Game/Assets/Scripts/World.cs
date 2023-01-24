@@ -18,11 +18,12 @@ public class World : MonoBehaviour
 
 	public NativeArray<BlockType> BlockTypes { get; private set; }
 
-	private Chunk[,] chunks = new Chunk[VoxelData.WorldSizeInChunks, VoxelData.WorldSizeInChunks];
+	//private Chunk[,] chunks = new Chunk[VoxelData.WorldSizeInChunks, VoxelData.WorldSizeInChunks];
+	private Dictionary<int2, Chunk> ChunkStorage = new Dictionary<int2, Chunk>();
 
-	private List<ChunkCoord> activeChunks = new List<ChunkCoord>();
-	private ChunkCoord playerChunkCoord;
-	private ChunkCoord playerLastChunkCoord;
+	private List<int2> activeChunks = new List<int2>();
+	private int2 playerChunkCoord;
+	private int2 playerLastChunkCoord;
 
 	private void Awake()
 	{
@@ -46,9 +47,7 @@ public class World : MonoBehaviour
 	private void Start()
 	{
 		Random.InitState(seed);
-		playerSpawnPosition = new Vector3((VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2,
-											VoxelData.ChunkHeight,
-											(VoxelData.WorldSizeInChunks * VoxelData.ChunkWidth) / 2);
+		playerSpawnPosition = new Vector3(0, VoxelData.ChunkHeight, 0);
 		
 		GenerateWorld();
 
@@ -67,76 +66,71 @@ public class World : MonoBehaviour
 
 	private void GenerateWorld()
 	{
-		for (int x = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; x < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; x++)
+		for (int x = -VoxelData.ViewDistanceInChunks + 1; x < VoxelData.ViewDistanceInChunks; x++)
 		{
-			for (int z = (VoxelData.WorldSizeInChunks / 2) - VoxelData.ViewDistanceInChunks; z < (VoxelData.WorldSizeInChunks / 2) + VoxelData.ViewDistanceInChunks; z++)
+			for (int z =  -VoxelData.ViewDistanceInChunks + 1; z < VoxelData.ViewDistanceInChunks; z++)
 			{
 				CreateNewChunk(x, z);
+				activeChunks.Add(new int2(x, z));
 			}
 		}
 
 		playerTransform.position = playerSpawnPosition;
 	}
 
-	private ChunkCoord GetChunkCoordFromVector3(Vector3 pos)
+	private int2 GetChunkCoordFromVector3(Vector3 pos)
 	{
 		int x = Mathf.FloorToInt(pos.x / VoxelData.ChunkWidth);
 		int z = Mathf.FloorToInt(pos.z / VoxelData.ChunkWidth);
 
-		return new ChunkCoord(x, z);
+		return new int2(x, z);
 	}
 
 	private void CheckViewDistance()
 	{
-		ChunkCoord _coord = GetChunkCoordFromVector3(playerTransform.position);
-		List<ChunkCoord> _previuslyActiveChunks = new List<ChunkCoord>(activeChunks);
+		int2 _coord = GetChunkCoordFromVector3(playerTransform.position);
+		List<int2> _previuslyActiveChunks = new List<int2>(activeChunks);
 		activeChunks.Clear();
 
 		playerLastChunkCoord = playerChunkCoord;
 
-		for (int x = _coord.X - VoxelData.ViewDistanceInChunks; x < _coord.X + VoxelData.ViewDistanceInChunks; x++)
+		for (int x = _coord.x - VoxelData.ViewDistanceInChunks; x < _coord.x + VoxelData.ViewDistanceInChunks; x++)
 		{
-			for (int z = _coord.Z - VoxelData.ViewDistanceInChunks; z < _coord.Z + VoxelData.ViewDistanceInChunks; z++)
+			for (int z = _coord.y - VoxelData.ViewDistanceInChunks; z < _coord.y + VoxelData.ViewDistanceInChunks; z++)
 			{
-				if (IsChunkInWorld(new ChunkCoord(x, z)))
+				if (IsChunkInWorld(new int2(x, z)))
 				{
-					if (chunks[x, z] == null)
+					if (!ChunkStorage.ContainsKey(new int2(x, z)))
 					{
+						//ChunkStorage.Add(new int2(x, z), new Chunk(new ChunkCoord(x, z), this));
 						CreateNewChunk(x,z);
 					}
-					else if (!chunks[x, z].IsActive)
+					else if (!ChunkStorage[new int2(x, z)].IsActive)
 					{
-						chunks[x, z].IsActive = true;
+						ChunkStorage[new int2(x, z)].IsActive = true;
 					}
-					activeChunks.Add(new ChunkCoord(x, z));
-				}
-
-				for (int i = _previuslyActiveChunks.Count - 1; i > -1; i--)
-				{
-					if (_previuslyActiveChunks[i].Equals(new ChunkCoord(x, z)))
-					{
-						_previuslyActiveChunks.RemoveAt(i);
-					}
+					activeChunks.Add(new int2(x, z));
+					_previuslyActiveChunks.Remove(new int2(x, z));
 				}
 			}
 		}
 
 		foreach (var c in _previuslyActiveChunks)
 		{
-			chunks[c.X, c.Z].IsActive = false;
+			ChunkStorage[new int2(c.x, c.y)].IsActive = false;
 		}
 		_previuslyActiveChunks.Clear();
 	}
 
 	private void CreateNewChunk(int x, int z)
 	{
-		chunks[x, z] = new Chunk(new ChunkCoord(x, z), this);
+		ChunkStorage[new int2(x, z)] = new Chunk(new int2(x, z), this);
 	}
 
-	private bool IsChunkInWorld(ChunkCoord coord)
+	private bool IsChunkInWorld(int2 coord)
 	{
-		if (coord.X >= 0 && coord.X < VoxelData.WorldSizeInChunks &&
-		    coord.Z >= 0 && coord.Z < VoxelData.WorldSizeInChunks)
+		if (coord.x >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.x < (VoxelData.WorldSizeInChunks * 0.5f) &&
+		    coord.y >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.y < (VoxelData.WorldSizeInChunks * 0.5f))
 		{
 			return true;
 		}
@@ -149,13 +143,13 @@ public class World : MonoBehaviour
 
 public static class WorldExtensions
 {
-	public static ushort GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, int3 biomeAttributes)
+	public static short GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, int3 biomeAttributes)
 	{
 		int _yPos = Mathf.FloorToInt(pos.y);
 		float _terrainHeight = NoiseGenerator.Get2DPerlin(new float2(pos.x, pos.z), 0, biomeAttributes.z);
 		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.x) + biomeAttributes.y;
 
-		ushort _voxelValue = 2;
+		short _voxelValue = 2;
 
 		if (!IsVoxelInWorld(pos, ChunkHeight, WorldSizeInVoxels))
 		{
@@ -168,7 +162,7 @@ public static class WorldExtensions
 
 		if (_yPos > _terrainHeight)
 		{
-			if (_yPos <= 192)
+			if (_yPos <= 64)
 			{
 				_voxelValue = 5; // if above ground and below 64 return cobblestone(in future water)
 			}
@@ -185,23 +179,15 @@ public static class WorldExtensions
 		{
 			_voxelValue = 4; // if below ground and above ground - 6 return dirt
 		}
-		//else if(_yPos <= 64)
-		//{
-		//	_voxelValue = 5; // if below 64 and voxel is air return cobblestone(in future water)
-		//}
-		//else
-		//{
-		//	_voxelValue = 2; // return stone
-		//}
 
 		return _voxelValue;
 	}
 
 	public static bool IsVoxelInWorld(float3 pos, int ChunkHeight, int WorldSizeInVoxels)
 	{
-		if (pos.x >= 0 && pos.x < WorldSizeInVoxels &&
+		if (pos.x >= -(WorldSizeInVoxels * 0.5f) && pos.x < (WorldSizeInVoxels * 0.5f) &&
 		    pos.y >= 0 && pos.y < ChunkHeight &&
-		    pos.z >= 0 && pos.z < WorldSizeInVoxels)
+		    pos.z >= -(WorldSizeInVoxels * 0.5f) && pos.z < (WorldSizeInVoxels * 0.5f))
 		{
 			return true;
 		}

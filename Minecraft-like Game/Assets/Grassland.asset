@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Grassland
   m_EditorClassIdentifier: 
   BiomeName: Grassland
-  SolidGroundHeight: 192
+  SolidGroundHeight: 64
   BiomeHeight: 192
   BiomeScale: 200
