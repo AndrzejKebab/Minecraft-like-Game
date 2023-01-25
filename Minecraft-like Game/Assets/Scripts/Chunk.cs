@@ -3,44 +3,31 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using static UnityEditor.PlayerSettings;
 
-public class Chunk
+public class Chunk : MonoBehaviour
 {
-	private GameObject chunkObject;
 	private MeshRenderer meshRenderer;
 	private MeshFilter meshFilter;
-	private MeshCollider meshCollider;
 
-	public ChunkCoord coord;
-
-	private NativeArray<ushort> voxelMap = new NativeArray<ushort>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
+	private NativeArray<bool> voxelMap;
 
 	private JobHandle chunkJobHandle;
 	private ChunkJob.MeshData meshData;
 
-	private World world;
 
-	public Chunk(ChunkCoord _coord, World _world)
+	private void Awake()
 	{
-		world = _world;
-		coord = _coord;
+		meshRenderer = GetComponent<MeshRenderer>();
+		meshFilter = GetComponent<MeshFilter>();
+	}
 
-		chunkObject = new GameObject();
-
-		meshFilter = chunkObject.AddComponent<MeshFilter>();
-		meshRenderer = chunkObject.AddComponent<MeshRenderer>();
-		meshCollider = chunkObject.AddComponent<MeshCollider>();
-
-		meshRenderer.material = world.Material;
-		chunkObject.transform.SetParent(world.transform);
-		chunkObject.transform.position = new Vector3(coord.X * VoxelData.ChunkWidth, 0, coord.Z * VoxelData.ChunkWidth);
-		chunkObject.name = $"Chunk [{coord.X}, {coord.Z}]";
-		chunkObject.layer = LayerMask.NameToLayer("Chunk");
+	private void Start()
+	{
+		voxelMap = new NativeArray<bool>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
 
 		PopulateVoxelMap();
 		CreateMeshDataJob();
-
+		
 		CreateMesh();
 	}
 
@@ -52,29 +39,9 @@ public class Chunk
 			{
 				for (int z = 0; z < VoxelData.ChunkWidth; z++)
 				{
-					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = world.GetVoxel(new Vector3(x, y, z) + position);
+					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = true;
 				}
 			}
-		}
-	}
-
-	public bool IsActive
-	{
-		get
-		{
-			return chunkObject.activeSelf;
-		}
-		set
-		{
-			chunkObject.SetActive(value);
-		}
-	}
-
-	public Vector3 position
-	{
-		get
-		{
-			return chunkObject.transform.position;
 		}
 	}
 
@@ -84,7 +51,7 @@ public class Chunk
 		{
 			MeshVertices = new NativeList<int3>(Allocator.TempJob),
 			MeshTriangles = new NativeList<int>(Allocator.TempJob),
-			MeshUVs = new NativeList<float2>(Allocator.TempJob)
+			MeshUVs = new NativeList<int2>(Allocator.TempJob)
 		};
 
 		chunkJobHandle = new ChunkJob
@@ -92,9 +59,7 @@ public class Chunk
 			meshData = meshData,
 			chunkData = new ChunkJob.ChunkData
 			{
-				VoxelMap = voxelMap,
-				BlockTypes = world.BlockTypes
-				
+				VoxelMap = voxelMap
 			},
 
 			blockData = new ChunkJob.BlockData
@@ -106,11 +71,8 @@ public class Chunk
 			},
 
 			ChunkHeight = VoxelData.ChunkHeight,
-			ChunkWidth = VoxelData.ChunkWidth,
-			TextureAtlasSize = VoxelData.TextureAtlasSizeInBlocks,
-			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
-			Position = math.int3(position),
-			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels
+			ChunkWidth = VoxelData.ChunkWidth
+
 		}.Schedule();
 	}
 
@@ -129,10 +91,9 @@ public class Chunk
 		mesh.RecalculateBounds();
 		mesh.RecalculateTangents();
 		mesh.RecalculateUVDistributionMetrics();
-		mesh.Optimize();
+		//mesh.Optimize();
 
 		meshFilter.mesh = mesh;
-		meshCollider.sharedMesh = meshFilter.sharedMesh;
 
 		meshData.MeshTriangles.Dispose();
 		meshData.MeshVertices.Dispose();
@@ -140,32 +101,4 @@ public class Chunk
 		voxelMap.Dispose();
 	}
 
-}
-
-public class ChunkCoord
-{
-	public int X;
-	public int Z;
-
-	public ChunkCoord(int x, int z)
-	{
-		X = x;
-		Z = z;
-	}
-
-	public bool Equals(ChunkCoord other)
-	{
-		if (other == null)
-		{
-			return false;
-		}
-		else if(other.X == X && other.Z == Z)
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
-	}
 }

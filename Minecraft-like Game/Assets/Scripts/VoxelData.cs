@@ -3,29 +3,8 @@ using Unity.Mathematics;
 
 public static class VoxelData
 {
-	public static readonly short ChunkWidth = 16;
-	public static readonly short ChunkHeight = 247;
-
-	public static readonly int WorldSizeInChunks = 100;
-
-	public static readonly byte ViewDistanceInChunks = 5; 
-
-	public static int WorldSizeInVoxels
-	{
-		get
-		{
-			return WorldSizeInChunks * ChunkWidth;
-		}
-	}
-
-	public static readonly short TextureAtlasSizeInBlocks = 16;
-	public static float NormalizedBlockTextureSize
-	{
-		get
-		{
-			return 1f / (float)TextureAtlasSizeInBlocks;
-		}
-	}
+	public static readonly int ChunkWidth = 16;
+	public static readonly int ChunkHeight = 247;
 
 	[ReadOnly]
 	public static readonly NativeArray<int3> VoxelVertices = new NativeArray<int3>(8, Allocator.Persistent)
@@ -52,12 +31,12 @@ public static class VoxelData
 	};
 
 	[ReadOnly] 
-	public static readonly NativeArray<float2> VoxelUVs = new NativeArray<float2>(4, Allocator.Persistent)
+	public static readonly NativeArray<int2> VoxelUVs = new NativeArray<int2>(4, Allocator.Persistent)
 	{
-		[0] = new float2(0, 0),
-		[1] = new float2(0, 1),
-		[2] = new float2(1, 0),
-		[3] = new float2(1, 1)
+		[0] = new int2(0, 0),
+		[1] = new int2(0, 1),
+		[2] = new int2(1, 0),
+		[3] = new int2(1, 1)
 	};
 
 	[ReadOnly]
