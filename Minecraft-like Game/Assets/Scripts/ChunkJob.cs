@@ -8,98 +8,90 @@ public struct ChunkJob : IJob
 {
 	public struct MeshData
 	{
-		public NativeList<int3> MeshVertices;
-		public NativeList<int> MeshTriangles;
-		public NativeList<int2> MeshUVs;
+		public NativeList<int3> Vertices;
+		public NativeList<int> Triangles;
 	}
 
 	public struct BlockData
 	{
-		public NativeArray<int3> BlockVertices;
-		public NativeArray<int> BlockTriangles;
-		public NativeArray<int2> BlockUVs;
-		public NativeArray<int3> BlockFaceChecks;
+		public NativeArray<int3> Vertices;
+		public NativeArray<int> Triangles;
 	}
 
 	public struct ChunkData
 	{
-		public NativeArray<bool> VoxelMap;
+		public NativeArray<Block> Blocks;
 	}
 
-	[WriteOnly] 
+	[WriteOnly]
 	public MeshData meshData;
-	[ReadOnly] 
+	[ReadOnly]
 	public ChunkData chunkData;
-	[ReadOnly] 
-	public BlockData blockData;
+	[ReadOnly]
+	public  BlockData blockData;
 
-	private int vertexIndex;
-	public int ChunkWidth;
-	public int ChunkHeight;
-
+	private int vertexCount;
+	
 	public void Execute()
 	{
-		CreateMeshData();
-	}
-	
-	private void CreateMeshData()
-	{
-		for (int y = 0; y < ChunkHeight; y++)
+		vertexCount = 0;
+		for (int x = 0; x < 16; x++)
 		{
-			for (int x = 0; x < ChunkWidth; x++)
+			for (int z = 0; z < 16; z++)
 			{
-				for (int z = 0; z < ChunkWidth; z++)
+				for (int y = 0; y < 16; y++)
 				{
-					AddVoxelDataToChunk(new int3(x, y, z));
+					if (chunkData.Blocks[BlockExtensions.GetBlockIndex(new int3(x, y, z))].IsEmpty()) continue;
+
+					for (int i = 0; i < 6; i++)
+					{
+						var _direction = (Direction)i;
+
+						if (Check(BlockExtensions.GetPositionInDirection(_direction, x, y, z)))
+						{
+							CreateFace(_direction, new int3(x, y, z));
+						}
+					}
 				}
 			}
 		}
 	}
 
-	private bool CheckVoxel(int3 pos)
+	private void CreateFace(Direction direction, int3 pos)
 	{
-		if (pos.x < 0 || pos.x > ChunkWidth - 1 || pos.y < 0 || pos.y > ChunkHeight - 1 || pos.z < 0 || pos.z > ChunkWidth - 1) return false;
+		var _vertices = GetFaceVertices(direction, 1, pos);
 
-		return chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)];
+		meshData.Vertices.AddRange(_vertices);
+
+		_vertices.Dispose();
+
+		meshData.Triangles.Add(vertexCount);
+		meshData.Triangles.Add(vertexCount + 1);
+		meshData.Triangles.Add(vertexCount + 2);
+		meshData.Triangles.Add(vertexCount);
+		meshData.Triangles.Add(vertexCount + 2);
+		meshData.Triangles.Add(vertexCount + 3);
+
+		vertexCount += 4;
 	}
 
-	private void AddVoxelDataToChunk(int3 pos)
+	private bool Check(int3 position)
 	{
-		for (int p = 0; p < 6; p++)
-		{
-			if (!CheckVoxel(pos + blockData.BlockFaceChecks[p]))
-			{
-				var _vertices = GetFaceVertices(p, pos);
+		if(position.x >= 16 || position.z >= 16 || position.x < 0 || position.z < 0 || position.y < 0) return true;
 
-				meshData.MeshVertices.AddRange(_vertices);
+		if(position.y >= 16) return false;
 
-				_vertices.Dispose();
-
-				meshData.MeshUVs.Add(blockData.BlockUVs[0]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[1]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[2]);
-				meshData.MeshUVs.Add(blockData.BlockUVs[3]);
-
-				meshData.MeshTriangles.Add(vertexIndex);
-				meshData.MeshTriangles.Add(vertexIndex + 1);
-				meshData.MeshTriangles.Add(vertexIndex + 2);
-				meshData.MeshTriangles.Add(vertexIndex + 2);
-				meshData.MeshTriangles.Add(vertexIndex + 1);
-				meshData.MeshTriangles.Add(vertexIndex + 3);
-
-				vertexIndex += 4;
-			}
-		}
+		return chunkData.Blocks[BlockExtensions.GetBlockIndex(position)].IsEmpty();
 	}
 
-	private NativeArray<int3> GetFaceVertices(int faceIndex, int3 pos)
+	public NativeArray<int3> GetFaceVertices(Direction direction, int scale, int3 position)
 	{
 		var _faceVertices = new NativeArray<int3>(4, Allocator.Temp);
 
 		for (int i = 0; i < 4; i++)
 		{
-			var _index = blockData.BlockTriangles[faceIndex * 4 + i];
-			_faceVertices[i] = blockData.BlockVertices[_index] + pos;
+			var _index = blockData.Triangles[(int)direction * 4 + i];
+			_faceVertices[i] = blockData.Vertices[_index] * scale + position;
 		}
 
 		return _faceVertices;
