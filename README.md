@@ -8,3 +8,6 @@
 
 ## System Threading branch:
 - This branch include game version with multithreading done with System.Threading
+
+## System DOTS branch:
+- This branch include game version made with Unity DOTS 
