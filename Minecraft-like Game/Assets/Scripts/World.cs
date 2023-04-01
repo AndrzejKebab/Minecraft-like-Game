@@ -13,12 +13,10 @@ public class World : MonoBehaviour
 	[field:SerializeField] public Material Material { get; private set; }
 	[SerializeField] public BlockType[] blockTypes;
 
-	private Dictionary<ushort, string> blocks = new Dictionary<ushort, string>();
 	[SerializeField] private string[] blocksName;
 
 	public NativeArray<BlockType> BlockTypes { get; private set; }
 
-	//private Chunk[,] chunks = new Chunk[VoxelData.WorldSizeInChunks, VoxelData.WorldSizeInChunks];
 	private Dictionary<int2, Chunk> ChunkStorage = new Dictionary<int2, Chunk>();
 
 	private List<int2> activeChunks = new List<int2>();
@@ -28,20 +26,6 @@ public class World : MonoBehaviour
 	private void Awake()
 	{
 		BlockTypes = new NativeArray<BlockType>(blockTypes, Allocator.Persistent);
-
-		short i = 0;
-		foreach (var _blockType in blockTypes)
-		{
-			blocks.Add(_blockType.BlockID, blocksName[i]);
-			i++;
-		}
-
-		string _text = "";
-		foreach (var block in blocks)
-		{
-			_text += block.Key + ": " + block.Value + "\n";
-		}
-		Debug.Log(_text);
 	}
 
 	private void Start()
@@ -61,7 +45,6 @@ public class World : MonoBehaviour
 		{
 			CheckViewDistance();
 		}
-			
 	}
 
 	private void GenerateWorld()
@@ -102,7 +85,6 @@ public class World : MonoBehaviour
 				{
 					if (!ChunkStorage.ContainsKey(new int2(x, z)))
 					{
-						//ChunkStorage.Add(new int2(x, z), new Chunk(new ChunkCoord(x, z), this));
 						CreateNewChunk(x,z);
 					}
 					else if (!ChunkStorage[new int2(x, z)].IsActive)
@@ -146,7 +128,7 @@ public static class WorldExtensions
 	public static short GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, int3 biomeAttributes)
 	{
 		int _yPos = Mathf.FloorToInt(pos.y);
-		float _terrainHeight = NoiseGenerator.Get2DPerlin(new float2(pos.x, pos.z), 0, biomeAttributes.z);
+		float _terrainHeight = NoiseGenerator.Get2DPerlin(pos.x, pos.z, 0, 0, biomeAttributes.z);
 		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.x) + biomeAttributes.y;
 
 		short _voxelValue = 2;

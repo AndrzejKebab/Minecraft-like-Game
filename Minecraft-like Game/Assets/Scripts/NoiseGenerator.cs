@@ -1,17 +1,20 @@
-using Unity.Collections;
+using Unity.Burst;
 using Unity.Mathematics;
-using UnityEngine;
 
+[BurstCompile(CompileSynchronously = true)]
 public static class NoiseGenerator
 {
-	public static float Get2DPerlin(float2 position, float2 offset, float scale)
+	[BurstCompile]
+	public static float Get2DPerlin(float positionX, float positionY, float offsetX, float offsetY, float scale)
 	{
-			float _sampleX = position.x / scale + offset.x;
-			float _sampleY = position.y / scale + offset.y;
+		float _sampleX = positionX / scale + offsetX;
+		float _sampleY = positionY / scale + offsetY;
 
-			float _value = noise.cnoise(new float2(_sampleX, _sampleY));
+		float2 _sampleXY = new float2(_sampleX, _sampleY);
 
-			return Mathf.InverseLerp(-1, 1, _value);
-			//return _value;
+			float _value = noise.cnoise(_sampleXY);
+
+		//return math.unlerp(-1, 1, _value);
+		return _value;
 	}
 }
