@@ -14,7 +14,7 @@ public static class NoiseGenerator
 
 			float _value = noise.cnoise(_sampleXY);
 
-		//return math.unlerp(-1, 1, _value);
-		return _value;
+		return math.unlerp(-1, 1, _value);
+		//return _value;
 	}
 }

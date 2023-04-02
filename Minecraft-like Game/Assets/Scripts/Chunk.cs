@@ -59,7 +59,7 @@ public class Chunk
 			{
 				for (int z = 0; z < VoxelData.ChunkWidth; z++)
 				{
-					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = WorldExtensions.GetVoxel(new Vector3(x, y, z) + position, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, new int3(world.biomeAttributes.SolidGroundHeight, world.biomeAttributes.BiomeHeight, world.biomeAttributes.BiomeScale));
+					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = WorldExtensions.GetVoxel(new Vector3(x, y, z) + position, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, world.BiomeAttributeData);
 				}
 			}
 		}
@@ -105,9 +105,7 @@ public class Chunk
 			{
 				VoxelMap = voxelMap,
 				BlockTypes = world.BlockTypes,
-				SolidBiomeHeight = world.biomeAttributes.SolidGroundHeight,
-				BiomeHeight = world.biomeAttributes.BiomeHeight,
-				BiomeScale = world.biomeAttributes.BiomeScale
+				BiomeData = world.BiomeAttributeData
 				
 			},
 

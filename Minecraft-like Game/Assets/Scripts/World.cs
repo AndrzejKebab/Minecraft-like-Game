@@ -9,11 +9,12 @@ public class World : MonoBehaviour
 	[SerializeField] private Transform playerTransform;
 	[SerializeField] private Vector3 playerSpawnPosition;
 	[SerializeField] private int seed;
-	[field:SerializeField] public BiomeAttributes biomeAttributes { get; private set; }
+	[SerializeField] public BiomeAttributes biomeAttributes;
+
+	public BiomeAttributeData BiomeAttributeData { get; private set; }
+
 	[field:SerializeField] public Material Material { get; private set; }
 	[SerializeField] public BlockType[] blockTypes;
-
-	[SerializeField] private string[] blocksName;
 
 	public NativeArray<BlockType> BlockTypes { get; private set; }
 
@@ -26,6 +27,12 @@ public class World : MonoBehaviour
 	private void Awake()
 	{
 		BlockTypes = new NativeArray<BlockType>(blockTypes, Allocator.Persistent);
+		BiomeAttributeData = new BiomeAttributeData
+		{
+			BiomeScale = biomeAttributes.BiomeScale,
+			BiomeHeight = biomeAttributes.BiomeHeight,
+			SolidBiomeHeight = biomeAttributes.SolidGroundHeight
+		};
 	}
 
 	private void Start()
@@ -125,11 +132,11 @@ public class World : MonoBehaviour
 
 public static class WorldExtensions
 {
-	public static short GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, int3 biomeAttributes)
+	public static short GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, BiomeAttributeData biomeAttributes)
 	{
 		int _yPos = Mathf.FloorToInt(pos.y);
-		float _terrainHeight = NoiseGenerator.Get2DPerlin(pos.x, pos.z, 0, 0, biomeAttributes.z);
-		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.x) + biomeAttributes.y;
+		float _terrainHeight = NoiseGenerator.Get2DPerlin(pos.x, pos.z, 0, 0, biomeAttributes.BiomeScale);
+		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidBiomeHeight;
 
 		short _voxelValue = 2;
 
@@ -178,6 +185,13 @@ public static class WorldExtensions
 			return false;
 		}
 	}
+}
+
+public struct BiomeAttributeData
+{
+	public int BiomeScale;
+	public int BiomeHeight;
+	public int SolidBiomeHeight;
 }
 
 [System.Serializable]

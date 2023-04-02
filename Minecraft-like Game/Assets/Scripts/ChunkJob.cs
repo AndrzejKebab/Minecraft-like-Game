@@ -25,9 +25,7 @@ public struct ChunkJob : IJob
 	{
 		public NativeArray<short> VoxelMap;
 		public NativeArray<BlockType> BlockTypes;
-		public int BiomeHeight;
-		public int SolidBiomeHeight;
-		public int BiomeScale;
+		public BiomeAttributeData BiomeData;
 	}
 
 	[WriteOnly] 
@@ -85,7 +83,7 @@ public struct ChunkJob : IJob
 	{
 		if (!IsVoxelInChunk(pos))
 		{
-			return chunkData.BlockTypes[WorldExtensions.GetVoxel(pos + Position, ChunkHeight, WorldSizeInVoxels, new int3(chunkData.SolidBiomeHeight, chunkData.BiomeHeight, chunkData.BiomeScale))].IsSolid;
+			return chunkData.BlockTypes[WorldExtensions.GetVoxel(pos + Position, ChunkHeight, WorldSizeInVoxels, chunkData.BiomeData)].IsSolid;
 		}
 		else
 		{
