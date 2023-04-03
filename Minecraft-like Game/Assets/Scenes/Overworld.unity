@@ -299,8 +299,7 @@ MonoBehaviour:
   playerTransform: {fileID: 2066153008}
   playerSpawnPosition: {x: 0, y: 0, z: 0}
   seed: 0
-  <biomeAttributes>k__BackingField: {fileID: 11400000, guid: 02049af79bea41c4b95708510689f354,
-    type: 2}
+  biomeAttributes: {fileID: 11400000, guid: 02049af79bea41c4b95708510689f354, type: 2}
   <Material>k__BackingField: {fileID: 2100000, guid: 82082689290290d429ef5be65ab79789,
     type: 2}
   blockTypes:
@@ -352,13 +351,6 @@ MonoBehaviour:
     BottomFaceTexture: 8
     LeftFaceTexture: 8
     RightFaceTexture: 8
-  blocksName:
-  - Air
-  - Bedrock
-  - Stone
-  - Grassblock
-  - Dirt
-  - Cobblestone
 --- !u!1 &292925855
 GameObject:
   m_ObjectHideFlags: 0

@@ -16,7 +16,9 @@ public class Chunk
 	private NativeArray<short> voxelMap = new NativeArray<short>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
 
 	private JobHandle chunkJobHandle;
+	private JobHandle populateVoxelMapHandle;
 	private ChunkJob.MeshData meshData;
+	private PopulateVoxelMapJob.VoxelMapData voxelMapData;
 
 	private World world;
 
@@ -53,16 +55,20 @@ public class Chunk
 
 	private void PopulateVoxelMap()
 	{
-		for (int y = 0; y < VoxelData.ChunkHeight; y++)
+		voxelMapData = new PopulateVoxelMapJob.VoxelMapData
 		{
-			for (int x = 0; x < VoxelData.ChunkWidth; x++)
-			{
-				for (int z = 0; z < VoxelData.ChunkWidth; z++)
-				{
-					voxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = WorldExtensions.GetVoxel(new Vector3(x, y, z) + position, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, world.BiomeAttributeData);
-				}
-			}
-		}
+			ChunkWidth = VoxelData.ChunkWidth,
+			ChunkHeight = VoxelData.ChunkHeight,
+			WorldSizeInVoxels = VoxelData.WorldSizeInChunks,
+			BiomeAttributeData = world.BiomeAttributeData
+		};
+
+		populateVoxelMapHandle = new PopulateVoxelMapJob
+		{
+			Position = position,
+			VoxelData = voxelMapData,
+			VoxelMap = voxelMap
+		}.Schedule();
 	}
 
 	public bool IsActive
@@ -123,7 +129,7 @@ public class Chunk
 			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
 			Position = new int3(position),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels
-		}.Schedule();
+		}.Schedule(populateVoxelMapHandle);
 	}
 
 	private void CreateMesh()
