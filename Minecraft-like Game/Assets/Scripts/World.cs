@@ -21,6 +21,7 @@ public class World : MonoBehaviour
 	private Dictionary<int2, Chunk> ChunkStorage = new Dictionary<int2, Chunk>();
 
 	private List<int2> activeChunks = new List<int2>();
+	private List<int2> chunksToCreate = new List<int2>();
 	private int2 playerChunkCoord;
 	private int2 playerLastChunkCoord;
 
@@ -51,6 +52,23 @@ public class World : MonoBehaviour
 		if (!playerChunkCoord.Equals(playerLastChunkCoord))
 		{
 			CheckViewDistance();
+		}
+
+		if(chunksToCreate.Count > 0)
+		{
+			for(int i = 0; i < chunksToCreate.Count; i++)
+			{
+				if (!ChunkStorage[chunksToCreate[i]].IsScheduled)
+				{
+					ChunkStorage[chunksToCreate[i]].Initialise();
+				}
+
+				if (ChunkStorage[chunksToCreate[i]].IsScheduled && ChunkStorage[chunksToCreate[i]].IsCompleted)
+				{
+					ChunkStorage[chunksToCreate[i]].CreateMesh();
+					chunksToCreate.RemoveAt(i);
+				}
+			}
 		}
 	}
 
@@ -114,6 +132,7 @@ public class World : MonoBehaviour
 	private void CreateNewChunk(int x, int z)
 	{
 		ChunkStorage[new int2(x, z)] = new Chunk(new int2(x, z), this);
+		chunksToCreate.Add(new int2(x, z));
 	}
 
 	private bool IsChunkInWorld(int2 coord)

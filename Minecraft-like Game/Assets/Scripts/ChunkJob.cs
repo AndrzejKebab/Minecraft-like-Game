@@ -139,11 +139,13 @@ public struct ChunkJob : IJob
 		x *= NormalizedTextureAtlas;
 		y *= NormalizedTextureAtlas;
 
+		float offset = 0.0005f;
+
 		y = 1f - y - NormalizedTextureAtlas;
 
-		meshData.MeshUVs.Add(new float2(x, y));
-		meshData.MeshUVs.Add(new float2(x, y + NormalizedTextureAtlas));
-		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y));
-		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas));
+		meshData.MeshUVs.Add(new float2(x, y) + new float2(offset, offset));
+		meshData.MeshUVs.Add(new float2(x, y + NormalizedTextureAtlas) + new float2(offset, -offset));
+		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y) + new float2(-offset, offset));
+		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas) - new float2(offset, offset));
 	}
 }

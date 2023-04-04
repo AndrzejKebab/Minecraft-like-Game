@@ -11,7 +11,7 @@ public class Chunk
 	private MeshFilter meshFilter;
 	private MeshCollider meshCollider;
 
-	public int2 coord;
+	public int2 Coord { get; private set; }
 
 	private NativeArray<short> voxelMap = new NativeArray<short>(VoxelData.ChunkWidth * VoxelData.ChunkHeight * VoxelData.ChunkWidth, Allocator.TempJob);
 
@@ -24,17 +24,21 @@ public class Chunk
 
 	private bool isActive;
 
+	private bool isScheduled = false;
+	public bool IsScheduled { get { return isScheduled; } }
+
 	public Chunk(int2 _coord, World _world)
 	{
 		world = _world;
-		coord = _coord;
+		Coord = _coord;
 		isActive = true;
 
-		Initialise();
+		//Initialise();
 	}
 
-	private void Initialise()
+	public void Initialise()
 	{
+		isScheduled = true;
 		chunkObject = new GameObject();
 
 		meshFilter = chunkObject.AddComponent<MeshFilter>();
@@ -43,17 +47,17 @@ public class Chunk
 
 		meshRenderer.material = world.Material;
 		chunkObject.transform.SetParent(world.transform);
-		chunkObject.transform.position = new Vector3(coord.x * VoxelData.ChunkWidth, 0, coord.y * VoxelData.ChunkWidth);
-		chunkObject.name = $"Chunk [{coord.x}, {coord.y}]";
+		chunkObject.transform.position = new Vector3(Coord.x * VoxelData.ChunkWidth, 0, Coord.y * VoxelData.ChunkWidth);
+		chunkObject.name = $"Chunk [{Coord.x}, {Coord.y}]";
 		chunkObject.layer = LayerMask.NameToLayer("Chunk");
 
-		PopulateVoxelMap();
+		PopulateVoxelMapJob();
 		CreateMeshDataJob();
 
-		CreateMesh();
+		//CreateMesh();
 	}
 
-	private void PopulateVoxelMap()
+	private void PopulateVoxelMapJob()
 	{
 		voxelMapData = new PopulateVoxelMapJob.VoxelMapData
 		{
@@ -65,34 +69,10 @@ public class Chunk
 
 		populateVoxelMapHandle = new PopulateVoxelMapJob
 		{
-			Position = position,
+			Position = ChunkPosition,
 			VoxelData = voxelMapData,
 			VoxelMap = voxelMap
 		}.Schedule();
-	}
-
-	public bool IsActive
-	{
-		get
-		{
-			return isActive;
-		}
-		set
-		{
-			isActive = value;
-			if (chunkObject != null)
-			{
-				chunkObject.SetActive(value);
-			}
-		}
-	}
-
-	public Vector3 position
-	{
-		get
-		{
-			return chunkObject.transform.position;
-		}
 	}
 
 	private void CreateMeshDataJob()
@@ -127,12 +107,12 @@ public class Chunk
 			ChunkWidth = VoxelData.ChunkWidth,
 			TextureAtlasSize = VoxelData.TextureAtlasSizeInBlocks,
 			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
-			Position = new int3(position),
+			Position = new int3(ChunkPosition),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels
 		}.Schedule(populateVoxelMapHandle);
 	}
 
-	private void CreateMesh()
+	public void CreateMesh()
 	{
 		chunkJobHandle.Complete();
 
@@ -157,5 +137,37 @@ public class Chunk
 		meshData.MeshVertices.Dispose();
 		meshData.MeshUVs.Dispose();
 		voxelMap.Dispose();
+	}
+
+	public bool IsActive
+	{
+		get
+		{
+			return isActive;
+		}
+		set
+		{
+			isActive = value;
+			if (chunkObject != null)
+			{
+				chunkObject.SetActive(value);
+			}
+		}
+	}
+
+	public bool IsCompleted
+	{
+		get
+		{
+			return chunkJobHandle.IsCompleted;
+		}
+	}
+
+	public Vector3 ChunkPosition
+	{
+		get
+		{
+			return chunkObject.transform.position;
+		}
 	}
 }
