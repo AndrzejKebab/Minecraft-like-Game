@@ -6,15 +6,15 @@ using Random = UnityEngine.Random;
 
 public class World : MonoBehaviour
 {
-	[SerializeField] private Transform playerTransform;
+	[field:SerializeField] public Transform playerTransform { get; private set; }
 	[SerializeField] private Vector3 playerSpawnPosition;
 	[SerializeField] private int seed;
-	[SerializeField] public BiomeAttributes biomeAttributes;
+	[SerializeField] private BiomeAttributes biomeAttributes;
 
 	public BiomeAttributeData BiomeAttributeData { get; private set; }
 
 	[field:SerializeField] public Material Material { get; private set; }
-	[SerializeField] public BlockType[] blockTypes;
+	public BlockType[] blockTypes;
 
 	public NativeArray<BlockType> BlockTypes { get; private set; }
 
@@ -22,8 +22,9 @@ public class World : MonoBehaviour
 
 	private List<int2> activeChunks = new List<int2>();
 	private List<int2> chunksToCreate = new List<int2>();
-	private int2 playerChunkCoord;
+	public int2 playerChunkCoord { get; private set; }
 	private int2 playerLastChunkCoord;
+	private byte lastViewDistance = VoxelData.ViewDistanceInChunks;
 
 	private void Awake()
 	{
@@ -49,9 +50,10 @@ public class World : MonoBehaviour
 	private void Update()
 	{
 		playerChunkCoord = GetChunkCoordFromVector3(playerTransform.position);
-		if (!playerChunkCoord.Equals(playerLastChunkCoord))
+		if (!playerChunkCoord.Equals(playerLastChunkCoord) || VoxelData.ViewDistanceInChunks != lastViewDistance)
 		{
 			CheckViewDistance();
+			lastViewDistance = VoxelData.ViewDistanceInChunks;
 		}
 
 		if(chunksToCreate.Count > 0)
@@ -86,7 +88,7 @@ public class World : MonoBehaviour
 		playerTransform.position = playerSpawnPosition;
 	}
 
-	private int2 GetChunkCoordFromVector3(Vector3 pos)
+	public int2 GetChunkCoordFromVector3(Vector3 pos)
 	{
 		int x = Mathf.FloorToInt(pos.x / VoxelData.ChunkWidth);
 		int z = Mathf.FloorToInt(pos.z / VoxelData.ChunkWidth);

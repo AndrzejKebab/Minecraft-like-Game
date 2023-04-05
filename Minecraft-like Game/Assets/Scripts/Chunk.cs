@@ -32,8 +32,6 @@ public class Chunk
 		world = _world;
 		Coord = _coord;
 		isActive = true;
-
-		//Initialise();
 	}
 
 	public void Initialise()
@@ -53,8 +51,6 @@ public class Chunk
 
 		PopulateVoxelMapJob();
 		CreateMeshDataJob();
-
-		//CreateMesh();
 	}
 
 	private void PopulateVoxelMapJob()
@@ -117,7 +113,7 @@ public class Chunk
 		chunkJobHandle.Complete();
 
 		Mesh mesh = new Mesh();
-		mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+		//mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 		mesh.MarkDynamic();
 
 		mesh.vertices = meshData.MeshVertices.ToArray().Select(vertex => new Vector3(vertex.x, vertex.y, vertex.z)).ToArray();
