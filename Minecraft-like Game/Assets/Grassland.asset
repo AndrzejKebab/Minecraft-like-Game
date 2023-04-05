@@ -15,4 +15,4 @@ MonoBehaviour:
   BiomeName: Grassland
   SolidGroundHeight: 256
   BiomeHeight: 192
-  BiomeScale: 400
+  BiomeScale: 300

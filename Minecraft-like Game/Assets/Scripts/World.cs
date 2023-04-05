@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -151,10 +153,14 @@ public class World : MonoBehaviour
 	}
 }
 
+[BurstCompile]
 public static class WorldExtensions
 {
-	public static short GetVoxel(float3 pos, int ChunkHeight, int WorldSizeInVoxels, BiomeAttributeData biomeAttributes)
+	[BurstCompile]
+	public static short GetVoxel(float posX, float posY, float posZ, int ChunkHeight, int WorldSizeInVoxels, int BiomeScale, int BiomeHeight, int SolidBiomeHeight)
 	{
+		BiomeAttributeData biomeAttributes = new BiomeAttributeData(BiomeScale, BiomeHeight, SolidBiomeHeight);
+		float3 pos = new float3(posX, posY, posZ);
 		int _yPos = Mathf.FloorToInt(pos.y);
 		float _terrainHeight = NoiseGenerator.Get2DPerlin(pos.x, pos.z, 0, 0, biomeAttributes.BiomeScale);
 		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidBiomeHeight;
@@ -206,6 +212,10 @@ public static class WorldExtensions
 			return false;
 		}
 	}
+
+	[BurstCompile]
+	public static int FattenIndex(int posX, int posY, int posZ, int ChunkWidth, int ChunkHeight) => (posZ * ChunkWidth * ChunkHeight) +
+																									(posY * ChunkWidth) + posX;
 }
 
 public struct BiomeAttributeData
@@ -213,6 +223,13 @@ public struct BiomeAttributeData
 	public int BiomeScale;
 	public int BiomeHeight;
 	public int SolidBiomeHeight;
+
+	public BiomeAttributeData(int biomeScale, int biomeHeight, int solidBiomeHeight)
+	{
+		BiomeScale = biomeScale;
+		BiomeHeight = biomeHeight;
+		SolidBiomeHeight = solidBiomeHeight;
+	}
 }
 
 [System.Serializable]

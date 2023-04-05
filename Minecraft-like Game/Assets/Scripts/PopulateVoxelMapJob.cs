@@ -1,6 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 
 [BurstCompile(CompileSynchronously = true)]
@@ -29,7 +30,10 @@ public struct PopulateVoxelMapJob : IJob
 			{
 				for (int z = 0; z < VoxelData.ChunkWidth; z++)
 				{
-					VoxelMap[x + VoxelData.ChunkWidth * (y + VoxelData.ChunkHeight * z)] = WorldExtensions.GetVoxel(new Vector3(x, y, z) + Position, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, VoxelData.BiomeAttributeData);
+					float posX = x + Position.x;
+					float posY = y + Position.y;
+					float posZ = z + Position.z;
+					VoxelMap[WorldExtensions.FattenIndex(x, y, z, VoxelData.ChunkWidth, VoxelData.ChunkHeight)] = WorldExtensions.GetVoxel(posX, posY, posZ, VoxelData.ChunkHeight, VoxelData.WorldSizeInVoxels, VoxelData.BiomeAttributeData.BiomeScale, VoxelData.BiomeAttributeData.BiomeHeight, VoxelData.BiomeAttributeData.SolidBiomeHeight);
 				}
 			}
 		}

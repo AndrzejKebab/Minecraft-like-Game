@@ -2,6 +2,9 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using static Unity.Collections.AllocatorManager;
+using UnityEngine;
+using static UnityEditor.PlayerSettings;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
@@ -36,12 +39,12 @@ public struct ChunkJob : IJob
 	public BlockData blockData;
 
 	private int vertexIndex;
-	public int ChunkWidth;
-	public int ChunkHeight;
-	public int TextureAtlasSize;
-	public float NormalizedTextureAtlas;
-	public int WorldSizeInVoxels;
-	public int3 Position;
+	[ReadOnly] public int ChunkWidth;
+	[ReadOnly] public int ChunkHeight;
+	[ReadOnly] public int TextureAtlasSize;
+	[ReadOnly] public float NormalizedTextureAtlas;
+	[ReadOnly] public int WorldSizeInVoxels;
+	[ReadOnly] public int3 Position;
 
 	public void Execute()
 	{
@@ -56,38 +59,12 @@ public struct ChunkJob : IJob
 			{
 				for (int z = 0; z < ChunkWidth; z++)
 				{
-					if (chunkData.BlockTypes[chunkData.VoxelMap[x + ChunkWidth * (y + ChunkHeight * z)]].IsSolid)
+					if (chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FattenIndex(x, y, z, ChunkWidth, ChunkHeight)]].IsSolid)
 					{
 						AddVoxelDataToChunk(new int3(x, y, z));
 					}
 				}
 			}
-		}
-	}
-
-	private bool IsVoxelInChunk(int3 pos)
-	{
-		if (pos.x < 0 || pos.x > ChunkWidth - 1 ||
-		    pos.y < 0 || pos.y > ChunkHeight - 1 ||
-		    pos.z < 0 || pos.z > ChunkWidth - 1)
-		{
-			return false;
-		}
-		else
-		{
-			return true;
-		}
-	}
-
-	private bool CheckVoxel(int3 pos)
-	{
-		if (!IsVoxelInChunk(pos))
-		{
-			return chunkData.BlockTypes[WorldExtensions.GetVoxel(pos + Position, ChunkHeight, WorldSizeInVoxels, chunkData.BiomeData)].IsSolid;
-		}
-		else
-		{
-			return chunkData.BlockTypes[chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)]].IsSolid;
 		}
 	}
 
@@ -97,8 +74,13 @@ public struct ChunkJob : IJob
 		{
 			if (!CheckVoxel(pos + blockData.BlockFaceChecks[p]))
 			{
-				var blockID = chunkData.BlockTypes[chunkData.VoxelMap[pos.x + ChunkWidth * (pos.y + ChunkHeight * pos.z)]].BlockID;
+				
+				int posX = pos.x;
+				int posY = pos.y;
+				int posZ = pos.z;
+				ushort blockID = chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FattenIndex(posX, posY, posZ, ChunkWidth, ChunkHeight)]].BlockID;
 				var _vertices = GetFaceVertices(p, pos);
+				
 
 				meshData.MeshVertices.AddRange(_vertices);
 
@@ -147,5 +129,37 @@ public struct ChunkJob : IJob
 		meshData.MeshUVs.Add(new float2(x, y + NormalizedTextureAtlas) + new float2(offset, -offset));
 		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y) + new float2(-offset, offset));
 		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas) - new float2(offset, offset));
+	}
+
+	private bool IsVoxelInChunk(int3 pos)
+	{
+		if (pos.x < 0 || pos.x > ChunkWidth - 1 ||
+			pos.y < 0 || pos.y > ChunkHeight - 1 ||
+			pos.z < 0 || pos.z > ChunkWidth - 1)
+		{
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+	}
+
+	private bool CheckVoxel(int3 pos)
+	{
+		if (!IsVoxelInChunk(pos))
+		{
+			float posX = pos.x + Position.x;
+			float posY = pos.y + Position.y;
+			float posZ = pos.z + Position.z;
+			return chunkData.BlockTypes[WorldExtensions.GetVoxel(posX, posY, posZ, ChunkHeight, WorldSizeInVoxels, chunkData.BiomeData.BiomeScale, chunkData.BiomeData.BiomeHeight, chunkData.BiomeData.SolidBiomeHeight)].IsSolid;
+		}
+		else
+		{
+			int posX = pos.x;
+			int posY = pos.y;
+			int posZ = pos.z;
+			return chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FattenIndex(posX, posY, posZ, ChunkWidth, ChunkHeight)]].IsSolid;
+		}
 	}
 }
