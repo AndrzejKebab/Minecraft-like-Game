@@ -2,9 +2,6 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using static Unity.Collections.AllocatorManager;
-using UnityEngine;
-using static UnityEditor.PlayerSettings;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
