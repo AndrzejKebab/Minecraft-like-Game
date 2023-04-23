@@ -2,17 +2,15 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
 {
 	public struct MeshData
 	{
-		public NativeList<half4> MeshVertices;
+		public NativeList<Vertex> Vertex;
 		public NativeList<ushort> MeshTriangles;
-		public NativeList<int3> Normals;
-		public NativeList<int3> Tangents;
-		public NativeList<float2> MeshUVs;
 	}
 
 	public struct BlockData
@@ -72,35 +70,33 @@ public struct ChunkJob : IJob
 		{
 			if (!CheckVoxel(pos + blockData.BlockFaceChecks[p]))
 			{
-
 				int posX = pos.x;
 				int posY = pos.y;
 				int posZ = pos.z;
 				ushort blockID = chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FlattenIndex(posX, posY, posZ, ChunkSize)]].BlockID;
-				var _vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
-
-
-				meshData.MeshVertices.AddRange(_vertices);
-
-				_vertices.Dispose();
-
-				AddTexture(chunkData.BlockTypes[blockID].GetTexture2D(p));
-
+				
 				meshData.MeshTriangles.Add(vertexIndex);
 				meshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
 				meshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
 				meshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
-				
-				meshData.Normals.Add(blockData.BlockFaceChecks[p]);
-				meshData.Normals.Add(blockData.BlockFaceChecks[p]);
-				meshData.Normals.Add(blockData.BlockFaceChecks[p]);
-				meshData.Normals.Add(blockData.BlockFaceChecks[p]);
 
-				meshData.Tangents.Add(blockData.BlockFaceChecks[p]);
-				meshData.Tangents.Add(blockData.BlockFaceChecks[p]);
-				meshData.Tangents.Add(blockData.BlockFaceChecks[p]);
-				meshData.Tangents.Add(blockData.BlockFaceChecks[p]);
+				var _vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
+				var _textureUVs = GetTextureUVs(chunkData.BlockTypes[blockID].GetTexture2D(p));
 
+				half4 normal = new half4((half)blockData.BlockFaceChecks[p].x,
+										 (half)blockData.BlockFaceChecks[p].y,
+										 (half)blockData.BlockFaceChecks[p].z,
+										 (half)0);
+
+				Color32 tangent = new Color32((byte)normal.x, (byte)normal.y, (byte)normal.z, (byte)normal.w);
+
+				meshData.Vertex.Add(new Vertex(_vertices[0], normal, tangent, _textureUVs[0]));
+				meshData.Vertex.Add(new Vertex(_vertices[1], normal, tangent, _textureUVs[1]));
+				meshData.Vertex.Add(new Vertex(_vertices[2], normal, tangent, _textureUVs[2]));
+				meshData.Vertex.Add(new Vertex(_vertices[3], normal, tangent, _textureUVs[3]));
+
+				_textureUVs.Dispose();
+				_vertices.Dispose();
 				vertexIndex += 4;
 			}
 		}
@@ -112,7 +108,7 @@ public struct ChunkJob : IJob
 
 		for (byte i = 0; i < 4; i++)
 		{
-			var _index = blockData.BlockTriangles[faceIndex * 4 + i];
+			var _index = blockData.BlockTriangles[(faceIndex * 4) + i];
 			_faceVertices[i] = new half4(new half(blockData.BlockVertices[_index].x + pos.x),
 										 new half(blockData.BlockVertices[_index].y + pos.y),
 										 new half(blockData.BlockVertices[_index].z + pos.z),
@@ -122,22 +118,24 @@ public struct ChunkJob : IJob
 		return _faceVertices;
 	}
 
-	private void AddTexture(int textureID)
+	private NativeArray<half2> GetTextureUVs(int textureID)
 	{
+		var _textureUVs = new NativeArray<half2>(4, Allocator.Temp);
+
 		float y = textureID / TextureAtlasSize;
 		float x = textureID - (y * TextureAtlasSize);
 
 		x *= NormalizedTextureAtlas;
 		y *= NormalizedTextureAtlas;
 
-		float offset = 0.0005f;
-
 		y = 1f - y - NormalizedTextureAtlas;
 
-		meshData.MeshUVs.Add(new float2(x, y) + new float2(offset, offset));
-		meshData.MeshUVs.Add(new float2(x, y + NormalizedTextureAtlas) + new float2(offset, -offset));
-		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y) + new float2(-offset, offset));
-		meshData.MeshUVs.Add(new float2(x + NormalizedTextureAtlas, y + NormalizedTextureAtlas) - new float2(offset, offset));
+		_textureUVs[0] = new half2((half)x, (half)y);
+		_textureUVs[1] = new half2((half)x, new half(y + NormalizedTextureAtlas));
+		_textureUVs[2] = new half2(new half(x + NormalizedTextureAtlas), (half)y);
+		_textureUVs[3] = new half2(new half(x + NormalizedTextureAtlas), new half(y + NormalizedTextureAtlas));
+
+		return _textureUVs;
 	}
 
 	private bool IsVoxelInChunk(int3 pos)
@@ -176,8 +174,8 @@ public struct ChunkJob : IJob
 	//{
 	//	if (!IsVoxelInChunk(pos))
 	//	{
-	//		var _pos = math.float3(pos + Position);
-	//		return WorldExtensions.CheckForVoxel(_pos);
+	//		float3 _pos = math.float3(pos + Position);
+	//		return World.instance.CheckForVoxel(_pos);
 	//	}
 	//
 	//	return chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FlattenIndex(pos.x, pos.y, pos.z, ChunkSize)]].IsSolid;

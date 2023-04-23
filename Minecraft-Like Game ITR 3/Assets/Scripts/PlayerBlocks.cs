@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class PlayerBlocks : MonoBehaviour
 {
-
 	[SerializeField] private Transform highlightBlock;
 	[SerializeField] private Transform placeBlock;
 	[SerializeField] private int reach;
@@ -20,7 +19,6 @@ public class PlayerBlocks : MonoBehaviour
 
 	private void Awake()
 	{
-		//chunkMask = LayerMask.NameToLayer("Chunk");
 		highlightBlock = GameObject.Find("HiglightBlock").GetComponent<Transform>();
 		placeBlock = GameObject.Find("PlaceHighlightBlock").GetComponent<Transform>();
 		world = GameObject.Find("World").GetComponent<World>();
@@ -33,7 +31,6 @@ public class PlayerBlocks : MonoBehaviour
 	void Update()
 	{
 		PlaceCursorBlocks();
-
 		EditBlock();
 	}
 
@@ -50,7 +47,7 @@ public class PlayerBlocks : MonoBehaviour
 			else
 			{
 				selectedBlockIndex--;
-			};
+			}
 		}
 
 		if (selectedBlockIndex > (ushort)world.blockTypesJobs.Length - 1)

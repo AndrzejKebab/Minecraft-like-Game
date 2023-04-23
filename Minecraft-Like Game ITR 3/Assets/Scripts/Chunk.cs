@@ -97,11 +97,8 @@ public class Chunk
 		IsUpdating = true;
 		meshData = new ChunkJob.MeshData()
 		{
-			MeshVertices = new NativeList<half4>(Allocator.Persistent),
-			MeshTriangles = new NativeList<ushort>(Allocator.Persistent),
-			Normals = new NativeList<int3>(Allocator.Persistent),
-			Tangents = new NativeList<int3>(Allocator.Persistent),
-			MeshUVs = new NativeList<float2>(Allocator.Persistent)
+			Vertex = new NativeList<Vertex>(Allocator.Persistent),
+			MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
 		};
 
 		chunkJobHandle = new ChunkJob
@@ -137,37 +134,32 @@ public class Chunk
 		mesh.name = "Chunk";
 		mesh.MarkDynamic();
 		mesh.bounds = world.ChunkBound;
-
-		//mesh.subMeshCount = 1;
+		mesh.subMeshCount = 1;
 
 		var _layout = new[]
 {
-			new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4)
+			new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
+			new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
+			new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
+			new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
 		};
 
-		mesh.SetVertexBufferParams(meshData.MeshVertices.Length, _layout);
-		mesh.SetVertexBufferData(meshData.MeshVertices.ToArray(), 0, 0, meshData.MeshVertices.Length, stream:0); ;
+		mesh.SetVertexBufferParams(meshData.Vertex.Length, _layout);
+		mesh.SetVertexBufferData(meshData.Vertex.ToArray(), 0, 0, meshData.Vertex.Length, stream:0);
 
 		mesh.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
 		mesh.SetIndexBufferData(meshData.MeshTriangles.AsArray(), 0, 0, meshData.MeshTriangles.Length);
-
-		mesh.SetNormals(meshData.Normals.ToArray().Select(normal => new Vector3(normal.x, normal.y, normal.z)).ToArray());
-		mesh.SetTangents(meshData.Tangents.ToArray().Select(tangents => new Vector4(tangents.x, tangents.y, tangents.z, 0)).ToArray());
-		mesh.SetUVs(0, meshData.MeshUVs.ToArray().Select(uvs => new Vector2(uvs.x, uvs.y)).ToArray());
 
 		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
 		mesh.SetSubMesh(0, desc);
 
 		mesh.RecalculateUVDistributionMetrics();
-		//mesh.Optimize();
 
 		meshFilter.sharedMesh = mesh;
 		meshCollider.sharedMesh = mesh;
 
+		meshData.Vertex.Dispose();
 		meshData.MeshTriangles.Dispose();
-		meshData.MeshVertices.Dispose();
-		meshData.Normals.Dispose();
-		meshData.MeshUVs.Dispose();
 		IsUpdating = false;
 	}
 
@@ -199,7 +191,7 @@ public class Chunk
 			if (!IsVoxelInChunk(currentVoxel))
 			{
 				world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition)).CreateMeshDataJob();
-			};
+			}
 		}
 	}
 
@@ -221,10 +213,8 @@ public class Chunk
 		chunkJobHandle.Complete();
 
 		voxelMap.Dispose();
-		meshData.MeshTriangles.Dispose();
-		meshData.MeshVertices.Dispose();
-		meshData.Normals.Dispose();
-		meshData.MeshUVs.Dispose();
+		meshData.Vertex.Dispose();
+		meshData.MeshTriangles.Dispose();;
 		IsUpdating = false;
 
 		GameObject.Destroy(chunkObject.GetComponent<MeshCollider>().sharedMesh);
@@ -245,5 +235,22 @@ public class Chunk
 		{
 			return true;
 		}
+	}
+}
+
+[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+public struct Vertex
+{
+	public half4 Position;
+	public half4 Normal;
+	public Color32 Color;
+	public half2 UVs;
+
+	public Vertex(half4 position, half4 normal, Color32 color, half2 uv)
+	{
+		Position = position;
+		Normal = normal;
+		Color = color;
+		UVs = uv;
 	}
 }

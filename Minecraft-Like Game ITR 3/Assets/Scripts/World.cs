@@ -37,10 +37,11 @@ public class World : MonoBehaviour
 		ChunkBound = new Bounds(_size / 2, _size);
 
 		blockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
+
 		for(int i = 0; i < blockTypes.Length; i++)
 		{
 			blockTypesJobs[i] = blockTypes[i].BlockTypeData;
-		};
+		}
 
 		biomeAttributesJob = biomeAttributes.BiomeData;
 
@@ -50,26 +51,8 @@ public class World : MonoBehaviour
 	void Start()
 	{
 		Random.InitState(seed);
-		//GenerateWorld();
 		CheckViewDistance();
 	}
-
-	//private void GenerateWorld()
-	//{
-	//	for(int y = -VoxelData.ViewDistanceInChunks / 4; y < VoxelData.ViewDistanceInChunks; y++)
-	//	{
-	//		for(int x = -VoxelData.ViewDistanceInChunks; x < VoxelData.ViewDistanceInChunks; x++)
-	//		{
-	//			for(int z = -VoxelData.ViewDistanceInChunks; z < VoxelData.ViewDistanceInChunks; z++)
-	//			{
-	//				CreateNewChunk(x, y, z);
-	//				activeChunks.Add(new int3(x, y, z));
-	//			}
-	//		}
-	//	}
-	//
-	//	playerLastChunkCoord = GetChunkCoordFromVector3(PlayerTransfrom.position);
-	//}
 
 	void Update()
 	{
@@ -107,7 +90,7 @@ public class World : MonoBehaviour
 	
 		playerLastChunkCoord = playerChunkCoord;
 	
-		for (int y = _coord.y - VoxelData.ViewDistanceInChunks / 4; y < _coord.y + VoxelData.ViewDistanceInChunks; y++)
+		for (int y = _coord.y - (VoxelData.ViewDistanceInChunks / 4); y < _coord.y + VoxelData.ViewDistanceInChunks; y++)
 		{
 			for (int x = _coord.x - VoxelData.ViewDistanceInChunks; x < _coord.x + VoxelData.ViewDistanceInChunks; x++)
 			{

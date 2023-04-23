@@ -24,7 +24,7 @@ public struct BlockTypesJob
 		public short BottomFaceTexture;
 		public short LeftFaceTexture;
 		public short RightFaceTexture;
-	};
+	}
 
 	public int GetTexture2D(int faceIndex)
 	{
