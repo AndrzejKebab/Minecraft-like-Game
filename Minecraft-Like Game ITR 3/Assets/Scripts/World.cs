@@ -72,7 +72,17 @@ public class World : MonoBehaviour
 					chunkStorage[chunksToCreate[i]].Initialise();
 				}
 
-				if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsCompleted)
+				//if (!chunkStorage[chunksToCreate[i]].VoxelMapPopulated)
+				//{
+				//	chunkStorage[chunksToCreate[i]].PopulateVoxelMap();
+				//}
+
+				//if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsVoxelMapCompleted)
+				//{
+				//	chunkStorage[chunksToCreate[i]].CreateMeshDataJob();
+				//}
+
+				if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsMeshDataCompleted && chunkStorage[chunksToCreate[i]].VoxelMapPopulated)
 				{
 					chunkStorage[chunksToCreate[i]].CreateMesh();
 					chunksToCreate.RemoveAt(i);
@@ -182,5 +192,9 @@ public class World : MonoBehaviour
 			chunk.Value.OnDestroy();
 		}
 		blockTypesJobs.Dispose();
+		VoxelData.VoxelVertices.Dispose();
+		VoxelData.VoxelTriangles.Dispose();
+		VoxelData.VoxelUVs.Dispose();
+		VoxelData.FaceChecks.Dispose();
 	}
 }

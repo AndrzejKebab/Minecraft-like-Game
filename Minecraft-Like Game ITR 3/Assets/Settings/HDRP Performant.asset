@@ -137,9 +137,9 @@ MonoBehaviour:
       enabled: 0
       useMipBias: 0
       enableDLSS: 0
-      DLSSPerfQualitySetting: 0
-      DLSSInjectionPoint: 0
-      DLSSUseOptimalSettings: 0
+      DLSSPerfQualitySetting: 1
+      DLSSInjectionPoint: 2
+      DLSSUseOptimalSettings: 1
       DLSSSharpness: 0
       fsrOverrideSharpness: 0
       fsrSharpness: 0.92

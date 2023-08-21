@@ -83,10 +83,10 @@ public struct ChunkJob : IJob
 				var _vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
 				var _textureUVs = GetTextureUVs(chunkData.BlockTypes[blockID].GetTexture2D(p));
 
-				half4 normal = new half4((half)blockData.BlockFaceChecks[p].x,
-										 (half)blockData.BlockFaceChecks[p].y,
-										 (half)blockData.BlockFaceChecks[p].z,
-										 (half)0);
+				sbyte4 normal = new sbyte4((sbyte)blockData.BlockFaceChecks[p].x,
+										   (sbyte)blockData.BlockFaceChecks[p].y,
+										   (sbyte)blockData.BlockFaceChecks[p].z,
+										   0);
 
 				Color32 tangent = new Color32((byte)normal.x, (byte)normal.y, (byte)normal.z, (byte)normal.w);
 
@@ -109,10 +109,10 @@ public struct ChunkJob : IJob
 		for (byte i = 0; i < 4; i++)
 		{
 			var _index = blockData.BlockTriangles[(faceIndex * 4) + i];
-			_faceVertices[i] = new half4(new half(blockData.BlockVertices[_index].x + pos.x),
-										 new half(blockData.BlockVertices[_index].y + pos.y),
-										 new half(blockData.BlockVertices[_index].z + pos.z),
-										(half)0);
+			_faceVertices[i] = new half4((half)(blockData.BlockVertices[_index].x + pos.x),
+										 (half)(blockData.BlockVertices[_index].y + pos.y),
+										 (half)(blockData.BlockVertices[_index].z + pos.z),
+										 (half)0);
 		}
 
 		return _faceVertices;

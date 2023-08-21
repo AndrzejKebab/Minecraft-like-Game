@@ -1,4 +1,5 @@
-using System.Linq;
+using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -35,7 +36,9 @@ public class Chunk
 	}
 	private bool isScheduled = false;
 	public bool IsScheduled { get { return isScheduled;} }
-	public bool IsCompleted { get { return chunkJobHandle.IsCompleted; } }
+	public bool IsMeshDataCompleted { get { return chunkJobHandle.IsCompleted; } }
+	public bool IsVoxelMapCompleted { get { return populateVoxelMapHandle.IsCompleted; } }
+	public bool VoxelMapPopulated = false;
 	public bool IsUpdating = true;
 
 	public float3 ChunkPosition { get; private set; }
@@ -94,6 +97,9 @@ public class Chunk
 
 	private void CreateMeshDataJob()
 	{
+		//populateVoxelMapHandle.Complete();
+		VoxelMapPopulated = true;
+
 		IsUpdating = true;
 		meshData = new ChunkJob.MeshData()
 		{
@@ -139,7 +145,7 @@ public class Chunk
 		var _layout = new[]
 {
 			new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
-			new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
+			new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.SNorm8, 4),
 			new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
 			new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
 		};
@@ -242,15 +248,48 @@ public class Chunk
 public struct Vertex
 {
 	public half4 Position;
-	public half4 Normal;
+	public sbyte4 Normal;
 	public Color32 Color;
 	public half2 UVs;
 
-	public Vertex(half4 position, half4 normal, Color32 color, half2 uv)
+	public Vertex(half4 position, sbyte4 normal, Color32 color, half2 uv)
 	{
 		Position = position;
 		Normal = normal;
 		Color = color;
 		UVs = uv;
+	}
+}
+
+#pragma warning disable 0659
+[Serializable]
+public struct sbyte4 : IEquatable<sbyte4>, IFormattable
+{
+	public sbyte x, y, z, w;
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public sbyte4(sbyte x, sbyte y, sbyte z, sbyte w)
+	{
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		this.w = w;
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public bool Equals(sbyte4 rhs) { return x == rhs.x && y == rhs.y && z == rhs.z && w == rhs.w; }
+
+	public override bool Equals(object o) { return o is sbyte4 converted && Equals(converted); }
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public override string ToString()
+	{
+		return string.Format("sbyte4({0}, {1}, {2}, {3})", x, y, z, w);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public string ToString(string format, IFormatProvider formatProvider)
+	{
+		return string.Format("sbyte4({0}, {1}, {2}, {3})", x.ToString(format, formatProvider), y.ToString(format, formatProvider), z.ToString(format, formatProvider), w.ToString(format, formatProvider));
 	}
 }

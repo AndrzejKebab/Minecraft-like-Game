@@ -7,7 +7,6 @@ public class PlayerBlocks : MonoBehaviour
 	[SerializeField] private Transform highlightBlock;
 	[SerializeField] private Transform placeBlock;
 	[SerializeField] private int reach;
-	[SerializeField] private float checkIncrement;
 	[SerializeField] private TextMeshProUGUI selectedBlockText;
 	private ushort selectedBlockIndex = 1;
 	private Camera cam;

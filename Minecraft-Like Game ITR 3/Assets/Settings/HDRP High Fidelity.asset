@@ -134,19 +134,19 @@ MonoBehaviour:
       lutFormat: 48
       bufferFormat: 74
     dynamicResolutionSettings:
-      enabled: 0
+      enabled: 1
       useMipBias: 0
       enableDLSS: 0
-      DLSSPerfQualitySetting: 0
-      DLSSInjectionPoint: 0
-      DLSSUseOptimalSettings: 0
+      DLSSPerfQualitySetting: 1
+      DLSSInjectionPoint: 2
+      DLSSUseOptimalSettings: 1
       DLSSSharpness: 0
       fsrOverrideSharpness: 0
       fsrSharpness: 0.92
-      maxPercentage: 100
-      minPercentage: 100
+      maxPercentage: 75
+      minPercentage: 40
       dynResType: 1
-      upsampleFilter: 1
+      upsampleFilter: 4
       forceResolution: 0
       forcedPercentage: 100
       lowResTransparencyMinimumThreshold: 0
