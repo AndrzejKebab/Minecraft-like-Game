@@ -36,7 +36,7 @@ MonoBehaviour:
     colorBufferFormat: 48
     supportCustomPass: 1
     customBufferFormat: 12
-    supportedLitShaderMode: 2
+    supportedLitShaderMode: 1
     planarReflectionResolution:
       m_Values: 000100000004000000080000
       m_SchemaId:
@@ -51,10 +51,11 @@ MonoBehaviour:
     decalNormalBufferHP: 0
     msaaSampleCount: 1
     supportMotionVectors: 1
+    supportDataDrivenLensFlare: 1
     supportRuntimeAOVAPI: 0
     supportDitheringCrossFade: 1
     supportTerrainHole: 0
-    lightProbeSystem: 0
+    lightProbeSystem: 1
     probeVolumeMemoryBudget: 1024
     probeVolumeBlendingMemoryBudget: 128
     supportProbeVolumeStreaming: 0
@@ -137,15 +138,15 @@ MonoBehaviour:
       enabled: 1
       useMipBias: 0
       enableDLSS: 0
-      DLSSPerfQualitySetting: 1
-      DLSSInjectionPoint: 2
-      DLSSUseOptimalSettings: 1
+      DLSSPerfQualitySetting: 0
+      DLSSInjectionPoint: 0
+      DLSSUseOptimalSettings: 0
       DLSSSharpness: 0
       fsrOverrideSharpness: 0
       fsrSharpness: 0.92
       maxPercentage: 75
-      minPercentage: 40
-      dynResType: 1
+      minPercentage: 50
+      dynResType: 0
       upsampleFilter: 4
       forceResolution: 0
       forcedPercentage: 100
@@ -293,6 +294,8 @@ MonoBehaviour:
   diffusionProfileSettings: {fileID: 0}
   virtualTexturingSettings:
     streamingCpuCacheSizeInMegaBytes: 256
+    streamingMipPreloadTexturesPerFrame: 0
+    streamingPreloadMipCount: 1
     streamingGpuCacheSettings:
     - format: 0
       sizeInMegaBytes: 128

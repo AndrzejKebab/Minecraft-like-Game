@@ -151,13 +151,13 @@ public class Chunk
 		};
 
 		mesh.SetVertexBufferParams(meshData.Vertex.Length, _layout);
-		mesh.SetVertexBufferData(meshData.Vertex.ToArray(), 0, 0, meshData.Vertex.Length, stream:0);
+		mesh.SetVertexBufferData(meshData.Vertex.AsArray(), 0, 0, meshData.Vertex.Length, stream:0);
 
 		mesh.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
 		mesh.SetIndexBufferData(meshData.MeshTriangles.AsArray(), 0, 0, meshData.MeshTriangles.Length);
 
 		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
-		mesh.SetSubMesh(0, desc);
+		mesh.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);
 
 		mesh.RecalculateUVDistributionMetrics();
 
