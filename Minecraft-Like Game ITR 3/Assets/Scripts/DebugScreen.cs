@@ -39,9 +39,9 @@ public class DebugScreen : MonoBehaviour
 
 	public void Update()
 	{
-		playerCoords = math.float3(world.PlayerTransfrom.position.x, world.PlayerTransfrom.position.y, world.PlayerTransfrom.position.z);
+		playerCoords = math.float3(world.PlayerTransform.position.x, world.PlayerTransform.position.y, world.PlayerTransform.position.z);
 		playerCoords = math.floor(playerCoords);
-		chunkCoords = world.playerChunkCoord;
+		chunkCoords = world.PlayerChunkCoord;
 		coordsText.text = $"Coord: {playerCoords.x} / {playerCoords.y} / {playerCoords.z} <br>Chunk: {chunkCoords.x} / {chunkCoords.y} / {chunkCoords.z}";
 	}
 

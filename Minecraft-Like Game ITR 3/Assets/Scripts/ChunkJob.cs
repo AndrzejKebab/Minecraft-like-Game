@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UtilityLibrary.Unity.Runtime;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct ChunkJob : IJob
@@ -13,14 +14,6 @@ public struct ChunkJob : IJob
 		public NativeList<ushort> MeshTriangles;
 	}
 
-	public struct BlockData
-	{
-		public NativeArray<half4> BlockVertices;
-		public NativeArray<int> BlockTriangles;
-		public NativeArray<float2> BlockUVs;
-		public NativeArray<int3> BlockFaceChecks;
-	}
-
 	public struct ChunkData
 	{
 		public NativeArray<BlockTypesJob> BlockTypes;
@@ -28,12 +21,10 @@ public struct ChunkJob : IJob
 		public NativeArray<ushort> VoxelMap;
 	}
 
-	[WriteOnly]
-	public MeshData meshData;
 	[ReadOnly]
 	public ChunkData chunkData;
-	[ReadOnly]
-	public BlockData blockData;
+	[WriteOnly]
+	public MeshData meshData;
 
 	private ushort vertexIndex;
 	[ReadOnly] public int ChunkSize;
@@ -42,20 +33,17 @@ public struct ChunkJob : IJob
 	[ReadOnly] public int WorldSizeInVoxels;
 	[ReadOnly] public int3 Position;
 
-	public void Execute()
-	{
-		CreateMeshData();
-	}
+	public void Execute() => CreateMeshData();
 
-	public void CreateMeshData()
+	private void CreateMeshData()
 	{
-		for (int y = 0; y < ChunkSize; y++)
+		for (var y = 0; y < ChunkSize; y++)
 		{
-			for (int x = 0; x < ChunkSize; x++)
+			for (var x = 0; x < ChunkSize; x++)
 			{
-				for (int z = 0; z < ChunkSize; z++)
+				for (var z = 0; z < ChunkSize; z++)
 				{
-					if (chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FlattenIndex(x, y, z, ChunkSize)]].IsSolid)
+					if (chunkData.BlockTypes[chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, x, y, z)].IsSolid)
 					{
 						AddVoxelDataToChunk(new int3(x, y, z));
 					}
@@ -64,92 +52,83 @@ public struct ChunkJob : IJob
 		}
 	}
 
-	public void AddVoxelDataToChunk(int3 pos)
+	private void AddVoxelDataToChunk(int3 pos)
 	{
-		for (int p = 0; p < 6; p++)
+		for (var p = 0; p < 6; p++)
 		{
-			if (!CheckVoxel(pos + blockData.BlockFaceChecks[p]))
-			{
-				int posX = pos.x;
-				int posY = pos.y;
-				int posZ = pos.z;
-				ushort blockID = chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FlattenIndex(posX, posY, posZ, ChunkSize)]].BlockID;
+			if (CheckVoxel(pos + VoxelData.FaceChecks[p])) continue;
+			var posX = pos.x;
+			var posY = pos.y;
+			var posZ = pos.z;
+			var blockID = chunkData.BlockTypes[chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, posX, posY, posZ)].BlockID;
 				
-				meshData.MeshTriangles.Add(vertexIndex);
-				meshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
-				meshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
-				meshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
+			meshData.MeshTriangles.Add(vertexIndex);
+			meshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
+			meshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
+			meshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
 
-				var _vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
-				var _textureUVs = GetTextureUVs(chunkData.BlockTypes[blockID].GetTexture2D(p));
+			NativeArray<half4> vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
+			NativeArray<half2> textureUVs = GetTextureUVs(chunkData.BlockTypes[blockID].GetTexture2D(p));
 
-				sbyte4 normal = new sbyte4((sbyte)blockData.BlockFaceChecks[p].x,
-										   (sbyte)blockData.BlockFaceChecks[p].y,
-										   (sbyte)blockData.BlockFaceChecks[p].z,
-										   0);
+			var normal = new sbyte4((sbyte)VoxelData.FaceChecks[p].x,
+				(sbyte)VoxelData.FaceChecks[p].y,
+				(sbyte)VoxelData.FaceChecks[p].z,
+				0);
 
-				Color32 tangent = new Color32((byte)normal.x, (byte)normal.y, (byte)normal.z, (byte)normal.w);
+			var tangent = new Color32((byte)normal.x, (byte)normal.y, (byte)normal.z, (byte)normal.w);
 
-				meshData.Vertex.Add(new Vertex(_vertices[0], normal, tangent, _textureUVs[0]));
-				meshData.Vertex.Add(new Vertex(_vertices[1], normal, tangent, _textureUVs[1]));
-				meshData.Vertex.Add(new Vertex(_vertices[2], normal, tangent, _textureUVs[2]));
-				meshData.Vertex.Add(new Vertex(_vertices[3], normal, tangent, _textureUVs[3]));
+			meshData.Vertex.Add(new Vertex(vertices[0], normal, tangent, textureUVs[0]));
+			meshData.Vertex.Add(new Vertex(vertices[1], normal, tangent, textureUVs[1]));
+			meshData.Vertex.Add(new Vertex(vertices[2], normal, tangent, textureUVs[2]));
+			meshData.Vertex.Add(new Vertex(vertices[3], normal, tangent, textureUVs[3]));
 
-				_textureUVs.Dispose();
-				_vertices.Dispose();
-				vertexIndex += 4;
-			}
+			textureUVs.Dispose();
+			vertices.Dispose();
+			vertexIndex += 4;
 		}
 	}
 
 	private NativeArray<half4> GetFaceVertices(int faceIndex, half4 pos)
 	{
-		var _faceVertices = new NativeArray<half4>(4, Allocator.Temp);
+		var faceVertices = new NativeArray<half4>(4, Allocator.Temp);
 
 		for (byte i = 0; i < 4; i++)
 		{
-			var _index = blockData.BlockTriangles[(faceIndex * 4) + i];
-			_faceVertices[i] = new half4((half)(blockData.BlockVertices[_index].x + pos.x),
-										 (half)(blockData.BlockVertices[_index].y + pos.y),
-										 (half)(blockData.BlockVertices[_index].z + pos.z),
+			var index = VoxelData.VoxelTriangles[(faceIndex * 4) + i];
+			faceVertices[i] = new half4((half)(VoxelData.VoxelVertices[index].x + pos.x),
+										 (half)(VoxelData.VoxelVertices[index].y + pos.y),
+										 (half)(VoxelData.VoxelVertices[index].z + pos.z),
 										 (half)0);
 		}
 
-		return _faceVertices;
+		return faceVertices;
 	}
 
 	private NativeArray<half2> GetTextureUVs(int textureID)
 	{
-		var _textureUVs = new NativeArray<half2>(4, Allocator.Temp);
+		var textureUVs = new NativeArray<half2>(4, Allocator.Temp);
 
 		float y = textureID / TextureAtlasSize;
-		float x = textureID - (y * TextureAtlasSize);
+		var x = textureID - (y * TextureAtlasSize);
 
 		x *= NormalizedTextureAtlas;
 		y *= NormalizedTextureAtlas;
 
 		y = 1f - y - NormalizedTextureAtlas;
 
-		_textureUVs[0] = new half2((half)x, (half)y);
-		_textureUVs[1] = new half2((half)x, new half(y + NormalizedTextureAtlas));
-		_textureUVs[2] = new half2(new half(x + NormalizedTextureAtlas), (half)y);
-		_textureUVs[3] = new half2(new half(x + NormalizedTextureAtlas), new half(y + NormalizedTextureAtlas));
+		textureUVs[0] = new half2((half)x, (half)y);
+		textureUVs[1] = new half2((half)x, new half(y + NormalizedTextureAtlas));
+		textureUVs[2] = new half2(new half(x + NormalizedTextureAtlas), (half)y);
+		textureUVs[3] = new half2(new half(x + NormalizedTextureAtlas), new half(y + NormalizedTextureAtlas));
 
-		return _textureUVs;
+		return textureUVs;
 	}
 
 	private bool IsVoxelInChunk(int3 pos)
 	{
-		if (pos.x < 0 || pos.x > ChunkSize - 1 ||
-			pos.y < 0 || pos.y > ChunkSize - 1 ||
-			pos.z < 0 || pos.z > ChunkSize - 1)
-		{
-			return false;
-		}
-		else
-		{
-			return true;
-		}
+		return pos.x >= 0 && pos.x <= ChunkSize - 1 &&
+		       pos.y >= 0 && pos.y <= ChunkSize - 1 &&
+		       pos.z >= 0 && pos.z <= ChunkSize - 1;
 	}
 
 	private bool CheckVoxel(int3 pos)
@@ -163,10 +142,10 @@ public struct ChunkJob : IJob
 		}
 		else
 		{
-			int posX = pos.x;
-			int posY = pos.y;
-			int posZ = pos.z;
-			return chunkData.BlockTypes[chunkData.VoxelMap[WorldExtensions.FlattenIndex(posX, posY, posZ, ChunkSize)]].IsSolid;
+			var posX = pos.x;
+			var posY = pos.y;
+			var posZ = pos.z;
+			return chunkData.BlockTypes[chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, posX, posY, posZ)].IsSolid;
 		}
 	}
 

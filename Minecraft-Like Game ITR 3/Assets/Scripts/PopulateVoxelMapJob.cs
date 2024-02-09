@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using UnityEngine;
+using UtilityLibrary.Unity.Runtime;
 
 [BurstCompile(CompileSynchronously = true)]
 public struct PopulateVoxelMapJob : IJob
@@ -36,7 +37,12 @@ public struct PopulateVoxelMapJob : IJob
 					float posX = x + Position.x;
 					float posY = y + Position.y;
 					float posZ = z + Position.z;
-					VoxelMap[WorldExtensions.FlattenIndex(x, y, z, VoxelData.ChunkSize)] = WorldExtensions.GetVoxel(posX, posY, posZ, VoxelData.WorldSizeInVoxels, VoxelData.BiomeData.BiomeScale, VoxelData.BiomeData.BiomeHeight, VoxelData.BiomeData.SolidGroundHeight);
+					var voxel = WorldExtensions.GetVoxel(posX, posY, posZ,
+						VoxelData.WorldSizeInVoxels,
+						VoxelData.BiomeData.BiomeScale,
+						VoxelData.BiomeData.BiomeHeight,
+						VoxelData.BiomeData.SolidGroundHeight);
+					VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z, voxel);
 				}
 			}
 		}

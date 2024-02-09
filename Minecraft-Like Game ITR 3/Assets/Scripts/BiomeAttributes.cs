@@ -1,4 +1,8 @@
+using System.Runtime.CompilerServices;
+using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 [CreateAssetMenu(fileName = "New Biome Atrribute", menuName = "Biome Atrribute")]
 public class BiomeAttributes : ScriptableObject

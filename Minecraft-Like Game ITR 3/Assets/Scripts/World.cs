@@ -1,29 +1,30 @@
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
+using System.Diagnostics;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
 public class World : MonoBehaviour
 {
-	public static World instance;
+	public static World Instance;
 
 	[SerializeField] private BlockTypes[] blockTypes;
-	public BlockTypes[] BlockTypes { get { return blockTypes; } }
-	public NativeArray<BlockTypesJob> blockTypesJobs;
+	public BlockTypes[] BlockTypes => blockTypes;
+	public NativeArray<BlockTypesJob> BlockTypesJobs;
 	[field:SerializeField] public Material Material { get; private set; }
 	[SerializeField] private int seed;
 	[SerializeField] private BiomeAttributes biomeAttributes;
-	public BiomeAttributesJob biomeAttributesJob { get; private set; }
+	public BiomeAttributesJob BiomeAttributesJob { get; private set; }
 
-	private Dictionary<int3, Chunk> chunkStorage = new Dictionary<int3, Chunk>();
-	public Dictionary<int3, Chunk> ChunkStorage { get { return chunkStorage; } }
-	private List<int3> chunksToCreate = new List<int3>();
-	private List<int3> activeChunks = new List<int3>();
+	private Dictionary<int3, Chunk> ChunkStorage { get; } = new();
 
-	public Transform PlayerTransfrom { get; private set; }
-	public int3 playerChunkCoord { get; private set; }
+	private readonly List<int3> chunksToCreate = new();
+	private readonly List<int3> activeChunks = new();
+
+	public Transform PlayerTransform { get; private set; }
+	public int3 PlayerChunkCoord { get; private set; }
 	private int3 playerLastChunkCoord;
 	private byte lastViewDistance = VoxelData.ViewDistanceInChunks;
 
@@ -31,170 +32,154 @@ public class World : MonoBehaviour
 
 	private void Awake()
 	{
-		instance = this;
+		Instance = this;
 
-		Vector3 _size = new Vector3(VoxelData.ChunkSize, VoxelData.ChunkSize, VoxelData.ChunkSize);
-		ChunkBound = new Bounds(_size / 2, _size);
+		Vector3 size = new(VoxelData.ChunkSize, VoxelData.ChunkSize, VoxelData.ChunkSize);
+		ChunkBound = new Bounds(size / 2, size);
 
-		blockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
+		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
 
-		for(int i = 0; i < blockTypes.Length; i++)
+		for(var i = 0; i < blockTypes.Length; i++)
 		{
-			blockTypesJobs[i] = blockTypes[i].BlockTypeData;
+			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
 		}
 
-		biomeAttributesJob = biomeAttributes.BiomeData;
+		BiomeAttributesJob = biomeAttributes.BiomeData;
 
-		PlayerTransfrom = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
+		PlayerTransform = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
 	}
 
-	void Start()
+	private void Start()
 	{
 		Random.InitState(seed);
 		CheckViewDistance();
 	}
 
-	void Update()
+	private void Update()
 	{
-		playerChunkCoord = GetChunkCoordFromVector3(PlayerTransfrom.position);
-		if (!playerChunkCoord.Equals(playerLastChunkCoord) || VoxelData.ViewDistanceInChunks != lastViewDistance)
+		PlayerChunkCoord = GetChunkCoordFromVector3(PlayerTransform.position);
+		if (!PlayerChunkCoord.Equals(playerLastChunkCoord) || VoxelData.ViewDistanceInChunks != lastViewDistance)
 		{
 			CheckViewDistance();
 			lastViewDistance = VoxelData.ViewDistanceInChunks;
 		}
 
-		if (chunksToCreate.Count > 0)
+		if (chunksToCreate.Count <= 0) return;
+		for (var i = 0; i < chunksToCreate.Count; i++)
 		{
-			for (int i = 0; i < chunksToCreate.Count; i++)
+			if (!ChunkStorage[chunksToCreate[i]].IsScheduled)
 			{
-				if (!chunkStorage[chunksToCreate[i]].IsScheduled)
-				{
-					chunkStorage[chunksToCreate[i]].Initialise();
-				}
-
-				//if (!chunkStorage[chunksToCreate[i]].VoxelMapPopulated)
-				//{
-				//	chunkStorage[chunksToCreate[i]].PopulateVoxelMap();
-				//}
-
-				//if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsVoxelMapCompleted)
-				//{
-				//	chunkStorage[chunksToCreate[i]].CreateMeshDataJob();
-				//}
-
-				if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsMeshDataCompleted && chunkStorage[chunksToCreate[i]].VoxelMapPopulated)
-				{
-					chunkStorage[chunksToCreate[i]].CreateMesh();
-					chunksToCreate.RemoveAt(i);
-				}
+				ChunkStorage[chunksToCreate[i]].Initialise();
 			}
+
+			//if (!chunkStorage[chunksToCreate[i]].VoxelMapPopulated)
+			//{
+			//	chunkStorage[chunksToCreate[i]].PopulateVoxelMap();
+			//}
+
+			//if (chunkStorage[chunksToCreate[i]].IsScheduled && chunkStorage[chunksToCreate[i]].IsVoxelMapCompleted)
+			//{
+			//	chunkStorage[chunksToCreate[i]].CreateMeshDataJob();
+			//}
+
+			if (!ChunkStorage[chunksToCreate[i]].IsScheduled || !ChunkStorage[chunksToCreate[i]].IsMeshDataCompleted ||
+			    !ChunkStorage[chunksToCreate[i]].VoxelMapPopulated) continue;
+			ChunkStorage[chunksToCreate[i]].CreateMesh();
+			chunksToCreate.RemoveAt(i);
 		}
 	}
 
 	private void CheckViewDistance()
 	{
-		int3 _coord = GetChunkCoordFromVector3(PlayerTransfrom.position);
-		List<int3> _previuslyActiveChunks = new List<int3>();
-		_previuslyActiveChunks.AddRange(activeChunks);
+		var coord = GetChunkCoordFromVector3(PlayerTransform.position);
+		List<int3> previouslyActiveChunks = new();
+		previouslyActiveChunks.AddRange(activeChunks);
 		activeChunks.Clear();
 	
-		playerLastChunkCoord = playerChunkCoord;
+		playerLastChunkCoord = PlayerChunkCoord;
 	
-		for (int y = _coord.y - (VoxelData.ViewDistanceInChunks / 4); y < _coord.y + VoxelData.ViewDistanceInChunks; y++)
+		for (var y = coord.y - (VoxelData.ViewDistanceInChunks / 4); y < coord.y + VoxelData.ViewDistanceInChunks; y++)
 		{
-			for (int x = _coord.x - VoxelData.ViewDistanceInChunks; x < _coord.x + VoxelData.ViewDistanceInChunks; x++)
+			for (var x = coord.x - VoxelData.ViewDistanceInChunks; x < coord.x + VoxelData.ViewDistanceInChunks; x++)
 			{
-				for(int z = _coord.z - VoxelData.ViewDistanceInChunks; z < _coord.z + VoxelData.ViewDistanceInChunks; z++)
+				for(var z = coord.z - VoxelData.ViewDistanceInChunks; z < coord.z + VoxelData.ViewDistanceInChunks; z++)
 				{
-					if (IsChunkInWorld(new int3(x, y, z)))
+					if (!IsChunkInWorld(new int3(x, y, z))) continue;
+					if (!ChunkStorage.ContainsKey(new int3(x, y, z)))
 					{
-						if (!chunkStorage.ContainsKey(new int3(x, y, z)))
-						{
-							CreateNewChunk(x, y, z);
-						}
-						else if (!chunkStorage[new int3(x, y, z)].IsActive)
-						{
-							chunkStorage[new int3(x, y, z)].IsActive = true;
-						}
-						activeChunks.Add(new int3(x, y, z));
-						_previuslyActiveChunks.Remove(new int3(x, y, z));
+						CreateNewChunk(x, y, z);
 					}
+					else if (!ChunkStorage[new int3(x, y, z)].IsActive)
+					{
+						ChunkStorage[new int3(x, y, z)].IsActive = true;
+					}
+					activeChunks.Add(new int3(x, y, z));
+					previouslyActiveChunks.Remove(new int3(x, y, z));
 				}
 			}
 		}
 	
-		foreach (var chunk in _previuslyActiveChunks)
+		foreach (var chunk in previouslyActiveChunks)
 		{
-			chunkStorage[new int3(chunk.x, chunk.y, chunk.z)].IsActive = false;
+			ChunkStorage[new int3(chunk.x, chunk.y, chunk.z)].IsActive = false;
 		}
-		_previuslyActiveChunks.Clear();
+		previouslyActiveChunks.Clear();
 	}
 
 	private void CreateNewChunk(int x, int y, int z)
 	{
-		chunkStorage[new int3(x, y, z)] = new Chunk(new int3(x, y, z), this);
+		ChunkStorage[new int3(x, y, z)] = new Chunk(new int3(x, y, z), this);
 		chunksToCreate.Add(new int3(x, y, z));
 	}
 
-	public int3 GetChunkCoordFromVector3(Vector3 pos)
+	private static int3 GetChunkCoordFromVector3(Vector3 pos)
 	{
-		int x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
-		int y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
-		int z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
+		var x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
+		var y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
+		var z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
 
 		return new int3(x, y, z);
 	}
 
 	public Chunk GetChunkFromVector3(Vector3 pos)
 	{
-		int x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
-		int y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
-		int z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
+		var x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
+		var y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
+		var z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
 
-		return chunkStorage[new int3(x, y, z)];
+		return ChunkStorage[new int3(x, y, z)];
 	}
 
-	public bool IsChunkInWorld(int3 coord)
+	private static bool IsChunkInWorld(int3 coord)
 	{
-		if (coord.x >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.x < (VoxelData.WorldSizeInChunks * 0.5f) &&
-			coord.y >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.y < (VoxelData.WorldSizeInChunks * 0.5f) &&
-			coord.z >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.z < (VoxelData.WorldSizeInChunks * 0.5f))
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		return coord.x >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.x < (VoxelData.WorldSizeInChunks * 0.5f) &&
+		       coord.y >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.y < (VoxelData.WorldSizeInChunks * 0.5f) &&
+		       coord.z >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.z < (VoxelData.WorldSizeInChunks * 0.5f);
 	}
 
 	public bool CheckForVoxel(Vector3 pos)
 	{
-		int3 thisChunk = new int3(math.floor(pos) / VoxelData.ChunkSize);
+		int3 thisChunk = new(math.floor(pos) / VoxelData.ChunkSize);
 
 		if (!IsChunkInWorld(thisChunk))
 		{
 			return false;
 		}
 
-		if (ChunkStorage.ContainsKey(thisChunk) && !chunkStorage[thisChunk].IsUpdating)
+		if (ChunkStorage.ContainsKey(thisChunk) && !ChunkStorage[thisChunk].IsUpdating)
 		{
-			return blockTypes[chunkStorage[thisChunk].GetVoxelFromGlobalVector3(pos)].BlockTypeData.IsSolid;
+			return blockTypes[ChunkStorage[thisChunk].GetVoxelFromGlobalVector3(pos)].BlockTypeData.IsSolid;
 		}
 
-		return blockTypes[WorldExtensions.GetVoxel(pos.x ,pos.y, pos.z, VoxelData.ChunkSize, biomeAttributesJob.BiomeScale, biomeAttributesJob.BiomeHeight, biomeAttributesJob.SolidGroundHeight)].BlockTypeData.IsSolid;
+		return blockTypes[WorldExtensions.GetVoxel(pos.x ,pos.y, pos.z, VoxelData.ChunkSize, BiomeAttributesJob.BiomeScale, BiomeAttributesJob.BiomeHeight, BiomeAttributesJob.SolidGroundHeight)].BlockTypeData.IsSolid;
 	}
 
 	private void OnApplicationQuit()
 	{
-		foreach(var chunk in chunkStorage)
+		foreach(KeyValuePair<int3, Chunk> chunk in ChunkStorage)
 		{
 			chunk.Value.OnDestroy();
 		}
-		blockTypesJobs.Dispose();
-		VoxelData.VoxelVertices.Dispose();
-		VoxelData.VoxelTriangles.Dispose();
-		VoxelData.VoxelUVs.Dispose();
-		VoxelData.FaceChecks.Dispose();
+		BlockTypesJobs.Dispose();
 	}
 }

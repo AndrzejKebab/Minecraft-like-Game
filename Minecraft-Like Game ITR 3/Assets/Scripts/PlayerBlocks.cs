@@ -49,13 +49,13 @@ public class PlayerBlocks : MonoBehaviour
 			}
 		}
 
-		if (selectedBlockIndex > (ushort)world.blockTypesJobs.Length - 1)
+		if (selectedBlockIndex > (ushort)world.BlockTypesJobs.Length - 1)
 		{
 			selectedBlockIndex = 1;
 		}
 		if (selectedBlockIndex < 1)
 		{
-			selectedBlockIndex = (ushort)(world.blockTypesJobs.Length - 1);
+			selectedBlockIndex = (ushort)(world.BlockTypesJobs.Length - 1);
 		}
 
 		selectedBlockText.text = $"Seleceted Block: {world.BlockTypes[selectedBlockIndex].name}";
