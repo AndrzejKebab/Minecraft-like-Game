@@ -73,3 +73,7 @@ crashlytics-build.properties
 
 # Custom
 .idea
+[Vv]Tools*
+Infinity Code*
+ColorScript*
+Sirenix*
