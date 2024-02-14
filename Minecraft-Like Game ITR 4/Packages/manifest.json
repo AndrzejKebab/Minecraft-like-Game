@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.andrzejkebab.utilitylibrary": "https://github.com/AndrzejKebab/UtilityLibrary.git",
     "com.unity.cinemachine": "2.9.7",
     "com.unity.collections": "2.1.4",
     "com.unity.ide.rider": "3.0.27",
@@ -10,6 +11,7 @@
     "com.unity.textmeshpro": "3.0.6",
     "com.unity.timeline": "1.7.6",
     "com.unity.ugui": "1.0.0",
+    "com.wooshii.hierarchydecorator": "https://github.com/WooshiiDev/HierarchyDecorator.git",
     "com.unity.modules.ai": "1.0.0",
     "com.unity.modules.androidjni": "1.0.0",
     "com.unity.modules.animation": "1.0.0",
