@@ -5,7 +5,7 @@
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "d60853d051068e2b01a611726415525550dbb0cd"
+      "hash": "e81fe8c3781521238d1f8f48d8eeaa5d1210a8ae"
     },
     "com.unity.burst": {
       "version": "1.8.12",
@@ -144,7 +144,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.textmeshpro": {
-      "version": "3.0.6",
+      "version": "3.0.8",
       "depth": 0,
       "source": "registry",
       "dependencies": {
