@@ -2,70 +2,56 @@ using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 
-[BurstCompile(CompileSynchronously = true)]
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class WorldExtensions : MonoBehaviour
 {
 	[BurstCompile]
-	public static ushort GetVoxel(float posX, float posY, float posZ, int WorldSizeInVoxels, int BiomeScale, int BiomeHeight, int SolidBiomeHeight)
+	public static ushort GetVoxel(float posX, float posY, float posZ, int worldSizeInVoxels, int biomeScale, int biomeHeight, int solidBiomeHeight)
 	{
-		BiomeAttributesJob biomeAttributes = new BiomeAttributesJob()
+		var biomeAttributes = new BiomeAttributesJob()
 		{
-			BiomeHeight = BiomeHeight,
-			BiomeScale = BiomeScale,
-			SolidGroundHeight = SolidBiomeHeight
+			BiomeHeight = biomeHeight,
+			BiomeScale = biomeScale,
+			SolidGroundHeight = solidBiomeHeight
 		};
 
-		int _yPos = Mathf.FloorToInt(posY);
-		float _terrainHeight = NoiseGenerator.Get2DPerlin(posX, posZ, 0, 0, biomeAttributes.BiomeScale);
-		_terrainHeight = Mathf.FloorToInt(_terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidGroundHeight;
+		var yPos = Mathf.FloorToInt(posY);
+		var terrainHeight = NoiseGenerator.Get2DPerlin(posX, posZ, 0, 0, biomeAttributes.BiomeScale);
+		terrainHeight = Mathf.FloorToInt(terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidGroundHeight;
 
-		ushort _voxelValue = 2;
+		ushort voxelValue = 2;
 
-		if (!IsVoxelInWorld(posX, posY, posZ, WorldSizeInVoxels))
+		if (!IsVoxelInWorld(posX, posY, posZ, worldSizeInVoxels))
 		{
-			return 0; // if not in world return air
+			return 0;
 		}
 		if (posY == 0)
 		{
-			return 1; // if bottom of chunk return bedrock
+			return 1;
 		}
 
-		if (_yPos > _terrainHeight)
+		if (yPos > terrainHeight)
 		{
-			if (_yPos <= 256)
-			{
-				_voxelValue = 5; // if above ground and below 64 return sand(in future water)
-			}
-			else
-			{
-				_voxelValue = 0; // if above ground return air
-			}
+			voxelValue = yPos <= 256 ? (ushort)5 : (ushort)0;
 		}
-		else if (_yPos == _terrainHeight)
+		else if (yPos == terrainHeight)
 		{
-			_voxelValue = 4; // if on ground height return grassblock
+			voxelValue = 4;
 		}
-		else if (_yPos < _terrainHeight && _yPos > _terrainHeight - 6)
+		else if (yPos < terrainHeight && yPos > terrainHeight - 6)
 		{
-			_voxelValue = 3; // if below ground and above ground - 6 return dirt
+			voxelValue = 3;
 		}
 
-		return _voxelValue;
+		return voxelValue;
 	}
 
 	[BurstCompile]
-	public static bool IsVoxelInWorld(float posX, float posY, float posZ, int WorldSizeInVoxels)
+	public static bool IsVoxelInWorld(float posX, float posY, float posZ, int worldSizeInVoxels)
 	{
-		if (posX >= -(WorldSizeInVoxels * 0.5f) && posX < (WorldSizeInVoxels * 0.5f) &&
-			posY >= -(WorldSizeInVoxels * 0.5f) && posY < (WorldSizeInVoxels * 0.5f) &&
-			posZ >= -(WorldSizeInVoxels * 0.5f) && posZ < (WorldSizeInVoxels * 0.5f))
-		{
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		return posX >= -(worldSizeInVoxels * 0.5f) && posX < (worldSizeInVoxels * 0.5f) &&
+		       posY >= -(worldSizeInVoxels * 0.5f) && posY < (worldSizeInVoxels * 0.5f) &&
+		       posZ >= -(worldSizeInVoxels * 0.5f) && posZ < (worldSizeInVoxels * 0.5f);
 	}
 
 	[BurstCompile]

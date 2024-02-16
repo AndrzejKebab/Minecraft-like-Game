@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -28,10 +29,7 @@ public class Chunk
         set
         {
             isActive = value;
-            if (chunkObject != null)
-            {
-                chunkObject.SetActive(value);
-            }
+            if (chunkObject != null) chunkObject.SetActive(value);
         }
     }
 
@@ -39,7 +37,7 @@ public class Chunk
     public bool IsMeshDataCompleted => chunkJobHandle.IsCompleted;
     public bool IsVoxelMapCompleted => populateVoxelMapHandle.IsCompleted;
 
-    public bool VoxelMapPopulated = false;
+    public bool VoxelMapPopulated;
     public bool IsUpdating = true;
 
     private float3 ChunkPosition { get; set; }
@@ -52,8 +50,6 @@ public class Chunk
     private JobHandle populateVoxelMapHandle;
     private VoxelMapData voxelMapData;
     
-    private Stopwatch stopwatch = new();
-
     private readonly VertexAttributeDescriptor[] layout =
     {
         new(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
@@ -71,7 +67,6 @@ public class Chunk
 
     public void Initialise()
     {
-        stopwatch.Start();
         IsScheduled = true;
         chunkObject = new GameObject();
 
@@ -115,7 +110,7 @@ public class Chunk
         VoxelMapPopulated = true;
 
         IsUpdating = true;
-        meshData = new ChunkJob.MeshData()
+        meshData = new ChunkJob.MeshData
         {
             Vertex = new NativeList<Vertex>(Allocator.Persistent),
             MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
@@ -147,12 +142,12 @@ public class Chunk
         mesh.MarkDynamic();
         mesh.bounds = world.ChunkBound;
         mesh.subMeshCount = 1;
-        
+
         NativeArray<Vertex> vertexArray = meshData.Vertex.AsArray();
         NativeArray<ushort> triangleArray = meshData.MeshTriangles.AsArray();
 
         mesh.SetVertexBufferParams(vertexArray.Length, layout);
-        mesh.SetVertexBufferData(vertexArray, 0, 0, meshData.Vertex.Length, stream: 0);
+        mesh.SetVertexBufferData(vertexArray, 0, 0, meshData.Vertex.Length, 0);
 
         mesh.SetIndexBufferParams(triangleArray.Length, IndexFormat.UInt16);
         mesh.SetIndexBufferData(triangleArray, 0, 0, meshData.MeshTriangles.Length);
@@ -168,8 +163,6 @@ public class Chunk
         meshData.Vertex.Dispose();
         meshData.MeshTriangles.Dispose();
         IsUpdating = false;
-        stopwatch.Stop();
-        Debug.Log(chunkObject.name + " took " + stopwatch.ElapsedMilliseconds + "ms to create chunk");
     }
 
     public void EditVoxel(int3 pos, ushort blockId)
@@ -199,9 +192,7 @@ public class Chunk
             var currentVoxel = thisVoxel + VoxelData.FaceChecks[p];
 
             if (!IsVoxelInChunk(currentVoxel))
-            {
                 world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition)).CreateMeshDataJob();
-            }
         }
     }
 
@@ -242,7 +233,7 @@ public class Chunk
     }
 }
 
-[System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Sequential)]
 public struct Vertex
 {
     public half4 Position;

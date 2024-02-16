@@ -18,16 +18,16 @@ public class PlayerBlocks : MonoBehaviour
 
 	private void Awake()
 	{
-		highlightBlock = GameObject.Find("HiglightBlock").GetComponent<Transform>();
+		highlightBlock = GameObject.Find("HighlightBlock").GetComponent<Transform>();
 		placeBlock = GameObject.Find("PlaceHighlightBlock").GetComponent<Transform>();
 		world = GameObject.Find("World").GetComponent<World>();
 		cam = Camera.main;
 		selectedBlockText = GameObject.Find("ToolBar").GetComponent<TextMeshProUGUI>();
 
-		selectedBlockText.text = $"Seleceted Block: {world.BlockTypes[selectedBlockIndex].name}";
+		selectedBlockText.text = $"Selected Block: {world.BlockTypes[selectedBlockIndex].name}";
 	}
 
-	void Update()
+	private void Update()
 	{
 		PlaceCursorBlocks();
 		EditBlock();
@@ -35,7 +35,7 @@ public class PlayerBlocks : MonoBehaviour
 
 	private void EditBlock()
 	{
-		float scroll = Input.GetAxis("Mouse ScrollWheel");
+		var scroll = Input.GetAxis("Mouse ScrollWheel");
 
 		if (scroll != 0)
 		{
@@ -58,18 +58,16 @@ public class PlayerBlocks : MonoBehaviour
 			selectedBlockIndex = (ushort)(world.BlockTypesJobs.Length - 1);
 		}
 
-		selectedBlockText.text = $"Seleceted Block: {world.BlockTypes[selectedBlockIndex].name}";
+		selectedBlockText.text = $"Selected Block: {world.BlockTypes[selectedBlockIndex].name}";
 
-		if (highlightBlock.gameObject.activeSelf)
+		if (!highlightBlock.gameObject.activeSelf) return;
+		if (Input.GetMouseButtonDown(0))
 		{
-			if (Input.GetMouseButtonDown(0))
-			{
-				world.GetChunkFromVector3(highlightBlock.position).EditVoxel(new int3(highlightBlock.position), 0);
-			}
-			if (Input.GetMouseButtonDown(1))
-			{
-				world.GetChunkFromVector3(placeBlock.position).EditVoxel(new int3(placeBlock.position), selectedBlockIndex);
-			}
+			world.GetChunkFromVector3(highlightBlock.position).EditVoxel(new int3(highlightBlock.position), 0);
+		}
+		if (Input.GetMouseButtonDown(1))
+		{
+			world.GetChunkFromVector3(placeBlock.position).EditVoxel(new int3(placeBlock.position), selectedBlockIndex);
 		}
 	}
 
@@ -80,9 +78,9 @@ public class PlayerBlocks : MonoBehaviour
 		if (Physics.Raycast(ray, out hit, reach, chunkMask))
 		{
 			Debug.DrawLine(ray.origin, hit.point, Color.red);
-			Vector3 desiredPoint = hit.point - (hit.normal / 2);
+			var desiredPoint = hit.point - (hit.normal / 2);
 
-			Vector3 gridIndex = new Vector3
+			var gridIndex = new Vector3
 			(
 				Mathf.FloorToInt(desiredPoint.x),
 				Mathf.FloorToInt(desiredPoint.y),
@@ -92,9 +90,9 @@ public class PlayerBlocks : MonoBehaviour
 			highlightBlock.gameObject.SetActive(true);
 			highlightBlock.position = gridIndex;
 
-			Vector3 sideDesiredPoint = hit.point + (hit.normal / 2);
+			var sideDesiredPoint = hit.point + (hit.normal / 2);
 
-			Vector3 sideGridIndex = new Vector3
+			var sideGridIndex = new Vector3
 			(
 				Mathf.FloorToInt(sideDesiredPoint.x),
 				Mathf.FloorToInt(sideDesiredPoint.y),

@@ -1,5 +1,7 @@
+using Unity.Burst;
 using Unity.Mathematics;
 
+[BurstCompile]
 public static class VoxelData
 {
     public const byte ChunkSize = 32;

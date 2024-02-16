@@ -1,22 +1,20 @@
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
 
-[BurstCompile(CompileSynchronously = true)]
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class NoiseGenerator : MonoBehaviour
 {
-	[BurstCompile]
-	public static float Get2DPerlin(float positionX, float positionY, float offsetX, float offsetY, float scale)
-	{
-		float _sampleX = positionX / scale + offsetX;
-		float _sampleY = positionY / scale + offsetY;
+    [BurstCompile]
+    public static float Get2DPerlin(float positionX, float positionY, float offsetX, float offsetY, float scale)
+    {
+        var sampleX = positionX / scale + offsetX;
+        var sampleY = positionY / scale + offsetY;
 
-		float2 _sampleXY = new float2(_sampleX, _sampleY);
+        var sampleXY = new float2(sampleX, sampleY);
 
-		float _value = noise.cnoise(_sampleXY);
+        var value = noise.cnoise(sampleXY);
 
-		return math.unlerp(-1, 1, _value);
-	}
+        return math.unlerp(-1, 1, value);
+    }
 }

@@ -4,7 +4,7 @@ using Unity.Jobs;
 using UnityEngine;
 using UtilityLibrary.Unity.Runtime;
 
-[BurstCompile(CompileSynchronously = true)]
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct PopulateVoxelMapJob : IJob
 {
 	public struct VoxelMapData
