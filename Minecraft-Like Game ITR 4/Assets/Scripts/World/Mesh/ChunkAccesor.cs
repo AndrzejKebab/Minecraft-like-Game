@@ -7,9 +7,6 @@ namespace PatataStudio.World.Mesh
     [BurstCompile]
     public struct ChunkAccessor
     {
-        /// <summary>
-        /// Reference to the chunk store hash map
-        /// </summary>
         private readonly NativeParallelHashMap<int3, Chunk>.ReadOnly chunks;
         private int3 chunkSize;
 
@@ -33,19 +30,13 @@ namespace PatataStudio.World.Mesh
 
             key *= chunkSize;
 
-            return TryGetChunk(chunkPos + key, out var chunk) ? chunk.Data.GetBlock(blockPos) : 0;
+            return TryGetChunk(chunkPos + key, out var chunk) ? chunk.GetBlock(blockPos) : 0;
         }
 
-        public bool TryGetChunk(int3 pos, out Chunk chunk)
-        {
-            return chunks.TryGetValue(pos, out chunk);
-        }
+        internal bool TryGetChunk(int3 pos, out Chunk chunk) => chunks.TryGetValue(pos, out chunk);
+        internal bool ContainsChunk(int3 coord) => chunks.ContainsKey(coord);
 
-        public bool ContainsChunk(int3 coord)
-        {
-            return chunks.ContainsKey(coord);
-        }
-
+        #region TryGet Neighbours
         public bool TryGetNeighborPX(int3 pos, out Chunk chunk)
         {
             var px = pos + new int3(1, 0, 0) * chunkSize;
@@ -88,5 +79,6 @@ namespace PatataStudio.World.Mesh
 
             return chunks.TryGetValue(nz, out chunk);
         }
+        #endregion
     }
 }

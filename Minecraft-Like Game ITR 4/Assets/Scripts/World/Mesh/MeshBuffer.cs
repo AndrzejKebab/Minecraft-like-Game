@@ -8,11 +8,13 @@ namespace PatataStudio.World.Mesh
     {
         public NativeList<Vertex> VertexBuffer;
         public NativeList<int> IndexBuffer;
+        public NativeList<int> IndexBuffer2;
 
         internal void Dispose()
         {
             VertexBuffer.Dispose();
             IndexBuffer.Dispose();
+            IndexBuffer2.Dispose();
         }
     }
 }
