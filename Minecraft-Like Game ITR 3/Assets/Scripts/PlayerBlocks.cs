@@ -4,13 +4,13 @@ using UnityEngine;
 
 public class PlayerBlocks : MonoBehaviour
 {
-	[SerializeField] private Transform highlightBlock;
-	[SerializeField] private Transform placeBlock;
-	[SerializeField] private int reach;
 	[SerializeField] private TextMeshProUGUI selectedBlockText;
+	[SerializeField] private Transform highlightBlock;
+	[SerializeField] private Transform placeHighlightBlock;
+	[SerializeField]private Camera cam;
+	[SerializeField]private World world;
+	[SerializeField] private int reach;
 	private ushort selectedBlockIndex = 1;
-	private Camera cam;
-	private World world;
 
 	[SerializeField] private LayerMask chunkMask = 6;
 	private Ray ray;
@@ -18,12 +18,6 @@ public class PlayerBlocks : MonoBehaviour
 
 	private void Awake()
 	{
-		highlightBlock = GameObject.Find("HighlightBlock").GetComponent<Transform>();
-		placeBlock = GameObject.Find("PlaceHighlightBlock").GetComponent<Transform>();
-		world = GameObject.Find("World").GetComponent<World>();
-		cam = Camera.main;
-		selectedBlockText = GameObject.Find("ToolBar").GetComponent<TextMeshProUGUI>();
-
 		selectedBlockText.text = $"Selected Block: {world.BlockTypes[selectedBlockIndex].name}";
 	}
 
@@ -63,11 +57,13 @@ public class PlayerBlocks : MonoBehaviour
 		if (!highlightBlock.gameObject.activeSelf) return;
 		if (Input.GetMouseButtonDown(0))
 		{
-			world.GetChunkFromVector3(highlightBlock.position).EditVoxel(new int3(highlightBlock.position), 0);
+			var position = highlightBlock.position;
+			world.GetChunkFromVector3(position).EditVoxel(new int3(position), 0);
 		}
 		if (Input.GetMouseButtonDown(1))
 		{
-			world.GetChunkFromVector3(placeBlock.position).EditVoxel(new int3(placeBlock.position), selectedBlockIndex);
+			var position = placeHighlightBlock.position;
+			world.GetChunkFromVector3(position).EditVoxel(new int3(position), selectedBlockIndex);
 		}
 	}
 
@@ -99,12 +95,12 @@ public class PlayerBlocks : MonoBehaviour
 				Mathf.FloorToInt(sideDesiredPoint.z)
 			);
 
-			placeBlock.gameObject.SetActive(true);
-			placeBlock.position = sideGridIndex;
+			placeHighlightBlock.gameObject.SetActive(true);
+			placeHighlightBlock.position = sideGridIndex;
 		}
 		else
 		{
-			placeBlock.gameObject.SetActive(false);
+			placeHighlightBlock.gameObject.SetActive(false);
 			highlightBlock.gameObject.SetActive(false);
 			Debug.DrawRay(cam.transform.position, cam.transform.forward * reach, Color.yellow);
 		}
