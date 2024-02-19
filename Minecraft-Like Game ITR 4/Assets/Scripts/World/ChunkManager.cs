@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using PatataStudio.World.Mesh;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -8,6 +7,7 @@ using UnityEngine;
 using UtilityLibrary.Unity.Runtime;
 using UtilityLibrary.Unity.Runtime.PriorityQueue;
 using UtilityLibrary.Unity.Runtime.Values;
+using static PatataStudio.GameSettings;
 
 namespace PatataStudio.World
 {
@@ -21,13 +21,11 @@ namespace PatataStudio.World
         private readonly HashSet<int3> reCollideChunks;
 
         private int3 focus;
-        private readonly int3 chunkSize;
         private readonly int chunkStoreSize;
 
         internal ChunkManager()
         {
-            chunkSize = GameSettings.ChunkSize;
-            chunkStoreSize = (GameSettings.ViewDistance + 2).CubedSize();
+            chunkStoreSize = (ViewDistance + 2).CubedSize();
 
             reMeshChunks = new HashSet<int3>();
             reCollideChunks = new HashSet<int3>();
@@ -42,14 +40,6 @@ namespace PatataStudio.World
         }
 
         #region API
-
-        /// <summary>
-        ///     Set a block at a position
-        /// </summary>
-        /// <param name="block">Block Type</param>
-        /// <param name="position">World Position</param>
-        /// <param name="remesh">Regenerate Mesh and Collider ?</param>
-        /// <returns>Operation Success</returns>
         public bool SetBlock(ushort block, Vector3Int position, bool remesh = true)
         {
             var chunkPos = Utils.GetChunkCoords(position);
@@ -98,7 +88,6 @@ namespace PatataStudio.World
                     throw new InvalidOperationException($"Chunk {position} already exists");
 
                 if (queue.Count >= chunkStoreSize) this.chunks.Remove(queue.Dequeue());
-                // if dirty save chunk
                 this.chunks.Add(position, chunk);
                 queue.Enqueue(position, -(position - focus).SqrMagnitude());
             }
@@ -113,7 +102,7 @@ namespace PatataStudio.World
                 for (var z = -1; z <= 1; z++)
                 for (var y = -1; y <= 1; y++)
                 {
-                    var pos = position + chunkSize.MemberMultiply(x, y, z);
+                    var pos = position + new int3(ChunkSize * x, ChunkSize * y, ChunkSize * z);
 
                     if (!chunks.ContainsKey(pos))
                         // Anytime this exception is thrown, mesh building completely stops
@@ -122,7 +111,7 @@ namespace PatataStudio.World
                     if (!accessorMap.ContainsKey(pos)) accessorMap.Add(pos, chunks[pos]);
                 }
 
-            return new ChunkAccessor(accessorMap.AsReadOnly(), chunkSize);
+            return new ChunkAccessor(accessorMap.AsReadOnly(), ChunkSize);
         }
 
         internal bool ReMeshedChunk(int3 position)
@@ -146,7 +135,7 @@ namespace PatataStudio.World
             foreach (var dir in Utils.Directions)
                 reMeshChunks.Add(Utils.GetChunkCoords(blockPosition + dir));
         }
-        
+
         internal void Dispose()
         {
             accessorMap.Dispose();

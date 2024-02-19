@@ -8,10 +8,8 @@ namespace PatataStudio.World
 {
     public class ChunkScheduler : JobScheduler
     {
-        private static readonly int3 chunkSize = new(32, 32, 32);
-
         private readonly ChunkManager chunkManager;
-        //private NoiseProfile _NoiseProfile;
+        private NoiseGenerator noiseGenerator;
 
         private JobHandle handle;
 
@@ -43,7 +41,6 @@ namespace PatataStudio.World
             var chunkJob = new ChunkJob
             {
                 Jobs = this.jobs,
-                ChunkSize = chunkSize,
                 Results = results.AsParallelWriter()
             };
 

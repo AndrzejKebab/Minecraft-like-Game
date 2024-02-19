@@ -1,7 +1,7 @@
 using Unity.Burst;
 using Unity.Collections;
 
-namespace PatataStudio.World.Mesh
+namespace PatataStudio.World
 {
     [BurstCompile]
     public struct MeshBuffer

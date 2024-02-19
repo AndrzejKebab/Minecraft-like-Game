@@ -2,17 +2,16 @@
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using static PatataStudio.GameSettings;
 
 namespace PatataStudio.World
 {
-    [BurstCompile(OptimizeFor = OptimizeFor.Performance, 
+    [BurstCompile(OptimizeFor = OptimizeFor.Performance,
         FloatMode = FloatMode.Fast,
         FloatPrecision = FloatPrecision.Low)]
     public struct ChunkJob : IJobParallelFor
     {
-        [ReadOnly] public int3 ChunkSize;
-        //[ReadOnly] public NoiseProfile NoiseProfile;
-
+        [ReadOnly] public NoiseGenerator NoiseGenerator;
         [ReadOnly] public NativeList<int3> Jobs;
 
         [WriteOnly] public NativeParallelHashMap<int3, Chunk>.ParallelWriter Results;
@@ -30,53 +29,47 @@ namespace PatataStudio.World
         {
             var data = new Chunk(position, ChunkSize);
 
-            //var noise = NoiseProfile.GetNoise(position);
-            //int currentBlock = GetBlock(ref noise);
+            NativeArray<int> noise = NoiseGenerator.Get2DNoise(position);
+            var currentBlock = GetBlock(position, noise[0]);
 
             var count = 0;
 
-            // Loop order should be same as flatten order for AddBlocks to work properly
-            for (var x = 0; x < ChunkSize.x; x++)
+            for (var x = 0; x < ChunkSize; x++)
+            for (var y = 0; y < ChunkSize; y++)
+            for (var z = 0; z < ChunkSize; z++)
             {
-                for (var y = 0; y < ChunkSize.y; y++)
-                {
-                    for (var z = 0; z < ChunkSize.z; z++)
-                    {
-                        /*
-                        noise = NoiseProfile.GetNoise(position + new int3(x, y, z));
+                var block = GetBlock(new int3(x, y, z), noise[x * ChunkSize + z]);
+                count = block == currentBlock ? ++count : 1;
 
-                        var block = GetBlock(ref noise);
+                if (block == currentBlock) continue;
 
-                        if (block == current_block)
-                        {
-                            count++;
-                        }
-                        else
-                        {
-                            data.AddBlocks(current_block, count);
-                            current_block = block;
-                            count = 1;
-                        }
-                        */
-                    }
-                }
+                data.AddBlocks(currentBlock, count);
+                currentBlock = block;
+                count = 1;
             }
 
-            //data.AddBlocks(currentBlock, count); // Finale interval
+            data.AddBlocks(currentBlock, count); // Finale interval
 
             return data;
         }
 
-        //private static int GetBlock(ref NoiseValue noise)
-        //{
-        //    var Y = noise.Position.y;
-//
-        //    if (Y > noise.Height)
-        //        return Y > noise.WaterLevel ? (int)AllocatorManager.Block.AIR : (int)AllocatorManager.Block.WATER;
-        //    if (Y == noise.Height) return (int)AllocatorManager.Block.GRASS;
-        //    if (Y <= noise.Height - 1 && Y >= noise.Height - 3) return (int)AllocatorManager.Block.DIRT;
-//
-        //    return (int)AllocatorManager.Block.STONE;
-        //}
+        private static ushort GetBlock(int3 position, int terrainHeight) // Temporary solution for testing
+        {
+            return position.y switch
+            {
+                _ when !IsVoxelInWorld(position, WorldSizeInVoxels) => 0,
+                0 => 1,
+                _ when position.y > terrainHeight => terrainHeight <= WorldHeight ? (ushort)5 : (ushort)0,
+                _ when position.y == terrainHeight => 4,
+                _ when position.y < terrainHeight && position.y > terrainHeight - 6 => 3,
+                _ => 2
+            };
+        }
+
+        private static bool IsVoxelInWorld(int3 position, int worldSizeInVoxels)
+        {
+            var halfWorldSize = new int3(worldSizeInVoxels * 0.5f);
+            return math.all((position >= -halfWorldSize) & (position < halfWorldSize));
+        }
     }
 }

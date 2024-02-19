@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UtilityLibrary.Unity.Runtime;
 
-namespace PatataStudio.World.Mesh
+namespace PatataStudio.World
 {
     [BurstCompile, StructLayout(LayoutKind.Sequential)]
     public struct Vertex
