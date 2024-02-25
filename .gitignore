@@ -73,6 +73,7 @@ crashlytics-build.properties
 
 # Custom
 .idea
+[Ee]ditor*
 [Vv]Tools*
 Infinity Code*
 ColorScript*
