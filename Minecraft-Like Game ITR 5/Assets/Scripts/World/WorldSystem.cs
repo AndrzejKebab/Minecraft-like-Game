@@ -18,5 +18,6 @@ namespace PatataStudio
 				noiseDatas.Add(mapData.Noise);
 			}
 		}
+
 	}
 }

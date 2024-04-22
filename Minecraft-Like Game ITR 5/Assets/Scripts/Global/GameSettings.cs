@@ -1,6 +1,10 @@
-﻿namespace PatataStudio
+﻿using PatataStudio.World.Voxels;
+using Sirenix.Serialization;
+using UtilityLibrary.Unity.Runtime.Patterns;
+
+namespace PatataStudio
 {
-    public static class GameSettings
+    public class GameSettings : Singleton<GameSettings>
     {
         #region Player Settings
         public static int ViewDistance = 8;
@@ -12,6 +16,9 @@
         public const int WaterHeight = 100;
         public const int WorldSizeInChunks = 1875000;
         public static int WorldSizeInVoxels => WorldSizeInChunks * ChunkSize;
+
+        [OdinSerialize] public HeightMapData[] heightMapDatas;
+        [OdinSerialize] public VoxelData[] voxelDataDatas;
         #endregion
 
         public const byte TextureAtlasSizeInBlocks = 16;

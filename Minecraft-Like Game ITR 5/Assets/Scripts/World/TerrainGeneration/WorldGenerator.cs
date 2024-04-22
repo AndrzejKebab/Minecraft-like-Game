@@ -1,4 +1,5 @@
-﻿using Unity.Burst;
+﻿using System;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -8,9 +9,10 @@ namespace PatataStudio.World.TerrainGeneration
 	[BurstCompile]
 	public struct WorldGeneratorJob : IJobParallelFor
 	{
+		[ReadOnly] public NativeArray<IntPtr> IntPtrs;
 		[ReadOnly] public NoiseGenerator noiseGenerator;
 		[ReadOnly] public NativeList<int3> ChunksToGenerate;
-		[WriteOnly] public NativeParallelHashMap<int3, ChunkComponent>.ParallelWriter Chunks;
+		[WriteOnly] public NativeParallelHashMap<int3, Chunk>.ParallelWriter Chunks;
 
 		public void Execute(int index)
 		{
@@ -20,14 +22,13 @@ namespace PatataStudio.World.TerrainGeneration
 			Chunks.TryAdd(position, chunk);
 		}
 
-		private ChunkComponent GenerateChunkData(int3 position)
+		private Chunk GenerateChunkData(int3 position)
 		{
-			var chunkData = new ChunkComponent();
+			var chunkData = new Chunk();
 
-			var temp = new NoiseData();
-			var noiseData = noiseGenerator.GenerateWorldMap(NoiseType.Continentalness, temp);
+			var noiseData = noiseGenerator.GenerateWorldMap(position);
 
-			return default;
+			return chunkData;
 		}
 	}
 }
