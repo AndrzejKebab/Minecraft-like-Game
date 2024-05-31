@@ -1,27 +1,15 @@
-﻿using PatataStudio.World.Voxels;
-using Sirenix.Serialization;
-using UtilityLibrary.Unity.Runtime.Patterns;
-
-namespace PatataStudio
+namespace PatataStudio.Global.Settings
 {
-    public class GameSettings : Singleton<GameSettings>
-    {
-        #region Player Settings
-        public static int ViewDistance = 8;
-        #endregion
+	public static class GameSettings
+	{
+		#region Global Settings
+		
+		#endregion
 
-        #region World Settings
-        public static readonly int ChunkSize = 32;
-        public const int WorldHeight = 384;
-        public const int WaterHeight = 100;
-        public const int WorldSizeInChunks = 1875000;
-        public static int WorldSizeInVoxels => WorldSizeInChunks * ChunkSize;
+		#region World Settings
+		public const byte ViewDistance = 8;
+		public const byte ChunkSize = 32;
+		#endregion
 
-        [OdinSerialize] public HeightMapData[] heightMapDatas;
-        [OdinSerialize] public VoxelData[] voxelDataDatas;
-        #endregion
-
-        public const byte TextureAtlasSizeInBlocks = 16;
-        public static float NormalizedBlockTextureSize => 1f / TextureAtlasSizeInBlocks;
-    }
+	}
 }

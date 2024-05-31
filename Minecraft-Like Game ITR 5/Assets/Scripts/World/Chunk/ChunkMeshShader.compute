@@ -1,0 +1,66 @@
+#pragma kernel CSMain
+
+struct Vertex
+{
+    float3 position;
+    float3 normal;
+};
+
+RWStructuredBuffer<Vertex> vertices;
+RWStructuredBuffer<int> triangles;
+StructuredBuffer<float> voxelData;
+
+int chunkSize;
+int3 chunkPosition;
+
+[numthreads(8, 8, 8)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    uint index = id.x + id.y * chunkSize + id.z * chunkSize * chunkSize;
+
+    float3 position = float3(id.x, id.y, id.z) + chunkPosition * chunkSize;
+
+    // Define the offsets for each of the 6 faces
+    float3 offsets[6][4] =
+    {
+        { float3(0, 0, 0), float3(1, 0, 0), float3(0, 1, 0), float3(1, 1, 0) }, // Front
+        { float3(0, 0, 1), float3(1, 0, 1), float3(0, 1, 1), float3(1, 1, 1) }, // Back
+        { float3(0, 0, 0), float3(0, 0, 1), float3(0, 1, 0), float3(0, 1, 1) }, // Left
+        { float3(1, 0, 0), float3(1, 0, 1), float3(1, 1, 0), float3(1, 1, 1) }, // Right
+        { float3(0, 1, 0), float3(1, 1, 0), float3(0, 1, 1), float3(1, 1, 1) }, // Top
+        { float3(0, 0, 0), float3(1, 0, 0), float3(0, 0, 1), float3(1, 0, 1) } // Bottom
+    };
+
+    float3 normals[6] =
+    {
+        float3(0, 0, -1), // Front
+        float3(0, 0, 1), // Back
+        float3(-1, 0, 0), // Left
+        float3(1, 0, 0), // Right
+        float3(0, 1, 0), // Top
+        float3(0, -1, 0) // Bottom
+    };
+
+    uint vertIndex = index * 24; // 6 faces * 4 vertices
+    uint triIndex = index * 36; // 6 faces * 6 indices
+
+    // Generate vertices and triangles for each face of the voxel
+    for (int face = 0; face < 6; face++)
+    {
+        // Add vertices for this face
+        for (int v = 0; v < 4; v++)
+        {
+            vertices[vertIndex + face * 4 + v].position = position + offsets[face][v];
+            vertices[vertIndex + face * 4 + v].normal = normals[face];
+        }
+
+        // Add triangles for this face
+        triangles[triIndex + face * 6 + 0] = vertIndex + face * 4 + 0;
+        triangles[triIndex + face * 6 + 1] = vertIndex + face * 4 + 1;
+        triangles[triIndex + face * 6 + 2] = vertIndex + face * 4 + 2;
+
+        triangles[triIndex + face * 6 + 3] = vertIndex + face * 4 + 2;
+        triangles[triIndex + face * 6 + 4] = vertIndex + face * 4 + 1;
+        triangles[triIndex + face * 6 + 5] = vertIndex + face * 4 + 3;
+    }
+}
