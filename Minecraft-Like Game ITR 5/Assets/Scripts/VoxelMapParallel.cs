@@ -1,15 +1,17 @@
-using PatataStudio.Global;
+using System.Collections;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
+using UnityEngine;
 
-namespace PatataStudio.World.Chunk
+namespace PatataStudio
 {
-	public struct ChunkParallelJob : IJobParallelFor
+	public struct VoxelMapParallel : IJobParallelFor
 	{
-		public ChunkAccessor Accessor;
 		public NativeList<int3> ChunksToUpdate;
 		public NativeParallelHashMap<int3, Chunk> ChunkMap;
+		public NativeParallelHashMap<int3, Chunk>.ReadOnly ChunkAccessor;
 
 		public void Execute(int index)
 		{
