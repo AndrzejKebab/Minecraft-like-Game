@@ -1,3 +1,4 @@
+using System;
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
@@ -6,7 +7,7 @@ using UnityEngine;
 public class WorldExtensions : MonoBehaviour
 {
 	[BurstCompile]
-	public static ushort GetVoxel(float posX, float posY, float posZ, int worldSizeInVoxels, int biomeScale, int biomeHeight, int solidBiomeHeight)
+	public static ushort GetVoxel(IntPtr nodeHandle, float posX, float posY, float posZ, int worldSizeInVoxels, int biomeScale, int biomeHeight, int solidBiomeHeight)
 	{
 		var biomeAttributes = new BiomeAttributesJob()
 		{
@@ -16,7 +17,7 @@ public class WorldExtensions : MonoBehaviour
 		};
 
 		var yPos = Mathf.FloorToInt(posY);
-		var terrainHeight = NoiseGenerator.Get2DPerlin(posX, posZ, 0, 0, biomeAttributes.BiomeScale);
+		var terrainHeight = NoiseGenerator.Get2DPerlin(nodeHandle, posX, posZ, biomeAttributes.BiomeScale);
 		terrainHeight = Mathf.FloorToInt(terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidGroundHeight;
 
 		ushort voxelValue = 2;

@@ -1,8 +1,10 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Assertions;
 using Debug = UnityEngine.Debug;
 using Random = UnityEngine.Random;
 
@@ -30,9 +32,13 @@ public class World : MonoBehaviour
 
 	public Bounds ChunkBound { get; private set; }
 
+	private FastNoise worldGen;
+	public IntPtr WorldGenNodePtr;
+	[field:SerializeField]public string EncodedNodeTree { get; private set; }
+
 	private void Awake()
 	{
-		Instance = this;
+		Instance = this;		
 
 		Vector3 size = new(VoxelData.ChunkSize, VoxelData.ChunkSize, VoxelData.ChunkSize);
 		ChunkBound = new Bounds(size / 2, size);
@@ -49,9 +55,17 @@ public class World : MonoBehaviour
 		PlayerTransform = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
 	}
 
+	private void SetFastNoise()
+	{
+		worldGen = FastNoise.FromEncodedNodeTree(EncodedNodeTree);
+		Assert.IsNotNull(worldGen, "worldGen is null, invalid encoded node tree");
+		WorldGenNodePtr = worldGen.NodeHandlePtr;
+	}
+
 	private void Start()
 	{
 		Random.InitState(seed);
+		SetFastNoise();
 		CheckViewDistance();
 	}
 
@@ -171,7 +185,7 @@ public class World : MonoBehaviour
 			return blockTypes[ChunkStorage[thisChunk].GetVoxelFromGlobalVector3(pos)].BlockTypeData.IsSolid;
 		}
 
-		return blockTypes[WorldExtensions.GetVoxel(pos.x ,pos.y, pos.z, VoxelData.ChunkSize, BiomeAttributesJob.BiomeScale, BiomeAttributesJob.BiomeHeight, BiomeAttributesJob.SolidGroundHeight)].BlockTypeData.IsSolid;
+		return blockTypes[WorldExtensions.GetVoxel(WorldGenNodePtr ,pos.x ,pos.y, pos.z, VoxelData.ChunkSize, BiomeAttributesJob.BiomeScale, BiomeAttributesJob.BiomeHeight, BiomeAttributesJob.SolidGroundHeight)].BlockTypeData.IsSolid;
 	}
 
 	private void OnApplicationQuit()

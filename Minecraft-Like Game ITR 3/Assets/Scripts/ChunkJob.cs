@@ -1,5 +1,7 @@
+using System;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -25,6 +27,9 @@ public struct ChunkJob : IJob
 	public ChunkData chunkData;
 	[WriteOnly]
 	public MeshData meshData;
+	[WriteOnly]
+	[NativeDisableUnsafePtrRestriction]
+	public IntPtr nodeHandle;
 
 	private ushort vertexIndex;
 	[ReadOnly] public int ChunkSize;
@@ -138,7 +143,7 @@ public struct ChunkJob : IJob
 			float posX = pos.x + Position.x;
 			float posY = pos.y + Position.y;
 			float posZ = pos.z + Position.z;
-			return chunkData.BlockTypes[WorldExtensions.GetVoxel(posX, posY, posZ, WorldSizeInVoxels, chunkData.BiomeData.BiomeScale, chunkData.BiomeData.BiomeHeight, chunkData.BiomeData.SolidGroundHeight)].IsSolid;
+			return chunkData.BlockTypes[WorldExtensions.GetVoxel(nodeHandle, posX, posY, posZ, WorldSizeInVoxels, chunkData.BiomeData.BiomeScale, chunkData.BiomeData.BiomeHeight, chunkData.BiomeData.SolidGroundHeight)].IsSolid;
 		}
 		else
 		{

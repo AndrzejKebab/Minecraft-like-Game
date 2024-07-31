@@ -1,20 +1,32 @@
+using System.Runtime.InteropServices;
+using System;
 using Unity.Burst;
 using Unity.Mathematics;
 using UnityEngine;
+using static FastNoise;
+using Unity.Collections.LowLevel.Unsafe;
+using Unity.Collections;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class NoiseGenerator : MonoBehaviour
 {
-    [BurstCompile]
-    public static float Get2DPerlin(float positionX, float positionY, float offsetX, float offsetY, float scale)
-    {
-        var sampleX = positionX / scale + offsetX;
-        var sampleY = positionY / scale + offsetY;
+	[BurstCompile]
+	public static float Get2DPerlin(float positionX, float positionY, float scale)
+	{
+		var sampleX = positionX / scale;
+		var sampleY = positionY / scale;
 
-        var sampleXY = new float2(sampleX, sampleY);
+		var sampleXY = new float2(sampleX, sampleY);
 
-        var value = noise.cnoise(sampleXY);
+		var value = noise.cnoise(sampleXY);
 
-        return math.unlerp(-1, 1, value);
-    }
+		return math.unlerp(-1, 1, value);
+	}
+
+	public unsafe static float Get2DPerlin(IntPtr nodePtr, float positionX, float positionY, float scale)
+	{
+		var sampleX = positionX / scale;
+		var sampleY = positionY / scale;
+		return GenSingle2D(nodePtr, sampleX, sampleY, 1337);
+	}
 }

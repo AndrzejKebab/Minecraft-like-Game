@@ -1,5 +1,7 @@
+using System;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
 using UtilityLibrary.Unity.Runtime;
@@ -20,6 +22,9 @@ public struct PopulateVoxelMapJob : IJob
 	public VoxelMapData VoxelData;
 	[WriteOnly]
 	public NativeArray<ushort> VoxelMap;
+	[WriteOnly]
+	[NativeDisableUnsafePtrRestriction]
+	public IntPtr nodeHandle;
 
 	public void Execute()
 	{
@@ -37,7 +42,7 @@ public struct PopulateVoxelMapJob : IJob
 					float posX = x + Position.x;
 					float posY = y + Position.y;
 					float posZ = z + Position.z;
-					var voxel = WorldExtensions.GetVoxel(posX, posY, posZ,
+					var voxel = WorldExtensions.GetVoxel(nodeHandle, posX, posY, posZ,
 						VoxelData.WorldSizeInVoxels,
 						VoxelData.BiomeData.BiomeScale,
 						VoxelData.BiomeData.BiomeHeight,
