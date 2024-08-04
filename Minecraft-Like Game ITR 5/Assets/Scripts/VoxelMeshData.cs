@@ -7,7 +7,7 @@ namespace PatataStudio
 	public class VoxelMeshData : ScriptableObject
 	{
 		public FaceData[] FaceDatas;
-		public Mesh mesh;
+		[SerializeField] private Mesh mesh;
 
 		public void OnValidate()
 		{
@@ -45,10 +45,10 @@ namespace PatataStudio
 				int baseIndex = i * 6;
 				int[] quadIndices = new int[]
 				{
-					triangles[baseIndex],     // Bottom-right
-					triangles[baseIndex + 1], // Top-right
-					triangles[baseIndex + 2], // Bottom-right
-					triangles[baseIndex + 5]  // Bottom-left
+					triangles[baseIndex],     // Bottom-left
+					triangles[baseIndex + 1], // Top-left
+					triangles[baseIndex + 2], // Top-right
+					triangles[baseIndex + 5]  // Bottom-right
 				};
 
 				for (int j = 0; j < 4; j++)

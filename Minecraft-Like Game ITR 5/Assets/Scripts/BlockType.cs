@@ -8,7 +8,7 @@ namespace PatataStudio
 	{
 		public string VoxelName;
 		public Voxel Voxel;
-		public VoxelMeshData VoxelMeshData;
+		[SerializeField] private VoxelMeshData VoxelMeshData;
 
 		public Voxel GetVoxel()
 		{
