@@ -60,7 +60,7 @@ namespace PatataStudio
 		{
 			NativeArray<float> noiseOut = new((int)math.pow(32, 3), Allocator.Temp);
 
-			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, 32, 32, 32, 0.5f, 1337);
+			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, 32, 32, 32, 2f, 1337);
 			
 			return noiseOut;
 		}
