@@ -379,7 +379,7 @@ public partial class FastNoise
     static private Dictionary<string, int> metadataNameLookup;
     static private Metadata[] nodeMetadata;
 
-    private const string NATIVE_LIB = "FastNoise2";
+    private const string NATIVE_LIB = "FastNoise";
 
     [DllImport(NATIVE_LIB)]
     private static extern IntPtr fnNewFromMetadata(int id, uint simdLevel = 0);

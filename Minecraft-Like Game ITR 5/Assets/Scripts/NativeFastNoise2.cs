@@ -160,4 +160,6 @@ public partial class FastNoise
                                          int seed, void* outputMinMax);
 
     public IntPtr NodeHandlePtr => mNodeHandle;
+
 }
+
