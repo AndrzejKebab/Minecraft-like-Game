@@ -112,7 +112,7 @@ public class World : MonoBehaviour
 	
 		playerLastChunkCoord = PlayerChunkCoord;
 	
-		for (var y = coord.y - (VoxelData.ViewDistanceInChunks / 4); y < coord.y + VoxelData.ViewDistanceInChunks; y++)
+		for (var y = coord.y - VoxelData.ViewDistanceInChunks; y < coord.y + VoxelData.ViewDistanceInChunks; y++)
 		{
 			for (var x = coord.x - VoxelData.ViewDistanceInChunks; x < coord.x + VoxelData.ViewDistanceInChunks; x++)
 			{

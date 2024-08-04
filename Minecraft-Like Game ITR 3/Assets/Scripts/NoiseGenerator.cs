@@ -10,7 +10,7 @@ using Unity.Collections;
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class NoiseGenerator : MonoBehaviour
 {
-	[BurstCompile]
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public static float Get2DPerlin(float positionX, float positionY, float scale)
 	{
 		var sampleX = positionX / scale;
@@ -23,6 +23,7 @@ public class NoiseGenerator : MonoBehaviour
 		return math.unlerp(-1, 1, value);
 	}
 
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public unsafe static float Get2DPerlin(IntPtr nodePtr, float positionX, float positionY, float scale)
 	{
 		var sampleX = positionX / scale;

@@ -24,7 +24,7 @@ RenderSettings:
   m_AmbientEquatorColor: {r: 0.114, g: 0.125, b: 0.133, a: 1}
   m_AmbientGroundColor: {r: 0.047, g: 0.043, b: 0.035, a: 1}
   m_AmbientIntensity: 1
-  m_AmbientMode: 0
+  m_AmbientMode: 4
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
   m_SkyboxMaterial: {fileID: 0}
   m_HaloStrength: 0.5
@@ -1342,7 +1342,7 @@ PrefabInstance:
     - target: {fileID: 1020324107378343166, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 321.8
+      value: 401.8
       objectReference: {fileID: 0}
     - target: {fileID: 1437021729980490385, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
@@ -1412,7 +1412,7 @@ PrefabInstance:
     - target: {fileID: 4904283517436763971, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 320
+      value: 400
       objectReference: {fileID: 0}
     - target: {fileID: 5711781815915595251, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
@@ -1467,7 +1467,7 @@ PrefabInstance:
     - target: {fileID: 7977324258352928721, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 321.8
+      value: 401.8
       objectReference: {fileID: 0}
     - target: {fileID: 8216889616697381356, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
@@ -1506,13 +1506,18 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
+      propertyPath: taaAntiHistoryRinging
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
       propertyPath: allowDynamicResolution
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
       propertyPath: allowDeepLearningSuperSampling
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
@@ -2114,7 +2119,7 @@ MonoBehaviour:
     type: 2}
   seed: 0
   biomeAttributes: {fileID: 11400000, guid: fed9c83e0cbeace4b8b03142ba5f623d, type: 2}
-  <EncodedNodeTree>k__BackingField: FwAAAIC/AACAPwAAAAAAAIA/DQAIAAAAAAAAQCkAAAAAAD8AAAAAPw==
+  <EncodedNodeTree>k__BackingField: FwAAAIC/AACAPwAAAAAAAIA/GgABEQACAAAAAAAgQBAAAAAAQBMAw/UoPw0ABAAAAAAAIEApAABmZiY/AAAAAD8AzcxMPgAzMzM/AAAAAD8BBgA=
 --- !u!20 &2052158339 stripped
 Camera:
   m_CorrespondingSourceObject: {fileID: 1020324107378343161, guid: bc5d290ef5433d44bab460c7f9f15583,
