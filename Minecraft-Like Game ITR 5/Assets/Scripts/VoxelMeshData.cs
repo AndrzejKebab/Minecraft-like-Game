@@ -23,37 +23,33 @@ namespace PatataStudio
 			Vector2[] uvs = mesh.uv;
 			int[] triangles = mesh.triangles;
 
-			if (triangles.Length % 6 != 0)
+			if (triangles.Length % 3 != 0)
 			{
-				Debug.LogWarning("The number of triangles is not divisible by 6, which is required to form quads.");
+				Debug.LogWarning("The number of triangles is not divisible by 3, which is required to form triangles.");
 				return;
 			}
 
-			int quadCount = triangles.Length / 6;
-			FaceDatas = new FaceData[quadCount];
+			int triangleCount = triangles.Length / 3;
+			FaceDatas = new FaceData[triangleCount];
 
-			for (int i = 0; i < quadCount; i++)
+			for (int i = 0; i < triangleCount; i++)
 			{
 				FaceDatas[i] = new FaceData
 				{
-					Vertices = new VertexData[4]
+					Vertices = new VertexData[3]
 				};
 
-				// Each quad is formed by two triangles:
-				// Triangle 1: vertices[0], vertices[1], vertices[2]
-				// Triangle 2: vertices[2], vertices[1], vertices[3]
-				int baseIndex = i * 6;
-				int[] quadIndices = new int[]
+				int baseIndex = i * 3;
+				int[] triangleIndices = new int[]
 				{
-					triangles[baseIndex],     // Bottom-left
-					triangles[baseIndex + 1], // Top-left
-					triangles[baseIndex + 2], // Top-right
-					triangles[baseIndex + 5]  // Bottom-right
+					triangles[baseIndex],
+					triangles[baseIndex + 1],
+					triangles[baseIndex + 2]
 				};
 
-				for (int j = 0; j < 4; j++)
+				for (int j = 0; j < 3; j++)
 				{
-					int vertexIndex = quadIndices[j];
+					int vertexIndex = triangleIndices[j];
 					FaceDatas[i].Vertices[j] = new VertexData
 					{
 						Position = vertices[vertexIndex],

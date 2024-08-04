@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime.Patterns;
@@ -9,8 +8,8 @@ namespace PatataStudio
 {
 	public class WorldManager : Singleton<WorldManager>
 	{
-		[field:SerializeField] public Material[] Materials { get; private set; }
-		[field:SerializeField] public VoxelType[] VoxelTypes { get; private set; }
+		[field: SerializeField] public Material[] Materials { get; private set; }
+		[field: SerializeField] public VoxelType[] VoxelTypes { get; private set; }
 
 		[ContextMenu("Test")]
 		public void Test()
@@ -34,33 +33,29 @@ namespace PatataStudio
 				var triangles = new List<int>();
 				var index = 0;
 
-				for (int i = 0; i < 6; i++)
+				for (int i = 0; i < faceDatas.Length; i++)
 				{
 					var faceData = faceDatas[i];
 
-					triangles.Add(index);
-					triangles.Add(index + 1);
-					triangles.Add(index + 2);
-					triangles.Add(index);
-					triangles.Add(index + 2);
-					triangles.Add(index + 3);
+					// Add triangles (each face should have 3 vertices per triangle)
+					for (int j = 0; j < 3; j++)
+					{
+						triangles.Add(index + j);
+					}
 
-					vertices.Add(faceData.Vertices[0].Position);
-					vertices.Add(faceData.Vertices[1].Position);
-					vertices.Add(faceData.Vertices[2].Position);
-					vertices.Add(faceData.Vertices[3].Position);
+					// Add vertices and UVs
+					for (int j = 0; j < 3; j++)
+					{
+						vertices.Add(faceData.Vertices[j].Position);
+						uvs.Add(faceData.Vertices[j].UV);
+					}
 
-					uvs.Add(faceData.Vertices[0].UV);
-					uvs.Add(faceData.Vertices[1].UV);
-					uvs.Add(faceData.Vertices[2].UV);
-					uvs.Add(faceData.Vertices[3].UV);
-
-					index += 4;
+					index += 3;
 				}
 
-				mesh.SetVertices(vertices.ToArray());
+				mesh.SetVertices(vertices);
 				mesh.SetUVs(0, uvs);
-				mesh.SetIndices(triangles, MeshTopology.Triangles, 0);
+				mesh.SetIndices(triangles.ToArray(), MeshTopology.Triangles, 0);
 
 				var desc = new SubMeshDescriptor(0, triangles.Count, MeshTopology.Triangles);
 				mesh.subMeshCount = 1;
