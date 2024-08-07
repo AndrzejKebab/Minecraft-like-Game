@@ -12,6 +12,7 @@ namespace PatataStudio
 		public const byte MaxFaces = 6;
 
 		public FaceData[] FaceDatas = new FaceData[MaxFaces];
+		[SerializeField] private bool dontRebuildMesh;
 		[SerializeField] private Mesh mesh;
 
 		private void OnValidate()
@@ -21,7 +22,7 @@ namespace PatataStudio
 				throw new ArgumentNullException(nameof(mesh), "Mesh is not assigned.");
 			}
 
-			RebuildFaceDatas();
+			if (!dontRebuildMesh) RebuildFaceDatas();
 		}
 
 		[ContextMenu("Rebuild Face Datas")]
@@ -41,7 +42,6 @@ namespace PatataStudio
 			}
 
 			Dictionary<Vector3, List<int>> normalToTriangles = new Dictionary<Vector3, List<int>>();
-
 			for (int i = 0; i < triangles.Length; i += 3)
 			{
 				Vector3 averageNormal = (normals[triangles[i]] + normals[triangles[i + 1]] + normals[triangles[i + 2]]) / 3f;
@@ -55,36 +55,43 @@ namespace PatataStudio
 				triangleIndices.AddRange(new[] { triangles[i], triangles[i + 1], triangles[i + 2] });
 			}
 
-			int faceIndex = 0;
-			foreach (var kvp in normalToTriangles)
+			List<FaceData> orderedFaceDatas = new List<FaceData>();
+			Vector3[] directions = new Vector3[]
 			{
-				if (faceIndex >= MaxFaces)
-				{
-					break;
-				}
+				Vector3.forward, Vector3.back, Vector3.right, Vector3.left, Vector3.up, Vector3.down
+			};
 
-				List<int> triangleIndices = kvp.Value;
-				HashSet<int> uniqueVertices = new HashSet<int>(triangleIndices);
-
-				FaceData faceData = new FaceData
+			foreach (var direction in directions)
+			{
+				if (normalToTriangles.TryGetValue(direction, out List<int> triangleIndices))
 				{
-					Vertices = new VertexData[uniqueVertices.Count]
-				};
+					HashSet<int> uniqueVertices = new HashSet<int>(triangleIndices);
 
-				int vertexIndex = 0;
-				foreach (int vertex in uniqueVertices)
-				{
-					faceData.Vertices[vertexIndex] = new VertexData
+					FaceData faceData = new FaceData
 					{
-						Position = vertices[vertex],
-						UV = uvs[vertex],
-						Normal = normals[vertex]
+						Vertices = new VertexData[uniqueVertices.Count],
+						Normal = direction,
 					};
-					vertexIndex++;
-				}
 
-				FaceDatas[faceIndex] = faceData;
-				faceIndex++;
+					int vertexIndex = 0;
+					foreach (int vertex in uniqueVertices)
+					{
+						faceData.Vertices[vertexIndex] = new VertexData
+						{
+							Position = vertices[vertex],
+							UV = uvs[vertex]
+						};
+						vertexIndex++;
+					}
+
+					orderedFaceDatas.Add(faceData);
+				}
+			}
+
+			// Assign orderedFaceDatas to FaceDatas
+			for (int i = 0; i < orderedFaceDatas.Count && i < MaxFaces; i++)
+			{
+				FaceDatas[i] = orderedFaceDatas[i];
 			}
 		}
 
@@ -139,6 +146,7 @@ namespace PatataStudio
 [Serializable]
 public struct FaceData
 {
+	public Vector3 Normal;
 	public VertexData[] Vertices;
 }
 
@@ -147,5 +155,4 @@ public struct VertexData
 {
 	public Vector3 Position;
 	public Vector2 UV;
-	public Vector3 Normal;
 }
