@@ -19,94 +19,72 @@ MonoBehaviour:
     IsTransparent: 0
     IsFluid: 0
     FaceDatas:
-    - Vertices:
-      - Position: {x: -0.5, y: 0.5, z: 0}
-        UV: {x: 0.9999999, y: 1}
-      - Position: {x: -1, y: 0.5, z: 0}
-        UV: {x: 0.9999999, y: 0.50000006}
-      - Position: {x: -1, y: 0.5, z: 1}
-        UV: {x: -0.000000059604645, y: 0.50000006}
-      - Position: {x: -0.5, y: 0.5, z: 1}
-        UV: {x: -0.000000059604645, y: 1.0000001}
-    - Vertices:
-      - Position: {x: -1, y: 0, z: 1}
-        UV: {x: -0.000000059604645, y: 1}
-      - Position: {x: -1, y: 0.5, z: 1}
-        UV: {x: -0.000000059604645, y: 0.49999988}
-      - Position: {x: -1, y: 0.5, z: 0}
-        UV: {x: 0.9999999, y: 0.49999988}
-      - Position: {x: -1, y: 0, z: 0}
-        UV: {x: 0.9999999, y: 1}
-    - Vertices:
-      - Position: {x: -0.5, y: 0.5, z: 0}
-        UV: {x: 1, y: 0.50000006}
-      - Position: {x: -0.5, y: 0.5, z: 1}
-        UV: {x: 0.00000011920929, y: 0.50000006}
-      - Position: {x: -0.5, y: 1, z: 1}
-        UV: {x: 0.00000011920929, y: 1.0000001}
-      - Position: {x: -0.5, y: 1, z: 0}
+    - Normal: {x: 0, y: 0, z: 1}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 0.5, z: 1}
+        UV: {x: 0, y: 0.5}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 0.5, z: 1}
+        UV: {x: 1, y: 0.5}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+      - Position: {x: 0, y: 1, z: 0.5}
+        UV: {x: 0.5, y: 1}
+      - Position: {x: 1, y: 0.5, z: 0.5}
+        UV: {x: 1, y: 0.5}
+      - Position: {x: 1, y: 1, z: 0.5}
         UV: {x: 1, y: 1}
-    - Vertices:
+    - Normal: {x: 0, y: 0, z: -1}
+      Vertices:
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 1, y: 1}
       - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0.9999999, y: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+    - Normal: {x: 1, y: 0, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 0, y: 0}
       - Position: {x: 0, y: 0, z: 1}
-        UV: {x: -0.000000059604645, y: 0.9999999}
-      - Position: {x: -1, y: 0, z: 1}
-        UV: {x: 0.000000029802322, y: -0.000000059604645}
-      - Position: {x: -1, y: 0, z: 0}
-        UV: {x: 1, y: 0.000000029802322}
-    - Vertices:
-      - Position: {x: -0.5, y: 0.5, z: 1}
-        UV: {x: 0.49999994, y: 0.5000001}
-      - Position: {x: -1, y: 0.5, z: 1}
-        UV: {x: 0.49999994, y: 1}
-      - Position: {x: -1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+      - Position: {x: 0, y: 1, z: 0.5}
+        UV: {x: 0.5, y: 1}
+      - Position: {x: 0, y: 1, z: 0}
         UV: {x: 0, y: 1}
       - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0.000000059604645, y: 0.00000014901161}
-    - Vertices:
-      - Position: {x: -0.5, y: 0.5, z: 1}
-        UV: {x: 0.49999994, y: 0.5000001}
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0.000000059604645, y: 0.00000014901161}
-      - Position: {x: 0, y: 1, z: 1}
-        UV: {x: 1, y: 0.00000023841858}
-      - Position: {x: -0.5, y: 0.5, z: 1}
-        UV: {x: 0.49999994, y: 0.5000001}
-    - Vertices:
-      - Position: {x: -0.5, y: 1, z: 1}
-        UV: {x: -0.000000059604645, y: 0.50000006}
-      - Position: {x: 0, y: 1, z: 1}
-        UV: {x: -0.000000059604645, y: 1.0000001}
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 0.9999999, y: 1.0000001}
-      - Position: {x: -0.5, y: 1, z: 0}
-        UV: {x: 0.9999999, y: 0.50000006}
-    - Vertices:
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 1.0000002, y: 0.000000059604645}
-      - Position: {x: -0.5, y: 0.5, z: 0}
-        UV: {x: 0.5000001, y: 0.5000001}
-      - Position: {x: -0.5, y: 1, z: 0}
-        UV: {x: 1, y: 0.5000001}
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0.000000059604645, y: -0.00000011920929}
-    - Vertices:
-      - Position: {x: -0.5, y: 0.5, z: 0}
-        UV: {x: 0.5000001, y: 0.5000001}
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0.000000059604645, y: -0.00000011920929}
-      - Position: {x: -1, y: 0, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 0.5, z: 1}
+        UV: {x: 0, y: 0.5}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+    - Normal: {x: -1, y: 0, z: 0}
+      Vertices:
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 1, y: 1, z: 0}
         UV: {x: 0, y: 1}
-      - Position: {x: -1, y: 0.5, z: 0}
-        UV: {x: 0.49999994, y: 1}
-    - Vertices:
-      - Position: {x: 0, y: 1, z: 1}
-        UV: {x: -0.000000059604645, y: 1}
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0.000000029802322, y: -0.000000059604645}
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 1, y: 0.000000029802322}
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 0.9999999, y: 1}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 1, z: 0.5}
+        UV: {x: 0.5, y: 1}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+      - Position: {x: 1, y: 0.5, z: 1}
+        UV: {x: 0, y: 0.5}
   VoxelMeshData: {fileID: 11400000, guid: d5115817775a1a54faa09bb010b279bf, type: 2}

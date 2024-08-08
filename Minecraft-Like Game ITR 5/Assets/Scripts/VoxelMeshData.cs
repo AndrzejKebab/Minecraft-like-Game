@@ -6,15 +6,39 @@ using UnityEngine;
 
 namespace PatataStudio
 {
+	public enum FaceSide
+	{
+		Front = 0,
+		Back = 1,
+		Right = 2,
+		Left = 3,
+		Top = 4,
+		Bottom = 5
+	}
+
+	[Serializable]
+	public struct FaceData
+	{
+		public Vector3 Normal;
+		public Vertex[] Vertices;
+	}
+
+	[Serializable]
+	public struct Vertex
+	{
+		public Vector3 Position;
+		public Vector2 UV;
+	}
+
 	[CreateAssetMenu(menuName = "Minecraft/Voxel/Voxel Mesh Data", fileName = "New Voxel Mesh Data", order = 1)]
 	public class VoxelMeshData : ScriptableObject
 	{
 		public const byte MaxFaces = 6;
 
 		public FaceData[] FaceDatas = new FaceData[MaxFaces];
-		[SerializeField] private bool dontRebuildMesh;
 		[SerializeField] private Mesh mesh;
 
+		/*
 		private void OnValidate()
 		{
 			if (mesh == null)
@@ -69,14 +93,14 @@ namespace PatataStudio
 
 					FaceData faceData = new FaceData
 					{
-						Vertices = new VertexData[uniqueVertices.Count],
+						Vertices = new Vertex[uniqueVertices.Count],
 						Normal = direction,
 					};
 
 					int vertexIndex = 0;
 					foreach (int vertex in uniqueVertices)
 					{
-						faceData.Vertices[vertexIndex] = new VertexData
+						faceData.Vertices[vertexIndex] = new Vertex
 						{
 							Position = vertices[vertex],
 							UV = uvs[vertex]
@@ -140,19 +164,6 @@ namespace PatataStudio
 			}
 			return -1;
 		}
+		*/
 	}
-}
-
-[Serializable]
-public struct FaceData
-{
-	public Vector3 Normal;
-	public VertexData[] Vertices;
-}
-
-[Serializable]
-public struct VertexData
-{
-	public Vector3 Position;
-	public Vector2 UV;
 }

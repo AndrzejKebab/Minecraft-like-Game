@@ -1,7 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
-using UnityEngine.UIElements;
 using UtilityLibrary.Unity.Runtime.Patterns;
 
 namespace PatataStudio
@@ -51,12 +51,11 @@ namespace PatataStudio
 			// Iterate over each FaceData
 			for(int i = 0; i < faceDatas.Length; i++)
 			{
-				//if (i % 2 == 0) continue;
 				var faceData = faceDatas[i];
 				var verticesPerFace = faceData.Vertices.Length;
 
 				// Add vertices, UVs, and normals
-				for (int j = 0; j < faceData.Vertices.Length; j++)
+				for (int j = 0; j < verticesPerFace; j++)
 				{
 					var vertexData = faceData.Vertices[j];
 					vertices.Add(vertexData.Position);
@@ -64,29 +63,53 @@ namespace PatataStudio
 					normals.Add(faceData.Normal);
 				}
 
-				// Add triangle indices
-				for (int l = 0; l < verticesPerFace - 2; l++)
+				if(verticesPerFace % 4 == 0)
 				{
-					triangles.Add(index);
-					triangles.Add(index + l + 1);
-					triangles.Add(index + l + 2);
+					// Calculate the number of groups of 4 vertices.
+					int groups = verticesPerFace / 4;
+
+					// Add triangles for each group of 4 vertices.
+					for (int l = 0; l < groups; l++)
+					{
+						int start = l * 4;
+
+						// First triangle (2, 1, 0)
+						triangles.Add(index + start + 2);
+						triangles.Add(index + start + 1);
+						triangles.Add(index + start + 0);
+
+						// Second triangle (3, 1, 2)
+						triangles.Add(index + start + 3);
+						triangles.Add(index + start + 1);
+						triangles.Add(index + start + 2);
+					}
 				}
+				else
+				{
+					for (int l = 0; l < verticesPerFace / 3; l++)
+					{
+						triangles.Add(index + l * 3);
+						triangles.Add(index + l * 3 + 1);
+						triangles.Add(index + l * 3 + 2);
+
+					}
+				}				
 
 				index += verticesPerFace;
 			}
 
-			// Set mesh properties
+			// Set mesh properties.
 			mesh.SetVertices(vertices);
 			mesh.SetUVs(0, uvs);
 			mesh.SetIndices(triangles.ToArray(), MeshTopology.Triangles, 0);
 			mesh.SetNormals(normals);
+			mesh.SetTangents(normals.Select(normal => new Vector4(normal.x, normal.y, normal.z, 0)).ToArray());			
 
-			// Create submesh and recalculate tangents
+			// Create submesh and recalculate tangents.
 			var desc = new SubMeshDescriptor(0, triangles.Count, MeshTopology.Triangles);
 			mesh.subMeshCount = 1;
 			mesh.SetSubMesh(0, desc);
 			mesh.RecalculateUVDistributionMetrics();
-			mesh.RecalculateTangents();
 
 			return mesh;
 		}
