@@ -19,7 +19,64 @@ MonoBehaviour:
     IsTransparent: 0
     IsFluid: 0
     FaceDatas:
-    - Vertices:
+    - Normal: {x: 0, y: 0, z: 1}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 1, z: 1}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 1, z: 1}
+        UV: {x: 1, y: 1}
+    - Normal: {x: 0, y: 0, z: -1}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 1, y: 1}
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+    - Normal: {x: 1, y: 0, z: 0}
+      Vertices:
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 1, z: 1}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 1, y: 1}
+    - Normal: {x: -1, y: 0, z: 0}
+      Vertices:
       - Position: {x: 0, y: 0, z: 0}
         UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+      - Position: {x: 0, y: 1, z: 1}
+        UV: {x: 1, y: 1}
+    - Normal: {x: 0, y: 1, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 1, z: 1}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 1, z: 1}
+        UV: {x: 1, y: 1}
+    - Normal: {x: 0, y: -1, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 1}
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 1}
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 1, y: 0}
   VoxelMeshData: {fileID: 11400000, guid: 5d79c446d71a9a145accc8aec2c5d91b, type: 2}

@@ -13,7 +13,7 @@ namespace PatataStudio
 
 		private void Start()
 		{
-			// Initialization if needed
+			// Initialization if needed.
 		}
 
 		[ContextMenu("Test")]
@@ -21,7 +21,7 @@ namespace PatataStudio
 		{
 			var pos = new Vector3(0, 0, 0);
 
-			// Iterate over each VoxelType
+			// Iterate over each VoxelType.
 			foreach (VoxelType type in VoxelTypes)
 			{
 				var test = new GameObject(type.name);
@@ -32,7 +32,7 @@ namespace PatataStudio
 				var meshRenderer = test.AddComponent<MeshRenderer>();
 				meshRenderer.material = Materials[0];
 
-				// Generate the mesh and assign it to the MeshFilter
+				// Generate the mesh and assign it to the MeshFilter.
 				meshFilter.sharedMesh = CreateMesh(type.Voxel.FaceDatas);
 			}
 		}
@@ -48,13 +48,13 @@ namespace PatataStudio
 
 			int index = 0;
 
-			// Iterate over each FaceData
+			// Iterate over each FaceData.
 			for(int i = 0; i < faceDatas.Length; i++)
 			{
 				var faceData = faceDatas[i];
 				var verticesPerFace = faceData.Vertices.Length;
 
-				// Add vertices, UVs, and normals
+				// Add vertices, UVs, and normals.
 				for (int j = 0; j < verticesPerFace; j++)
 				{
 					var vertexData = faceData.Vertices[j];
@@ -73,15 +73,14 @@ namespace PatataStudio
 					{
 						int start = l * 4;
 
-						// First triangle (2, 1, 0)
-						triangles.Add(index + start + 2);
-						triangles.Add(index + start + 1);
+						// First triangle (0, 1, 2).
 						triangles.Add(index + start + 0);
-
-						// Second triangle (3, 1, 2)
-						triangles.Add(index + start + 3);
 						triangles.Add(index + start + 1);
 						triangles.Add(index + start + 2);
+						// Second triangle (2, 1, 3).
+						triangles.Add(index + start + 2);
+						triangles.Add(index + start + 1);
+						triangles.Add(index + start + 3);
 					}
 				}
 				else

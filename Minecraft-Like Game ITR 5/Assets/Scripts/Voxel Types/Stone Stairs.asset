@@ -15,59 +15,39 @@ MonoBehaviour:
   VoxelName: Stone Stairs
   Voxel:
     VoxelID: 1001
-    IsSolid: 1
+    IsSolid: 0
     IsTransparent: 0
     IsFluid: 0
     FaceDatas:
     - Normal: {x: 0, y: 0, z: 1}
       Vertices:
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 0.5, z: 1}
-        UV: {x: 0, y: 0.5}
       - Position: {x: 1, y: 0, z: 1}
-        UV: {x: 1, y: 0}
+        UV: {x: 0, y: 0}
       - Position: {x: 1, y: 0.5, z: 1}
+        UV: {x: 0, y: 0.5}
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 0.5, z: 1}
         UV: {x: 1, y: 0.5}
-      - Position: {x: 0, y: 0.5, z: 0.5}
-        UV: {x: 0.5, y: 0.5}
-      - Position: {x: 0, y: 1, z: 0.5}
-        UV: {x: 0.5, y: 1}
       - Position: {x: 1, y: 0.5, z: 0.5}
-        UV: {x: 1, y: 0.5}
+        UV: {x: 0, y: 0.5}
       - Position: {x: 1, y: 1, z: 0.5}
+        UV: {x: 0, y: 1}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 1, y: 0.5}
+      - Position: {x: 0, y: 1, z: 0.5}
         UV: {x: 1, y: 1}
     - Normal: {x: 0, y: 0, z: -1}
       Vertices:
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 1}
       - Position: {x: 1, y: 0, z: 0}
         UV: {x: 1, y: 0}
       - Position: {x: 1, y: 1, z: 0}
         UV: {x: 1, y: 1}
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 0, y: 1}
     - Normal: {x: 1, y: 0, z: 0}
-      Vertices:
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 1, y: 0}
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 0, y: 1}
-      - Position: {x: 0, y: 0.5, z: 0.5}
-        UV: {x: 0.5, y: 0.5}
-      - Position: {x: 0, y: 1, z: 0.5}
-        UV: {x: 0.5, y: 1}
-      - Position: {x: 0, y: 1, z: 0}
-        UV: {x: 0, y: 1}
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 0.5, z: 1}
-        UV: {x: 0, y: 0.5}
-      - Position: {x: 0, y: 0.5, z: 0.5}
-        UV: {x: 0.5, y: 0.5}
-    - Normal: {x: -1, y: 0, z: 0}
       Vertices:
       - Position: {x: 1, y: 0, z: 0}
         UV: {x: 0, y: 0}
@@ -86,5 +66,53 @@ MonoBehaviour:
       - Position: {x: 1, y: 0.5, z: 0.5}
         UV: {x: 0.5, y: 0.5}
       - Position: {x: 1, y: 0.5, z: 1}
+        UV: {x: 1, y: 0.5}
+    - Normal: {x: -1, y: 0, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 1, y: 1}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+      - Position: {x: 0, y: 1, z: 0.5}
+        UV: {x: 0.5, y: 1}
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 1}
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 0.5, z: 1}
         UV: {x: 0, y: 0.5}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0.5, y: 0.5}
+    - Normal: {x: 0, y: 1, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 1, z: 0}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 1, z: 0.5}
+        UV: {x: 0, y: 0.5}
+      - Position: {x: 1, y: 1, z: 0}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 1, z: 0.5}
+        UV: {x: 1, y: 0.5}
+      - Position: {x: 0, y: 0.5, z: 0.5}
+        UV: {x: 0, y: 0.5}
+      - Position: {x: 0, y: 0.5, z: 1}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 0.5, z: 0.5}
+        UV: {x: 1, y: 0.5}
+      - Position: {x: 1, y: 0.5, z: 1}
+        UV: {x: 1, y: 1}
+    - Normal: {x: 0, y: -1, z: 0}
+      Vertices:
+      - Position: {x: 0, y: 0, z: 1}
+        UV: {x: 0, y: 0}
+      - Position: {x: 0, y: 0, z: 0}
+        UV: {x: 0, y: 1}
+      - Position: {x: 1, y: 0, z: 1}
+        UV: {x: 1, y: 0}
+      - Position: {x: 1, y: 0, z: 0}
+        UV: {x: 1, y: 1}
   VoxelMeshData: {fileID: 11400000, guid: d5115817775a1a54faa09bb010b279bf, type: 2}
