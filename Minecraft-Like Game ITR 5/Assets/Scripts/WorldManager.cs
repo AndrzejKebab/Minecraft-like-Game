@@ -24,6 +24,8 @@ namespace PatataStudio
 			// Iterate over each VoxelType.
 			foreach (VoxelType type in VoxelTypes)
 			{
+				if(!type.GetVoxel().IsSolid) continue;
+
 				var test = new GameObject(type.name);
 				test.transform.position = pos;
 				pos += new Vector3(2, 0, 0);
@@ -33,7 +35,7 @@ namespace PatataStudio
 				meshRenderer.material = Materials[0];
 
 				// Generate the mesh and assign it to the MeshFilter.
-				meshFilter.sharedMesh = CreateMesh(type.Voxel.FaceDatas);
+				meshFilter.sharedMesh = CreateMesh(type.GetVoxel().FaceDatas);
 			}
 		}
 

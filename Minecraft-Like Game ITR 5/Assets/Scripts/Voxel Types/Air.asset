@@ -10,12 +10,12 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3f5f2d250b168c642a6e397f40a98817, type: 3}
-  m_Name: Stone
+  m_Name: Air
   m_EditorClassIdentifier: 
-  <VoxelName>k__BackingField: Stone
+  <VoxelName>k__BackingField: Air
   voxel:
-    <VoxelID>k__BackingField: 1
-    <IsSolid>k__BackingField: 1
+    <VoxelID>k__BackingField: 0
+    <IsSolid>k__BackingField: 0
     <IsTransparent>k__BackingField: 0
     <IsFluid>k__BackingField: 0
-  VoxelMeshData: {fileID: 11400000, guid: 5d79c446d71a9a145accc8aec2c5d91b, type: 2}
+  VoxelMeshData: {fileID: 0}

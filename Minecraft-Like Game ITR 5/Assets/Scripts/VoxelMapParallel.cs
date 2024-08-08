@@ -4,6 +4,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
+using static PatataStudio.GameSettings;
 
 namespace PatataStudio
 {
@@ -65,16 +66,27 @@ namespace PatataStudio
 			return noiseOut;
 		}
 
-		private int GetBlock(float noiseValue, int posY)
+		private int GetBlock(float noiseValue, int yPos)
 		{
-			if (noiseValue > 0.5f)
+			// calculate terrain height and subtract MaxTerrainHeight / 2 so noiseValue of 0.5 will be at Y = 0 (a sea level)
+			int terrainHeight = (int)math.floor((noiseValue * MaxTerrainHeight) - (MaxTerrainHeight * 0.5f));
+			
+			int voxelID = 1; // default block is Stone
+
+			if (yPos > terrainHeight)
 			{
-				return 1;
+				voxelID = yPos <= 0 ? 4 : 0; // if yPos is greater than the terrainHeight and yPos is less or equal 0, use water else air
 			}
-			else
+			else if (yPos == terrainHeight)
 			{
-				return 0;
+				voxelID = 3; // if yPos is equal to the terrainHeight, use grass
 			}
+			else if (yPos < terrainHeight && yPos > terrainHeight - 6)
+			{
+				voxelID = 2; // if yPos is less than the terrainHeight and yPos is greater than 6, use dirt
+			}
+
+			return voxelID;
 		}
 	}
 }

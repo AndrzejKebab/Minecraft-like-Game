@@ -8,6 +8,7 @@ namespace PatataStudio
 
 		#region Chunk
 		public const int ChunkSize = 32;
+		public const int MaxTerrainHeight = 512;
 		#endregion
 
 		#region Textures

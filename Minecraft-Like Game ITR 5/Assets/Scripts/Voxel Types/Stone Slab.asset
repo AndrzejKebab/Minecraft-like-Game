@@ -12,71 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3f5f2d250b168c642a6e397f40a98817, type: 3}
   m_Name: Stone Slab
   m_EditorClassIdentifier: 
-  VoxelName: Stone Slab
-  Voxel:
-    VoxelID: 101
-    IsSolid: 1
-    IsTransparent: 0
-    IsFluid: 0
-    FaceDatas:
-    - Normal: {x: 0, y: 0, z: 1}
-      Vertices:
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0, y: 0}
-      - Position: {x: 1, y: 0, z: 1}
-        UV: {x: 1, y: 0}
-      - Position: {x: 0, y: 0.5, z: 1}
-        UV: {x: 0, y: 0.5}
-      - Position: {x: 1, y: 0.5, z: 1}
-        UV: {x: 1, y: 0.5}
-    - Normal: {x: 0, y: 0, z: -1}
-      Vertices:
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 1, y: 0}
-      - Position: {x: 0, y: 0.5, z: 0}
-        UV: {x: 1, y: 0.5}
-      - Position: {x: 1, y: 0, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 1, y: 0.5, z: 0}
-        UV: {x: 0, y: 0.5}
-    - Normal: {x: 1, y: 0, z: 0}
-      Vertices:
-      - Position: {x: 1, y: 0, z: 1}
-        UV: {x: 0, y: 0}
-      - Position: {x: 1, y: 0, z: 0}
-        UV: {x: 1, y: 0}
-      - Position: {x: 1, y: 0.5, z: 1}
-        UV: {x: 0, y: 0.5}
-      - Position: {x: 1, y: 0.5, z: 0}
-        UV: {x: 1, y: 0.5}
-    - Normal: {x: -1, y: 0, z: 0}
-      Vertices:
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 1, y: 0}
-      - Position: {x: 0, y: 0.5, z: 0}
-        UV: {x: 0, y: 0.5}
-      - Position: {x: 0, y: 0.5, z: 1}
-        UV: {x: 1, y: 0.5}
-    - Normal: {x: 0, y: 1, z: 0}
-      Vertices:
-      - Position: {x: 0, y: 0.5, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 0, y: 0.5, z: 1}
-        UV: {x: 0, y: 1}
-      - Position: {x: 1, y: 0.5, z: 0}
-        UV: {x: 1, y: 0}
-      - Position: {x: 1, y: 0.5, z: 1}
-        UV: {x: 1, y: 1}
-    - Normal: {x: 0, y: -1, z: 0}
-      Vertices:
-      - Position: {x: 0, y: 0, z: 1}
-        UV: {x: 0, y: 1}
-      - Position: {x: 0, y: 0, z: 0}
-        UV: {x: 0, y: 0}
-      - Position: {x: 1, y: 0, z: 1}
-        UV: {x: 1, y: 1}
-      - Position: {x: 1, y: 0, z: 0}
-        UV: {x: 1, y: 0}
+  <VoxelName>k__BackingField: Stone Slab
+  voxel:
+    <VoxelID>k__BackingField: 100
+    <IsSolid>k__BackingField: 1
+    <IsTransparent>k__BackingField: 0
+    <IsFluid>k__BackingField: 0
   VoxelMeshData: {fileID: 11400000, guid: be0c7598cd089dd4a9f6c8559bf4360f, type: 2}
