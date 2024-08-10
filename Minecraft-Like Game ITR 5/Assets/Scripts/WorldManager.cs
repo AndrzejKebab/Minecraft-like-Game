@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime.Patterns;
@@ -8,6 +10,12 @@ namespace PatataStudio
 {
 	public class WorldManager : Singleton<WorldManager>
 	{
+		[field: SerializeField] public int Seed { get; private set; }
+		[field: SerializeField] public string EncodedContinentalnessTree { get; private set; }
+		[field: SerializeField] public string EncodedErosionTree { get; private set; }
+		[field: SerializeField] public string EncodedPeaksAndValleysTree { get; private set; }
+		[field: SerializeField] public string EncodedCavesTree { get; private set; }
+
 		[field: SerializeField] public Material[] Materials { get; private set; }
 		[field: SerializeField] public VoxelType[] VoxelTypes { get; private set; }
 
@@ -114,5 +122,5 @@ namespace PatataStudio
 
 			return mesh;
 		}
-	}
+	}	
 }

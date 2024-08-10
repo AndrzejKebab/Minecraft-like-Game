@@ -28,7 +28,7 @@ namespace PatataStudio
 		{
 			var chunk = new Chunk(chunkPos, 128, Allocator.Persistent);
 
-			var noiseValues = GenerateNoise(chunkPos);
+			var noiseValues = GenerateHeightNoise(chunkPos);
 
 			var blockIdList = new NativeList<int>(Allocator.Temp);
 
@@ -57,21 +57,22 @@ namespace PatataStudio
 			return chunk;
 		}
 
-		private NativeArray<float> GenerateNoise(int3 chunkPos)
-		{
-			NativeArray<float> noiseOut = new((int)math.pow(32, 3), Allocator.Temp);
-
-			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, 32, 32, 32, 2f, 1337);
-			
-			return noiseOut;
-		}
-
 		private int GetBlock(float noiseValue, int yPos)
 		{
 			// calculate terrain height and subtract MaxTerrainHeight / 2 so noiseValue of 0.5 will be at Y = 0 (a sea level)
 			int terrainHeight = (int)math.floor((noiseValue * MaxTerrainHeight) - (MaxTerrainHeight * 0.5f));
 			
-			int voxelID = 1; // default block is Stone
+			var voxelID = 0;
+
+			HeightPass(out voxelID, terrainHeight, yPos);
+			CavePass();
+
+			return voxelID;
+		}
+
+		private void HeightPass(out int voxelID, int terrainHeight, int yPos)
+		{
+			voxelID = 1; // default block is Stone
 
 			if (yPos > terrainHeight)
 			{
@@ -85,8 +86,47 @@ namespace PatataStudio
 			{
 				voxelID = 2; // if yPos is less than the terrainHeight and yPos is greater than 6, use dirt
 			}
+		}
 
-			return voxelID;
+		private void CavePass()
+		{
+
+		}
+
+		private void BiomePass()
+		{
+
+		}
+
+		private void DecorationPass()
+		{
+
+		}
+
+
+		private NativeArray<float> GenerateHeightNoise(int3 chunkPos)
+		{
+			NativeArray<float> noiseOut = new((int)math.pow(32, 2), Allocator.Temp);
+			NativeArray<float> continentalness = new((int)math.pow(32, 2), Allocator.Temp);
+			NativeArray<float> erosion = new((int)math.pow(32, 2), Allocator.Temp);
+			NativeArray<float> peaksandvalleys = new((int)math.pow(32, 2), Allocator.Temp);
+
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, continentalness, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, erosion, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, peaksandvalleys, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
+
+			//TODO: use NativeCurve to evaluate final noise
+
+			return noiseOut;
+		}
+
+		private NativeArray<float> GenerateCaveNoise(int3 chunkPos)
+		{
+			NativeArray<float> noiseOut = new((int)math.pow(32, 3), Allocator.Temp);
+
+			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, 32, 32, 32, 2f, 1337);
+
+			return noiseOut;
 		}
 	}
 }

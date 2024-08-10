@@ -12,8 +12,15 @@ namespace PatataStudio
 	{
 		private NativeList<int3> chunksToUpdate = new(Allocator.Persistent);
 		public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow(9, 3),Allocator.Persistent);
-		private FastNoise fastNoiseNodeTree;
-		private IntPtr noiseNodeTreePtr;
+
+		private FastNoise continentalnessNodeTree;
+		private FastNoise erosionNodeTree;
+		private FastNoise peaksAndValleysNodeTree;
+		private FastNoise cavesNodeTree;
+		private IntPtr continentalnessNodePtr;
+		private IntPtr erosionNodePtr;
+		private IntPtr peaksAndValleysNodePtr;
+		private IntPtr cavesNodePtr;
 
 		JobHandle voxelMapJobHandle;
 
@@ -56,7 +63,7 @@ namespace PatataStudio
 
 			voxelMapJobHandle = new VoxelMapParallel
 			{
-				NoiseNodeTreePtr = noiseNodeTreePtr,
+				NoiseNodeTreePtr = continentalnessNodePtr,
 				ChunksToUpdate = chunksToUpdate,
 				ChunkMap = ChunkMap.AsParallelWriter()
 			}.Schedule(chunksToUpdate.Length, 8);
@@ -66,8 +73,17 @@ namespace PatataStudio
 
 		private void SetupFastNoise()
 		{
-			fastNoiseNodeTree = FastNoise.FromEncodedNodeTree("FwAAAIC/AACAPwAAAAAAAIA/GgABEQACAAAAAAAgQBAAAAAAQBMAw/UoPw0ABAAAAAAAIEApAABmZiY/AAAAAD8AzcxMPgAzMzM/AAAAAD8BBgA=");
-			noiseNodeTreePtr = fastNoiseNodeTree.NodeHandlePtr;
+			continentalnessNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedContinentalnessTree);
+			continentalnessNodePtr = continentalnessNodeTree.NodeHandlePtr;
+
+			erosionNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedErosionTree);
+			erosionNodePtr = erosionNodeTree.NodeHandlePtr;
+
+			peaksAndValleysNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedPeaksAndValleysTree);
+			peaksAndValleysNodePtr = peaksAndValleysNodeTree.NodeHandlePtr;
+
+			cavesNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedCavesTree);
+			cavesNodePtr = cavesNodeTree.NodeHandlePtr;
 		}
 	}
 }
