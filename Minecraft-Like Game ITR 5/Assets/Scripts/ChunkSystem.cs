@@ -5,13 +5,14 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Debug = UnityEngine.Debug;
+using static PatataStudio.GameSettings;
 
 namespace PatataStudio
 {
 	public partial class ChunkSystem : SystemBase
 	{
 		private NativeList<int3> chunksToUpdate = new(Allocator.Persistent);
-		public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow(9, 3),Allocator.Persistent);
+		public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow(ViewDistance, 3),Allocator.Persistent);
 
 		private FastNoise continentalnessNodeTree;
 		private FastNoise erosionNodeTree;
@@ -29,7 +30,7 @@ namespace PatataStudio
 
 		protected override void OnCreate()
 		{
-			sw.Stop();
+			sw.Start();
 			base.OnCreate();
 			SetupFastNoise();
 			ScheduleChunks();
@@ -50,11 +51,11 @@ namespace PatataStudio
 
 		private void ScheduleChunks()
 		{
-			for (int x = -4; x <= 4; x++)
+			for (int x = -ViewDistance; x <= ViewDistance; x++)
 			{
-				for (int y = -4; y <= 4; y++)
+				for (int y = -ViewDistance; y <= ViewDistance; y++)
 				{
-					for (int z = -4; z <= 4; z++)
+					for (int z = -ViewDistance; z <= ViewDistance; z++)
 					{
 						chunksToUpdate.Add(new int3(x, y, z));
 					}
@@ -73,17 +74,24 @@ namespace PatataStudio
 
 		private void SetupFastNoise()
 		{
-			continentalnessNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedContinentalnessTree);
+			continentalnessNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.NoiseTypes[0].EncodedNoiseNodeTree);
 			continentalnessNodePtr = continentalnessNodeTree.NodeHandlePtr;
 
-			erosionNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedErosionTree);
+			erosionNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.NoiseTypes[1].EncodedNoiseNodeTree);
 			erosionNodePtr = erosionNodeTree.NodeHandlePtr;
 
-			peaksAndValleysNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedPeaksAndValleysTree);
+			peaksAndValleysNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.NoiseTypes[2].EncodedNoiseNodeTree);
 			peaksAndValleysNodePtr = peaksAndValleysNodeTree.NodeHandlePtr;
 
-			cavesNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.EncodedCavesTree);
+			cavesNodeTree = FastNoise.FromEncodedNodeTree(WorldManager.Instance.NoiseTypes[3].EncodedNoiseNodeTree);
 			cavesNodePtr = cavesNodeTree.NodeHandlePtr;
+		}
+
+		protected override void OnDestroy()
+		{
+			base.OnDestroy();
+			if(chunksToUpdate.IsCreated) chunksToUpdate.Dispose();
+			if(ChunkMap.IsCreated) ChunkMap.Dispose();
 		}
 	}
 }

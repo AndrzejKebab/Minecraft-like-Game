@@ -1,6 +1,7 @@
 using System;
 using Unity.Collections;
 using UnityEngine;
+using UtilityLibrary.Core;
 
 namespace PatataGames
 {
@@ -29,6 +30,11 @@ namespace PatataGames
 		{
 			NoiseCurve = curve.ToNative(Allocator.Persistent);
 			Scale = scale;
+		}
+
+		public void Dispose()
+		{
+			if(NoiseCurve.IsCreated) NoiseCurve.Dispose();
 		}
 	}
 }

@@ -1,3 +1,4 @@
+using PatataGames;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,12 +11,11 @@ namespace PatataStudio
 {
 	public class WorldManager : Singleton<WorldManager>
 	{
+		[Header("World Settings")]
 		[field: SerializeField] public int Seed { get; private set; }
-		[field: SerializeField] public string EncodedContinentalnessTree { get; private set; }
-		[field: SerializeField] public string EncodedErosionTree { get; private set; }
-		[field: SerializeField] public string EncodedPeaksAndValleysTree { get; private set; }
-		[field: SerializeField] public string EncodedCavesTree { get; private set; }
+		[field: SerializeField] public NoiseType[] NoiseTypes { get; private set; }
 
+		[Header("Voxel Settings")]
 		[field: SerializeField] public Material[] Materials { get; private set; }
 		[field: SerializeField] public VoxelType[] VoxelTypes { get; private set; }
 

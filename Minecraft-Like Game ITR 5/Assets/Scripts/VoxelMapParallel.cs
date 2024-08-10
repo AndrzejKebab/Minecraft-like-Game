@@ -37,7 +37,7 @@ namespace PatataStudio
 
 			for (int i = 0; i < noiseValues.Length; i++)
 			{
-				int posY = (i / 32) % 32 + chunkPos.y;
+				int posY = (i / ChunkSize) % ChunkSize + chunkPos.y;
 				var blockId = GetBlock(noiseValues[i], posY);
 
 				if(blockId == currentBlockId)
@@ -106,14 +106,14 @@ namespace PatataStudio
 
 		private NativeArray<float> GenerateHeightNoise(int3 chunkPos)
 		{
-			NativeArray<float> noiseOut = new((int)math.pow(32, 2), Allocator.Temp);
-			NativeArray<float> continentalness = new((int)math.pow(32, 2), Allocator.Temp);
-			NativeArray<float> erosion = new((int)math.pow(32, 2), Allocator.Temp);
-			NativeArray<float> peaksandvalleys = new((int)math.pow(32, 2), Allocator.Temp);
+			NativeArray<float> noiseOut = new((int)math.pow(ChunkSize, 2), Allocator.Temp);
+			NativeArray<float> continentalness = new((int)math.pow(ChunkSize, 2), Allocator.Temp);
+			NativeArray<float> erosion = new((int)math.pow(ChunkSize, 2), Allocator.Temp);
+			NativeArray<float> peaksandvalleys = new((int)math.pow(ChunkSize, 2), Allocator.Temp);
 
-			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, continentalness, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
-			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, erosion, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
-			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, peaksandvalleys, chunkPos.x, chunkPos.y, 32, 32, 2f, 1337);
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, continentalness, chunkPos.x, chunkPos.y, ChunkSize, ChunkSize, 2f, 1337);
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, erosion, chunkPos.x, chunkPos.y, ChunkSize, ChunkSize, 2f, 1337);
+			FastNoise.GenUniformGrid2D(NoiseNodeTreePtr, peaksandvalleys, chunkPos.x, chunkPos.y, ChunkSize, ChunkSize, 2f, 1337);
 
 			//TODO: use NativeCurve to evaluate final noise
 
@@ -122,9 +122,9 @@ namespace PatataStudio
 
 		private NativeArray<float> GenerateCaveNoise(int3 chunkPos)
 		{
-			NativeArray<float> noiseOut = new((int)math.pow(32, 3), Allocator.Temp);
+			NativeArray<float> noiseOut = new((int)math.pow(ChunkSize, 3), Allocator.Temp);
 
-			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, 32, 32, 32, 2f, 1337);
+			FastNoise.GenUniformGrid3D(NoiseNodeTreePtr, noiseOut, chunkPos.x, chunkPos.y, chunkPos.z, ChunkSize, ChunkSize, ChunkSize, 2f, 1337);
 
 			return noiseOut;
 		}
