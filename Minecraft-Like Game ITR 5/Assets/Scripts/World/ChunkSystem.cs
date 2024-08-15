@@ -5,14 +5,15 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Debug = UnityEngine.Debug;
-using static PatataStudio.GameSettings;
+using static PatataGames.GameSettings;
 
-namespace PatataStudio
+namespace PatataGames
 {
+	[UpdateInGroup(typeof(VoxelGameSystemGroup))]
 	public partial class ChunkSystem : SystemBase
 	{
 		private NativeList<int3> chunksToUpdate = new(Allocator.Persistent);
-		public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow(ViewDistance, 3),Allocator.Persistent);
+		public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow((ViewDistance * 2) + 1, 3), Allocator.Persistent);
 
 		private FastNoise continentalnessNodeTree;
 		private FastNoise erosionNodeTree;
@@ -23,14 +24,14 @@ namespace PatataStudio
 		private IntPtr peaksAndValleysNodePtr;
 		private IntPtr cavesNodePtr;
 
-		JobHandle voxelMapJobHandle;
+		private JobHandle voxelMapJobHandle;
 
 		private bool isScheduled;
-		private Stopwatch sw = new Stopwatch();
+		private Stopwatch stopwatch = new Stopwatch();
 
 		protected override void OnCreate()
 		{
-			sw.Start();
+			stopwatch.Start();
 			base.OnCreate();
 			SetupFastNoise();
 			ScheduleChunks();
@@ -41,8 +42,8 @@ namespace PatataStudio
 			if (voxelMapJobHandle.IsCompleted && isScheduled)
 			{
 				voxelMapJobHandle.Complete();
-				sw.Stop();
-				Debug.Log("Job completed in " + sw.ElapsedMilliseconds + " ms");
+				stopwatch.Stop();
+				Debug.Log("Job completed in " + stopwatch.ElapsedMilliseconds + " ms");
 
 				Debug.Log(ChunkMap[0].ToString());
 				isScheduled = false;

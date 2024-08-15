@@ -1243,10 +1243,10 @@ namespace IngameDebugConsole
 						// Case-insensitive enum parsing
 						value = Convert.ToInt32( Enum.Parse( enumType, enumStr, true ) );
 					}
-					catch
+					catch (Exception)
 					{
 						output = null;
-						return false;
+						throw;
 					}
 				}
 

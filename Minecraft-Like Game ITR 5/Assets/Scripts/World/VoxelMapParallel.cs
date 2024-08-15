@@ -4,9 +4,9 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
-using static PatataStudio.GameSettings;
+using static PatataGames.GameSettings;
 
-namespace PatataStudio
+namespace PatataGames
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public struct VoxelMapParallel : IJobParallelFor
@@ -26,7 +26,7 @@ namespace PatataStudio
 
 		private Chunk GenerateVoxelMap(int3 chunkPos)
 		{
-			var chunk = new Chunk(chunkPos, 128, Allocator.Persistent);
+			var chunk = new Chunk(chunkPos, 1024, Allocator.Persistent);
 
 			var noiseValues = GenerateHeightNoise(chunkPos);
 
@@ -53,7 +53,7 @@ namespace PatataStudio
 			}
 
 			chunk.VoxelMap.AddInterval(currentBlockId, count);
-
+			chunk.State = ChunkState.Populated;
 			return chunk;
 		}
 

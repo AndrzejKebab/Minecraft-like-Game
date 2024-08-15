@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace PatataStudio
+namespace PatataGames
 {
 	public enum FaceSide
 	{

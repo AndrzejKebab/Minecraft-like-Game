@@ -1,7 +1,6 @@
 using System;
 using Unity.Collections;
 using UnityEngine;
-using UtilityLibrary.Core;
 
 namespace PatataGames
 {
@@ -14,9 +13,9 @@ namespace PatataGames
 		public float Scale = 1000f;
 		public NoiseData NoiseData;
 
-		private void OnValidate()
+		private void AssignData()
 		{
-			if(NoiseCurve != null) NoiseData = new NoiseData(NoiseCurve, Scale);
+			NoiseData = new NoiseData(NoiseCurve, Scale);
 		}
 	}
 

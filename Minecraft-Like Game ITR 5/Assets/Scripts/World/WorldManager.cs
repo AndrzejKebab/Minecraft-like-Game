@@ -1,13 +1,11 @@
-using PatataGames;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime.Patterns;
 
-namespace PatataStudio
+namespace PatataGames
 {
 	public class WorldManager : Singleton<WorldManager>
 	{
@@ -15,37 +13,12 @@ namespace PatataStudio
 		[field: SerializeField] public int Seed { get; private set; }
 		[field: SerializeField] public NoiseType[] NoiseTypes { get; private set; }
 
+		[Header("Chunk Settings")]
+		[field: SerializeField] public int3 ChunkSize { get; private set; } = new int3(GameSettings.ChunkSize);
+
 		[Header("Voxel Settings")]
 		[field: SerializeField] public Material[] Materials { get; private set; }
 		[field: SerializeField] public VoxelType[] VoxelTypes { get; private set; }
-
-		private void Start()
-		{
-			// Initialization if needed.
-		}
-
-		[ContextMenu("Test")]
-		public void Test()
-		{
-			var pos = new Vector3(0, 0, 0);
-
-			// Iterate over each VoxelType.
-			foreach (VoxelType type in VoxelTypes)
-			{
-				if(!type.GetVoxel().IsSolid) continue;
-
-				var test = new GameObject(type.name);
-				test.transform.position = pos;
-				pos += new Vector3(2, 0, 0);
-
-				var meshFilter = test.AddComponent<MeshFilter>();
-				var meshRenderer = test.AddComponent<MeshRenderer>();
-				meshRenderer.material = Materials[0];
-
-				// Generate the mesh and assign it to the MeshFilter.
-				meshFilter.sharedMesh = CreateMesh(type.GetVoxel().FaceDatas);
-			}
-		}
 
 		private Mesh CreateMesh(FaceData[] faceDatas)
 		{

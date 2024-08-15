@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UtilityLibrary.Core;
 
-namespace PatataStudio
+namespace PatataGames
 {
 	[CreateAssetMenu(menuName = "Minecraft/Voxel/Voxel Type", fileName = "New Voxel Type", order = 0)]
 	public class VoxelType : ScriptableObject

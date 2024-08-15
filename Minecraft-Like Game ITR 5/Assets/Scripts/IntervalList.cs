@@ -4,7 +4,7 @@ using Unity.Burst;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Collections;
 
-namespace PatataStudio
+namespace PatataGames
 {
 	[BurstCompile]
 	public struct IntervalList
