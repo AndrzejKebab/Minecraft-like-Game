@@ -34,7 +34,7 @@ namespace PatataGames
 			stopwatch.Start();
 			base.OnCreate();
 			SetupFastNoise();
-			ScheduleChunks();
+			CheckViewDistance();
 		}
 
 		protected override void OnUpdate()
@@ -50,7 +50,7 @@ namespace PatataGames
 			}
 		}
 
-		private void ScheduleChunks()
+		private void CheckViewDistance()
 		{
 			for (int x = -ViewDistance; x <= ViewDistance; x++)
 			{

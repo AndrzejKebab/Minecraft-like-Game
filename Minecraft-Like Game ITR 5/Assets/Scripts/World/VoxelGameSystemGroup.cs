@@ -1,5 +1,4 @@
 using Unity.Entities;
-using UnityEngine;
 
 namespace PatataGames
 {
