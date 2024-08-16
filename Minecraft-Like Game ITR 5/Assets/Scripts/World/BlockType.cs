@@ -1,6 +1,6 @@
 using System;
+using Unity.Collections;
 using UnityEngine;
-using UtilityLibrary.Core;
 
 namespace PatataGames
 {
@@ -66,12 +66,9 @@ namespace PatataGames
 
 		public Voxel GetVoxel()
 		{
+			var faceDatas = new NativeArray<FaceData>(VoxelMeshData.FaceDatas, Allocator.Persistent);
+			voxel.FaceDatas = faceDatas;
 			return voxel;
-		}
-
-		private void OnValidate()
-		{
-			if (VoxelMeshData != null) voxel.FaceDatas = VoxelMeshData.FaceDatas;
 		}
 	}
 
@@ -82,17 +79,6 @@ namespace PatataGames
 		[field: SerializeField] public bool IsSolid { get; private set; }
 		[field: SerializeField] public bool IsTransparent { get; private set; }
 		[field: SerializeField] public bool IsFluid { get; private set; }
-		private FaceData[] faceDatas;
-		public FaceData[] FaceDatas
-		{
-			get
-			{
-				return faceDatas;
-			}
-			set
-			{
-				if (faceDatas.IsNullOrEmpty<FaceData>()) faceDatas = value;
-			}
-		}
+		public NativeArray<FaceData> FaceDatas;
 	}
 }

@@ -1,4 +1,7 @@
 using System;
+using System.Runtime.InteropServices;
+using Unity.Collections;
+using Unity.Mathematics;
 using UnityEngine;
 
 namespace PatataGames
@@ -16,15 +19,16 @@ namespace PatataGames
 	[Serializable]
 	public struct FaceData
 	{
-		public Vector3 Normal;
+		public int3 Normal;
 		public Vertex[] Vertices;
 	}
 
 	[Serializable]
+	[StructLayout(LayoutKind.Sequential)]
 	public struct Vertex
 	{
-		public Vector3 Position;
-		public Vector2 UV;
+		public float3 Position;
+		public float2 UV;
 	}
 
 	[CreateAssetMenu(menuName = "Minecraft/Voxel/Voxel Mesh Data", fileName = "New Voxel Mesh Data", order = 1)]

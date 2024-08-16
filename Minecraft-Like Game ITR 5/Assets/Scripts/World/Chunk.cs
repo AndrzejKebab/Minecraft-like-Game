@@ -1,7 +1,6 @@
 ﻿using System;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Entities;
 using Unity.Mathematics;
 
 namespace PatataGames
@@ -15,7 +14,7 @@ namespace PatataGames
 		Completed = 3,
 		Dirty = 4,
 		Saved = 5,
-		MarkedForDelete = 6
+		MarkedForDelete = 6,
 	}
 
 	[BurstCompile]

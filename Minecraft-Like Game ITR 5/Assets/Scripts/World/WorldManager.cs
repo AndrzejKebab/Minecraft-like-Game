@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -14,7 +15,7 @@ namespace PatataGames
 		[field: SerializeField] public NoiseType[] NoiseTypes { get; private set; }
 
 		[Header("Chunk Settings")]
-		[field: SerializeField] public int3 ChunkSize { get; private set; } = new int3(GameSettings.ChunkSize);
+		public int3 ChunkSize { get; private set; } = new int3(GameSettings.ChunkSize);
 
 		[Header("Voxel Settings")]
 		[field: SerializeField] public Material[] Materials { get; private set; }
@@ -27,7 +28,7 @@ namespace PatataGames
 			var vertices = new List<Vector3>();
 			var uvs = new List<Vector2>();
 			var triangles = new List<int>();
-			var normals = new List<Vector3>();
+			var normals = new NativeList<int3>();
 
 			int index = 0;
 
@@ -84,7 +85,7 @@ namespace PatataGames
 			mesh.SetVertices(vertices);
 			mesh.SetUVs(0, uvs);
 			mesh.SetIndices(triangles.ToArray(), MeshTopology.Triangles, 0);
-			mesh.SetNormals(normals);
+			mesh.SetNormals(normals.AsArray());
 			mesh.SetTangents(normals.Select(normal => new Vector4(normal.x, normal.y, normal.z, 0)).ToArray());			
 
 			// Create submesh and recalculate tangents.
