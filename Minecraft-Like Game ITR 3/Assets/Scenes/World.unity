@@ -935,6 +935,16 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 12800000, guid: 015c3be818821e54ea04752c54589c20,
         type: 3}
+    - target: {fileID: 5069417054069452320, guid: 28206b6d63e02114bb1d33cd8f08e939,
+        type: 3}
+      propertyPath: m_goodFpsThreshold
+      value: 144
+      objectReference: {fileID: 0}
+    - target: {fileID: 5069417054069452320, guid: 28206b6d63e02114bb1d33cd8f08e939,
+        type: 3}
+      propertyPath: m_cautionFpsThreshold
+      value: 60
+      objectReference: {fileID: 0}
     - target: {fileID: 5069417054069452872, guid: 28206b6d63e02114bb1d33cd8f08e939,
         type: 3}
       propertyPath: m_FontData.m_Font
@@ -1278,7 +1288,7 @@ MonoBehaviour:
   m_StaticLightingSkyUniqueID: 4
   m_StaticLightingCloudsUniqueID: 0
   m_StaticLightingVolumetricClouds: 1
-  bounces: 1
+  bounces: 3
 --- !u!4 &419076068
 Transform:
   m_ObjectHideFlags: 1
@@ -1533,8 +1543,13 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
+      propertyPath: taaSharpenMode
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
       propertyPath: taaAntiHistoryRinging
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8589316056512260458, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
