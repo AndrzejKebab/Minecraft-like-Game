@@ -50,13 +50,13 @@ public class Chunk
 	private JobHandle populateVoxelMapHandle;
 	private VoxelMapData voxelMapData;
 	
-	private readonly VertexAttributeDescriptor[] layout =
-	{
-		new(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
-		new(VertexAttribute.Normal, VertexAttributeFormat.SNorm8, 4),
-		new(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
-		new(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
-	};
+	private readonly NativeArray<VertexAttributeDescriptor> layout = new (4, Allocator.Persistent)
+	                                                {
+		                                                [0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
+		                                                [1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.SNorm8, 4),
+		                                                [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
+		                                                [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+	                                                };
 	private Mesh.MeshDataArray meshDataArray;
 
 	public Chunk(int3 coord, World world)
@@ -136,7 +136,8 @@ public class Chunk
 			Position = new int3(ChunkPosition),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels,
 			nodeHandle = world.WorldGenNodePtr,
-			MeshDataArray = meshDataArray
+			MeshDataArray = meshDataArray,
+			Layout = layout
 		}.Schedule(populateVoxelMapHandle);
 	}
 
@@ -144,6 +145,7 @@ public class Chunk
 	{
 		chunkJobHandle.Complete();
 		mesh.Clear();
+		if(meshDataArray[0].vertexBufferCount == 0) return;
 		mesh.name = "Chunk";
 		mesh.MarkDynamic();
 		mesh.bounds = world.ChunkBound;

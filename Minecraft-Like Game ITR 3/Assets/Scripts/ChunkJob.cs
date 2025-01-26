@@ -30,8 +30,9 @@ public struct ChunkJob : IJob
 	[WriteOnly]
 	[NativeDisableUnsafePtrRestriction]
 	public IntPtr nodeHandle;
-	public            Mesh.MeshDataArray                     MeshDataArray;
-
+	public Mesh.MeshDataArray                     MeshDataArray;
+	public NativeArray<VertexAttributeDescriptor> Layout;
+	
 	private ushort vertexIndex;
 	[ReadOnly] public int ChunkSize;
 	[ReadOnly] public int TextureAtlasSize;
@@ -56,23 +57,15 @@ public struct ChunkJob : IJob
 				}
 			}
 		}
-		
-	NativeArray<VertexAttributeDescriptor> layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp)
-		         {
-			         [0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
-			         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.SNorm8, 4),
-			         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
-			         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-		         };
 
 		var data = MeshDataArray[0];
 		data.subMeshCount = 1;
 		data.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
 		var index = data.GetIndexData<ushort>();
-		index.CopyFrom(meshData.MeshTriangles);
-		data.SetVertexBufferParams(meshData.Vertex.Length, layout);
+		index.CopyFrom(meshData.MeshTriangles.AsArray());
+		data.SetVertexBufferParams(meshData.Vertex.Length, Layout);
 		var vertex = data.GetVertexData<Vertex>();
-		vertex.CopyFrom(meshData.Vertex);
+		vertex.CopyFrom(meshData.Vertex.AsArray());
 		
 		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
 		data.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);

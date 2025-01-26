@@ -159,37 +159,37 @@ MonoBehaviour:
   m_Settings:
     m_SettingsList:
       m_List:
-      - rid: 4310362102592176193
-      - rid: 4310362102592176194
-      - rid: 4310362102592176195
+      - rid: 4310362157952008257
+      - rid: 4310362157952008258
+      - rid: 4310362157952008259
       - rid: 4310362098121834499
       - rid: 4310362098121834500
-      - rid: 4310362102592176196
+      - rid: 4310362157952008260
       - rid: 4310362098121834502
       - rid: 4310362098121834503
-      - rid: 4310362102592176197
+      - rid: 4310362157952008261
       - rid: 4310362098121834505
       - rid: 4310362098121834506
-      - rid: 4310362102592176198
+      - rid: 4310362157952008262
       - rid: 4310362098121834508
       - rid: 4310362098121834509
       - rid: 4310362098121834510
-      - rid: 4310362102592176199
+      - rid: 4310362157952008263
       - rid: 4310362098121834512
-      - rid: 4310362102592176200
+      - rid: 4310362157952008264
       - rid: 4310362098121834514
       - rid: 4310362098121834515
       - rid: 4310362098121834516
-      - rid: 4310362102592176201
-      - rid: 4310362102592176202
-      - rid: 4310362102592176203
+      - rid: 4310362157952008265
+      - rid: 4310362157952008266
+      - rid: 4310362157952008267
       - rid: 4310362098121834520
       - rid: 4310362098121834521
-      - rid: 4310362102592176204
-      - rid: 4310362102592176205
-      - rid: 4310362102592176206
+      - rid: 4310362157952008268
+      - rid: 4310362157952008269
+      - rid: 4310362157952008270
       - rid: 4310362098121834525
-      - rid: 4310362102592176207
+      - rid: 4310362157952008271
       - rid: 4310362098121834527
       - rid: 4310362098121834528
       - rid: 4310362098121834529
@@ -936,7 +936,7 @@ MonoBehaviour:
       data:
         m_Version: 0
         m_CoreCopyPS: {fileID: 4800000, guid: 12dc59547ea167a4ab435097dd0f9add, type: 3}
-    - rid: 4310362102592176193
+    - rid: 4310362157952008257
       type: {class: VolumetricCloudsRuntimeResources, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -960,7 +960,7 @@ MonoBehaviour:
           type: 3}
         m_PerlinNoise32RGB: {fileID: 11700000, guid: d1aae012f8a4f23478471851f17ff915,
           type: 3}
-    - rid: 4310362102592176194
+    - rid: 4310362157952008258
       type: {class: HDRPRayTracingResources, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -1042,7 +1042,7 @@ MonoBehaviour:
           type: 3}
         m_RtasDebugRT: {fileID: 4807578003741378534, guid: 7f98079d20376fd4f8590d58be99ab0d,
           type: 3}
-    - rid: 4310362102592176195
+    - rid: 4310362157952008259
       type: {class: HDRenderPipelineEditorAssets, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -1053,7 +1053,7 @@ MonoBehaviour:
         m_DefaultDiffusionProfileSettingsList:
         - {fileID: 11400000, guid: 404820c4cf36ad944862fa59c56064f0, type: 2}
         - {fileID: 11400000, guid: 2384dbf2c1c420f45a792fbc315fbfb1, type: 2}
-    - rid: 4310362102592176196
+    - rid: 4310362157952008260
       type: {class: HDRenderPipelineEditorShaders, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -1069,7 +1069,7 @@ MonoBehaviour:
           type: 3}
         m_DefaultSpeedTree9Shader: {fileID: -6465566751694194690, guid: d81c74dd5f463104ca482aa23ef2c798,
           type: 3}
-    - rid: 4310362102592176197
+    - rid: 4310362157952008261
       type: {class: HDRenderPipelineEditorMaterials, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -1085,14 +1085,14 @@ MonoBehaviour:
           type: 2}
         m_GUITextureBlit2SRGB: {fileID: 2100000, guid: 6e95c04e4e686554e8bed96ee69f690c,
           type: 2}
-    - rid: 4310362102592176198
+    - rid: 4310362157952008262
       type: {class: LookDevVolumeProfileSettings, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
         m_Version: 0
         m_VolumeProfile: {fileID: 11400000, guid: 4594f4a3fb14247e192bcca6dc23c8ed,
           type: 2}
-    - rid: 4310362102592176199
+    - rid: 4310362157952008263
       type: {class: WaterSystemRuntimeResources, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
@@ -1123,23 +1123,23 @@ MonoBehaviour:
         m_WaterDecalMigrationShader: {fileID: -6465566751694194690, guid: 9f1661ed5b4d6ee4685ad5683b09a903,
           type: 3}
         m_FoamMask: {fileID: 2800000, guid: ca1d72d84c34dba4390eab4c86e62f62, type: 3}
-    - rid: 4310362102592176200
+    - rid: 4310362157952008264
       type: {class: DiffusionProfileDefaultSettings, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
         m_Version: 0
         m_AutoRegisterDiffusionProfiles: 0
-    - rid: 4310362102592176201
+    - rid: 4310362157952008265
       type: {class: HDRenderPipelineEditorTextures, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
       data:
         m_MoonAlbedo: {fileID: 2800000, guid: cce9f0cf7e606e547a7317aedb4ad6d9, type: 3}
-    - rid: 4310362102592176202
+    - rid: 4310362157952008266
       type: {class: HDRenderingLayersLimitSettings, ns: UnityEditor.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Editor}
       data:
         m_Version: 0
-    - rid: 4310362102592176203
+    - rid: 4310362157952008267
       type: {class: GPUResidentDrawerResources, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.GPUDriven.Runtime}
       data:
         m_Version: 0
@@ -1161,14 +1161,14 @@ MonoBehaviour:
           type: 3}
         m_DebugOccluderPS: {fileID: 4800000, guid: b3c92426a88625841ab15ca6a7917248,
           type: 3}
-    - rid: 4310362102592176204
+    - rid: 4310362157952008268
       type: {class: IncludeAdditionalRPAssets, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Core.Runtime}
       data:
         m_version: 0
         m_IncludeReferencedInScenes: 1
         m_IncludeAssetsByLabel: 1
         m_LabelToInclude: HDRP:IncludeInBuild
-    - rid: 4310362102592176205
+    - rid: 4310362157952008269
       type: {class: ProbeVolumeBakingResources, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Core.Runtime}
       data:
         m_Version: 1
@@ -1190,7 +1190,7 @@ MonoBehaviour:
           type: 3}
         renderingLayerRT: {fileID: -5126288278712620388, guid: 94a070d33e408384bafc1dea4a565df9,
           type: 3}
-    - rid: 4310362102592176206
+    - rid: 4310362157952008270
       type: {class: ProbeVolumeDebugResources, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Core.Runtime}
       data:
         m_Version: 1
@@ -1206,7 +1206,7 @@ MonoBehaviour:
           type: 3}
         numbersDisplayTex: {fileID: 2800000, guid: 73fe53b428c5b3440b7e87ee830b608a,
           type: 3}
-    - rid: 4310362102592176207
+    - rid: 4310362157952008271
       type: {class: LightmapSamplingSettings, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Core.Runtime}
       data:
         m_Version: 1
