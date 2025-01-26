@@ -1,7 +1,6 @@
 using Unity.Mathematics;
 using UnityEngine;
 using static PatataGames.GameSettings;
-using static UnityEditor.PlayerSettings;
 
 namespace PatataGames
 {
@@ -9,7 +8,7 @@ namespace PatataGames
 	{
 		public static int3 GetChunkCoordFromGlobalPosition(float3 position)
 		{
-			int3 chunkCoord = (int3)math.floor(position / WorldManager.Instance.ChunkSize);
+			int3 chunkCoord = (int3)math.floor(position / ChunkSize);
 			return chunkCoord;
 		}
 
