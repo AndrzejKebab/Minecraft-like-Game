@@ -5,6 +5,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
@@ -25,11 +26,11 @@ public struct ChunkJob : IJob
 
 	[ReadOnly]
 	public ChunkData chunkData;
-	[WriteOnly]
 	public MeshData meshData;
 	[WriteOnly]
 	[NativeDisableUnsafePtrRestriction]
 	public IntPtr nodeHandle;
+	public            Mesh.MeshDataArray                     MeshDataArray;
 
 	private ushort vertexIndex;
 	[ReadOnly] public int ChunkSize;
@@ -55,6 +56,26 @@ public struct ChunkJob : IJob
 				}
 			}
 		}
+		
+	NativeArray<VertexAttributeDescriptor> layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp)
+		         {
+			         [0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
+			         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.SNorm8, 4),
+			         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
+			         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+		         };
+
+		var data = MeshDataArray[0];
+		data.subMeshCount = 1;
+		data.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
+		var index = data.GetIndexData<ushort>();
+		index.CopyFrom(meshData.MeshTriangles);
+		data.SetVertexBufferParams(meshData.Vertex.Length, layout);
+		var vertex = data.GetVertexData<Vertex>();
+		vertex.CopyFrom(meshData.Vertex);
+		
+		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
+		data.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);
 	}
 
 	private void AddVoxelDataToChunk(int3 pos)

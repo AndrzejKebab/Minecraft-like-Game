@@ -57,6 +57,7 @@ public class Chunk
 		new(VertexAttribute.Tangent, VertexAttributeFormat.UNorm8, 4),
 		new(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2)
 	};
+	private Mesh.MeshDataArray meshDataArray;
 
 	public Chunk(int3 coord, World world)
 	{
@@ -117,6 +118,8 @@ public class Chunk
 			MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
 		};
 
+		meshDataArray = Mesh.AllocateWritableMeshData(1);
+		
 		chunkJobHandle = new ChunkJob
 		{
 			meshData = meshData,
@@ -132,7 +135,8 @@ public class Chunk
 			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
 			Position = new int3(ChunkPosition),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels,
-			nodeHandle = world.WorldGenNodePtr
+			nodeHandle = world.WorldGenNodePtr,
+			MeshDataArray = meshDataArray
 		}.Schedule(populateVoxelMapHandle);
 	}
 
@@ -143,20 +147,9 @@ public class Chunk
 		mesh.name = "Chunk";
 		mesh.MarkDynamic();
 		mesh.bounds = world.ChunkBound;
-		mesh.subMeshCount = 1;
-
-		NativeArray<Vertex> vertexArray = meshData.Vertex.AsArray();
-		NativeArray<ushort> triangleArray = meshData.MeshTriangles.AsArray();
-
-		mesh.SetVertexBufferParams(vertexArray.Length, layout);
-		mesh.SetVertexBufferData(vertexArray, 0, 0, meshData.Vertex.Length, 0);
-
-		mesh.SetIndexBufferParams(triangleArray.Length, IndexFormat.UInt16);
-		mesh.SetIndexBufferData(triangleArray, 0, 0, meshData.MeshTriangles.Length);
-
-		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
-		mesh.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);
-
+		
+		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, mesh);
+		
 		mesh.RecalculateUVDistributionMetrics();
 
 		meshFilter.sharedMesh = mesh;

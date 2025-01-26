@@ -130,7 +130,7 @@ public class World : MonoBehaviour
 		                  );
 
 		// Process chunks in batches to avoid frame freeze.
-		const int batchSize = 10; // Number of chunks to process per batch.
+		const int batchSize = 8; // Number of chunks to process per batch.
 		for (var i = 0; i < chunksToCheck.Count; i++)
 		{
 			int3 chunkCoord = chunksToCheck[i];
