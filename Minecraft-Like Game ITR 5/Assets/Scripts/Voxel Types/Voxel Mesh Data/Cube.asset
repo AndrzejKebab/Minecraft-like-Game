@@ -9,68 +9,206 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0724270523dcad04383a2e4645bf2a3d, type: 3}
+  m_Script: {fileID: 11500000, guid: dd82810952184767a03d068a903461d9, type: 3}
   m_Name: Cube
   m_EditorClassIdentifier: 
-  FaceDatas:
-  - Normal: {x: 0, y: 0, z: 1}
+  <FaceDatas>k__BackingField:
+  - Normal:
+      x: 0
+      y: 0
+      z: 1
     Vertices:
-    - Position: {x: 0, y: 0, z: 1}
-      UV: {x: 0, y: 0}
-    - Position: {x: 1, y: 0, z: 1}
-      UV: {x: 1, y: 0}
-    - Position: {x: 0, y: 1, z: 1}
-      UV: {x: 0, y: 1}
-    - Position: {x: 1, y: 1, z: 1}
-      UV: {x: 1, y: 1}
-  - Normal: {x: 0, y: 0, z: -1}
+    - Position:
+        x: -1
+        y: 1
+        z: 1
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: -1
+        y: 0
+        z: 1
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: 0
+        y: 0
+        z: 1
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: 0
+        y: 1
+        z: 1
+      UV:
+        x: 1
+        y: 0
+  - Normal:
+      x: 0
+      y: 0
+      z: -1
     Vertices:
-    - Position: {x: 0, y: 0, z: 0}
-      UV: {x: 1, y: 0}
-    - Position: {x: 0, y: 1, z: 0}
-      UV: {x: 1, y: 1}
-    - Position: {x: 1, y: 0, z: 0}
-      UV: {x: 0, y: 0}
-    - Position: {x: 1, y: 1, z: 0}
-      UV: {x: 0, y: 1}
-  - Normal: {x: 1, y: 0, z: 0}
+    - Position:
+        x: 0
+        y: 1
+        z: 0
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: 0
+        y: 0
+        z: 0
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: -1
+        y: 0
+        z: 0
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: -1
+        y: 1
+        z: 0
+      UV:
+        x: 1
+        y: 0
+  - Normal:
+      x: 1
+      y: 0
+      z: 0
     Vertices:
-    - Position: {x: 1, y: 0, z: 1}
-      UV: {x: 0, y: 0}
-    - Position: {x: 1, y: 0, z: 0}
-      UV: {x: 1, y: 0}
-    - Position: {x: 1, y: 1, z: 1}
-      UV: {x: 0, y: 1}
-    - Position: {x: 1, y: 1, z: 0}
-      UV: {x: 1, y: 1}
-  - Normal: {x: -1, y: 0, z: 0}
+    - Position:
+        x: 0
+        y: 0
+        z: 0
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: 0
+        y: 1
+        z: 0
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: 0
+        y: 1
+        z: 1
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: 0
+        y: 0
+        z: 1
+      UV:
+        x: 1
+        y: 0
+  - Normal:
+      x: -1
+      y: 0
+      z: 0
     Vertices:
-    - Position: {x: 0, y: 0, z: 0}
-      UV: {x: 0, y: 0}
-    - Position: {x: 0, y: 0, z: 1}
-      UV: {x: 1, y: 0}
-    - Position: {x: 0, y: 1, z: 0}
-      UV: {x: 0, y: 1}
-    - Position: {x: 0, y: 1, z: 1}
-      UV: {x: 1, y: 1}
-  - Normal: {x: 0, y: 1, z: 0}
+    - Position:
+        x: -1
+        y: 1
+        z: 0
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: -1
+        y: 0
+        z: 0
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: -1
+        y: 0
+        z: 1
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: -1
+        y: 1
+        z: 1
+      UV:
+        x: 1
+        y: 0
+  - Normal:
+      x: 0
+      y: 1
+      z: 0
     Vertices:
-    - Position: {x: 0, y: 1, z: 0}
-      UV: {x: 0, y: 0}
-    - Position: {x: 0, y: 1, z: 1}
-      UV: {x: 0, y: 1}
-    - Position: {x: 1, y: 1, z: 0}
-      UV: {x: 1, y: 0}
-    - Position: {x: 1, y: 1, z: 1}
-      UV: {x: 1, y: 1}
-  - Normal: {x: 0, y: -1, z: 0}
+    - Position:
+        x: 0
+        y: 1
+        z: 0
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: -1
+        y: 1
+        z: 0
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: -1
+        y: 1
+        z: 1
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: 0
+        y: 1
+        z: 1
+      UV:
+        x: 1
+        y: 0
+  - Normal:
+      x: 0
+      y: -1
+      z: 0
     Vertices:
-    - Position: {x: 0, y: 0, z: 1}
-      UV: {x: 0, y: 1}
-    - Position: {x: 0, y: 0, z: 0}
-      UV: {x: 0, y: 0}
-    - Position: {x: 1, y: 0, z: 1}
-      UV: {x: 1, y: 1}
-    - Position: {x: 1, y: 0, z: 0}
-      UV: {x: 1, y: 0}
+    - Position:
+        x: -1
+        y: 0
+        z: 0
+      UV:
+        x: 0
+        y: 0
+    - Position:
+        x: 0
+        y: 0
+        z: 0
+      UV:
+        x: 0
+        y: 1
+    - Position:
+        x: 0
+        y: 0
+        z: 1
+      UV:
+        x: 1
+        y: 1
+    - Position:
+        x: -1
+        y: 0
+        z: 1
+      UV:
+        x: 1
+        y: 0
   mesh: {fileID: -5495902117074765545, guid: 872f6b0213710b64b891a0ed29e1b42a, type: 3}
