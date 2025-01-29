@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Unity.Collections;
@@ -8,7 +7,6 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using static PopulateVoxelMapJob;
-using Debug = UnityEngine.Debug;
 using Object = UnityEngine.Object;
 
 public class Chunk

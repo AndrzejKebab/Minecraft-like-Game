@@ -7,6 +7,20 @@
       "dependencies": {},
       "hash": "8393d49844a4378b755f3cb2e71aa24e9561b44b"
     },
+    "com.cysharp.unitask": {
+      "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "8042b29ff87dd5506d7aad72bd6d8d7405985f27"
+    },
+    "com.needle.console": {
+      "version": "2.4.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://package.openupm.com"
+    },
     "com.unity.burst": {
       "version": "1.8.18",
       "depth": 1,

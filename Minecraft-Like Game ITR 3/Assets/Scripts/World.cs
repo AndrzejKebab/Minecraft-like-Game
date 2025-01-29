@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
+using Cysharp.Threading.Tasks;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -59,8 +58,7 @@ public class World : MonoBehaviour
 		WorldGenNodePtr = worldGen.NodeHandlePtr;
 	}
 
-	private Task                    currentViewDistanceTask;
-	private CancellationTokenSource cancellationTokenSource = new();
+	private UniTask                    currentViewDistanceTask;
 
 	private void Start()
 	{
@@ -97,14 +95,14 @@ public class World : MonoBehaviour
 	private void RunCheckViewDistance()
 	{
 		// Prevent overlapping tasks.
-		if (currentViewDistanceTask != null && !currentViewDistanceTask.IsCompleted)
+		if (!currentViewDistanceTask.Status.IsCompleted())
 			return;
 
 		currentViewDistanceTask = CheckViewDistanceAsync();
-		Debug.Log($"Running CheckViewDistance: {currentViewDistanceTask?.Status}");
+		Debug.Log($"Running CheckViewDistance: {currentViewDistanceTask.Status}");
 	}
 	
-	private async Task CheckViewDistanceAsync()
+	private async UniTask CheckViewDistanceAsync()
 	{
 		int3       coord                  = GetChunkCoordFromVector3(PlayerTransform.position);
 		List<int3> previouslyActiveChunks = new();
@@ -143,7 +141,7 @@ public class World : MonoBehaviour
 			previouslyActiveChunks.Remove(chunkCoord);
 
 			// Wait after processing a batch.
-			if (i % batchSize == 0) await Task.Yield(); // Allow the game loop to continue.
+			if (i % batchSize == 0) await UniTask.Yield(); // Allow the game loop to continue.
 		}
 
 		// Disable chunks that are no longer within view distance.
