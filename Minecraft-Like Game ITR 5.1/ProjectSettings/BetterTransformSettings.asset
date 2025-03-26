@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &1
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb0db3f3231a5e248b092562f93f61ed, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _overrideInspectorColor: 0
+  _inspectorColor: {r: 0, g: 0, b: 1, a: 0.025}
+  _overrideFoldoutColor: 0
+  _foldoutColor: {r: 0, g: 1, b: 0, a: 0.025}
+  _currentWorkSpace: 1
+  _showCopyPasteButtons: 1
+  _showAllVariableCopyPasteButtons: 0
+  _fieldRoundingAmount: 5
+  roundPositionField: 0
+  roundRotationField: 0
+  roundScaleField: 0
+  _showSizeInLine: 0
+  _showSizeFoldout: 1
+  _showSizeCenter: 1
+  _includeChildBounds: 1
+  _currentSizeType: 0
+  _lockSizeAspectRatio: 0
+  _maxChildCountForSizeCalculation: 50
+  _maxChildInspectors: 10
+  _constantSizeUpdate: 0
+  _showSizeGizmo: 1
+  _showSizeGizmoLabel: 1
+  _sizeGizmoLabelSize: 10
+  _sizeGizmoColor: {r: 1, g: 1, b: 1, a: 0.15}
+  _showSizeGizmoLabelOnBothSide: 1
+  _showSizeGizmosLabelHandle: 0
+  _minimumSizeForDoubleSidedLabel: 10
+  _gizmoMaximumDecimalPoints: 4
+  _showNotes: 1
+  notes: []
+  _showParentChildTransform: 1
+  showSiblingIndex: 0
+  showAssetGUID: 0
+  _loadDefaultInspector: 1
+  logPerformance: 0
+  logDetailedPerformance: 0

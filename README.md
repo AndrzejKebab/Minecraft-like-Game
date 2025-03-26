@@ -23,7 +23,7 @@ This branch includes the game version with multithreading implemented using Syst
 
 This branch includes the game version with multithreading implemented using Unity.Jobs and Burst Compiler for optimal performance. The implementation is based on the tutorial series available [here](https://www.youtube.com/watch?v=HEqbT-RM4s8&list=PLgji-9GMuqkI77VmFk0Rol4AWKp-OgkGr).
 
-### ECS + GPU-Instancing branch (WIP)
+### ECS + GPU-Instancing branch (Dropped)
 
 This branch includes the game version with multithreading implemented using Unity's Entity Component System (ECS) and GPU programming with compute shaders for efficient mesh generation. The implementation is based on the project available [here](https://github.com/artnas/UnityVoxelMeshGPU).
 
