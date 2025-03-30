@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Cysharp.Threading.Tasks;
 using Unity.Collections;
 using Unity.Jobs;
@@ -11,22 +12,21 @@ namespace PatataGames;
 
 public class ChunkSystem : MonoBehaviour
 {
-	public MeshData MeshData;
-	public static MeshDataNative meshDataNative;
-	public static Material Mat;
-	public NativeParallelHashMap<int3, Chunk> ChunkMap = new((int)math.pow(ChunkSize + 1, 3), Allocator.Persistent);
-	private List<int3> chunksToUpdate = new ();
-	public static readonly byte ChunkSize = 32;
-	private const byte viewdistance = 16;
-	private JobHandle populateJobHandle;
-	private bool isPopulating;
-	private JobHandle createMeshJobHandle;
-	private bool isCreatingMesh;
-	private Mesh.MeshDataArray[] meshDataArray;
-	private readonly Stopwatch sw = new();
+	public                 MeshData                           MeshData;
+	public static          MeshDataNative                     meshDataNative;
+	public static          Material                           Mat;
+	public                 NativeParallelHashMap<int3, Chunk> ChunkMap       = new((int)math.pow(ChunkSize + 1, 3), Allocator.Persistent);
+	private                List<int3>                         chunksToUpdate = new ();
+	public static readonly byte                               ChunkSize      = 32;
+	private const          byte                               viewdistance   = 16;
+	private                JobHandle                          populateJobHandle;
+	private                bool                               isPopulating;
+	private                JobHandle                          createMeshJobHandle;
+	private                bool                               isCreatingMesh;
+	private                NativeArray<Mesh.MeshDataArray>    meshDataArray;
+	private readonly       Stopwatch                          sw = new();
 	
-	private JobScheduler<PopulateVoxelMapParallel> populateJobScheduler = new ();
-	private JobScheduler<CreateMeshParallel> createMeshJobScheduler = new ();
+	private JobForScheduler<PopulateVoxelMapParallel> populateJobScheduler = new ();
 	
 	public void Start()
 	{
