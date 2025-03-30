@@ -11,9 +11,9 @@ namespace PatataGames;
 public struct CreateMeshParallel : IJobFor
 {
 	public NativeParallelHashMap<int3, Chunk>.ReadOnly ChunkMap;
-	public NativeList<int3> ChunksToUpdate;
-	public Mesh.MeshDataArray[] MeshDataArray;
-	
+	public NativeList<int3>                            ChunksToUpdate;
+	public NativeArray<Mesh.MeshDataArray>             MeshDataArray;
+
 	private int3 chunkPos;
 	
 	public void Execute(int index)

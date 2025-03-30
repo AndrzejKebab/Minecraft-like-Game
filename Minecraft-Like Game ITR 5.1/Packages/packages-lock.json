@@ -25,12 +25,26 @@
       "dependencies": {},
       "url": "https://package.openupm.com"
     },
+    "com.cysharp.soagenerator": {
+      "version": "https://github.com/Cysharp/StructureOfArraysGenerator.git?path=src/StructureOfArraysGenerator.Unity/Assets/Plugins/StructureOfArraysGenerator",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "b5d70b40cdd043f9c42c5d85d59d32f5d8b39dd8"
+    },
     "com.cysharp.unitask": {
       "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
       "depth": 0,
       "source": "git",
       "dependencies": {},
       "hash": "06067cd4c83e372310d6f79d1c625f6870ff7a2a"
+    },
+    "com.cysharp.zlinq": {
+      "version": "https://github.com/Cysharp/ZLinq.git?path=src/ZLinq.Unity/Assets/ZLinq.Unity",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "d2f380d55cacbc4715a75515c3c214907a29d196"
     },
     "com.unity.ai.navigation": {
       "version": "2.0.6",
@@ -120,7 +134,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.memoryprofiler": {
-      "version": "1.1.5",
+      "version": "1.1.6",
       "depth": 0,
       "source": "registry",
       "dependencies": {

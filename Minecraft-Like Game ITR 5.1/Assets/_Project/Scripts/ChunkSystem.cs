@@ -24,7 +24,10 @@ public class ChunkSystem : MonoBehaviour
 	private bool isCreatingMesh;
 	private Mesh.MeshDataArray[] meshDataArray;
 	private readonly Stopwatch sw = new();
-
+	
+	private JobScheduler<PopulateVoxelMapParallel> populateJobScheduler = new ();
+	private JobScheduler<CreateMeshParallel> createMeshJobScheduler = new ();
+	
 	public void Start()
 	{
 		meshDataNative = new MeshDataNative(MeshData);
@@ -83,7 +86,7 @@ public class ChunkSystem : MonoBehaviour
 			                      ChunkMap       = ChunkMap.AsReadOnly(),
 			                      ChunksToUpdate = chunksToUpdate.ToNativeList(Allocator.TempJob),
 			                      MeshDataArray  = meshDataArray
-		                      }.Schedule(chunksToUpdate.Count, viewdistance);
+		                      }.Schedule(chunksToUpdate.Count, default);
 	}
 
 	private void ApplyMeshData()
