@@ -1,57 +1,193 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime;
+using static PatataGames.ChunkSystem;
 
 namespace PatataGames;
 
-[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+/// <summary>
+///     Builds a mesh for every chunk listed in <see cref="ChunksToUpdate" />.
+///     Each voxel stores a byte/block-id –&gt; 0 = air, 1…N = solid type.
+///     The type maps to <see cref="MeshLibrary" /> which is a NativeArray&lt;MeshDataNative&gt;
+///     converted once on the main-thread from MeshData ScriptableObjects.
+/// </summary>
+[BurstCompile(OptimizeFor = OptimizeFor.Performance,
+	             FloatMode = FloatMode.Fast,
+	             FloatPrecision = FloatPrecision.Low)]
 public struct CreateMeshParallel : IJobFor
 {
-	public NativeParallelHashMap<int3, Chunk>.ReadOnly ChunkMap;
-	public NativeList<int3>                            ChunksToUpdate;
-	public NativeArray<Mesh.MeshDataArray>             MeshDataArray;
+	// ──────────────────────────────────────────────────────────────────────────
+	// INPUT (READ-ONLY)
+	// ──────────────────────────────────────────────────────────────────────────
+	[NativeDisableContainerSafetyRestriction]
+	[ReadOnly] public          NativeParallelHashMap<int3, Chunk>.ReadOnly ChunkMap;
+	[ReadOnly] public          NativeList<int3>                            ChunksToUpdate;
+	[NativeDisableContainerSafetyRestriction]
+	[ReadOnly] public          NativeArray<MeshDataNative>                 MeshLibrary;
+	[ReadOnly] public NativeArray<VertexAttributeDescriptor> Layout;
 
-	private int3 chunkPos;
-	
+	// ──────────────────────────────────────────────────────────────────────────
+	// OUTPUT ‑ one MeshData per chunk
+	// ──────────────────────────────────────────────────────────────────────────
+	[NativeDisableContainerSafetyRestriction]
+	public NativeArray<Mesh.MeshDataArray> MeshDataArray;
+
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// EXECUTION
+	// ──────────────────────────────────────────────────────────────────────────
 	public void Execute(int index)
 	{
-		chunkPos = ChunksToUpdate[index];
-		CreateMesh(chunkPos);
+		int3 chunkPos = ChunksToUpdate[index];
+
+		var verts     = new NativeList<float3>(512, Allocator.Temp);
+		var uvs       = new NativeList<float2>(512, Allocator.Temp);
+		var triangles = new NativeList<int>(1024, Allocator.Temp);
+
+		GenerateChunkMesh(chunkPos, ref verts, ref uvs, ref triangles);
+		WriteToMeshData(index, verts, uvs, triangles);
+
+		verts.Dispose();
+		uvs.Dispose();
+		triangles.Dispose();
 	}
-	
-	private void CreateMesh(int3 chunkPos)
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// CHUNK LOOP
+	// ──────────────────────────────────────────────────────────────────────────
+	private void GenerateChunkMesh(int3                   chunkPos,
+	                               ref NativeList<float3> verts,
+	                               ref NativeList<float2> uvs,
+	                               ref NativeList<int>    triangles)
 	{
-		for (int x = 0; x < ChunkSystem.ChunkSize; x++)
+		Chunk     chunk = ChunkMap[chunkPos];
+
+		for (var y = 0; y < CHUNK_SIZE; y++)
+		for (var z = 0; z < CHUNK_SIZE; z++)
+		for (var x = 0; x < CHUNK_SIZE; x++)
 		{
-			for (int z = 0; z < ChunkSystem.ChunkSize; z++)
+			var blockId = chunk.VoxelMap.GetAtFlatIndex(CHUNK_SIZE, x, y, z);
+			if (blockId == 0) continue; // air
+
+			MeshDataNative meshType = MeshLibrary[0];
+			AddVoxel(new int3(x, y, z),
+			         chunkPos,
+			         meshType,
+			         ref verts, ref uvs, ref triangles);
+		}
+	}
+
+	// ──────────────────────────────────────────────────────────────────────────
+	// V O X E L   M E S H I N G
+	// ──────────────────────────────────────────────────────────────────────────
+	private void AddVoxel(int3                   voxelLocal,
+	                      int3                   chunkPos,
+	                      MeshDataNative         meshType,
+	                      ref NativeList<float3> verts,
+	                      ref NativeList<float2> uvs,
+	                      ref NativeList<int>    triangles)
+	{
+		// iterate every authored face in the mesh type
+		for (var f = 0; f < meshType.FaceDatas.Length; f++)
+		{
+			FaceDataNative face = meshType.FaceDatas[f];
+
+			// neighbour direction = rounded normal (assumes axis-aligned faces)
+			var dir = new int3(
+			                   (int)math.round(face.Normal.x),
+			                   (int)math.round(face.Normal.y),
+			                   (int)math.round(face.Normal.z));
+
+			int3 neighbourLocal = voxelLocal + dir;
+			if (NeighbourIsSolid(chunkPos, neighbourLocal)) continue; // culled
+
+			var baseIdx = verts.Length;
+
+			// vertices / uvs ---------------------------------------------------
+			for (var v = 0; v < face.Vertices.Length; v++)
 			{
-				for (int y = 0; y < ChunkSystem.ChunkSize; y++)
+				Vertex src = face.Vertices[v];
+				verts.Add(voxelLocal + src.Position); // position offset by voxel
+				uvs.Add(src.UV);
+			}
+
+			// indices ----------------------------------------------------------
+			var vc = face.Vertices.Length;
+			switch (vc)
+			{
+				case 4:
+					// 0-1-2, 0-2-3
+					triangles.Add(baseIdx + 0);
+					triangles.Add(baseIdx + 1);
+					triangles.Add(baseIdx + 2);
+
+					triangles.Add(baseIdx + 0);
+					triangles.Add(baseIdx + 2);
+					triangles.Add(baseIdx + 3);
+					break;
+				case 3:
+					triangles.Add(baseIdx + 0);
+					triangles.Add(baseIdx + 1);
+					triangles.Add(baseIdx + 2);
+					break;
+				default:
 				{
-					if (ChunkMap[chunkPos].VoxelMap.GetAtFlatIndex(ChunkSystem.ChunkSize, x, y, z) == 1)
+					// N-gon fan fallback (assumes convex)
+					for (var t = 2; t < vc; t++)
 					{
-						AddVoxelData(new int3(x,y,z));
+						triangles.Add(baseIdx + 0);
+						triangles.Add(baseIdx + t - 1);
+						triangles.Add(baseIdx + t);
 					}
+
+					break;
 				}
 			}
 		}
 	}
 
-	private void AddVoxelData(int3 voxelPos)
+	// ──────────────────────────────────────────────────────────────────────────
+	// S O L I D   C H E C K  (cross-chunk aware)
+	// ──────────────────────────────────────────────────────────────────────────
+	private bool NeighbourIsSolid(int3 baseChunkPos, int3 localPos)
 	{
-		for (int p = 0; p < 6; p++)
-		{
-			if (IsFaceVisible(new int3(voxelPos.x, voxelPos.y, voxelPos.z)))
-			{
-				
-			}
-		}
+		int3 worldVoxel = baseChunkPos * CHUNK_SIZE + localPos;
+		var chkPos = new int3(
+		                      worldVoxel.x / CHUNK_SIZE,
+		                      worldVoxel.y / CHUNK_SIZE,
+		                      worldVoxel.z / CHUNK_SIZE);
+		int3 local = worldVoxel - chkPos * CHUNK_SIZE;
+
+		if (!ChunkMap.ContainsKey(chkPos)) return true;
+		Chunk chunk = ChunkMap[chkPos];
+		return chunk.VoxelMap.GetAtFlatIndex(CHUNK_SIZE, local.x, local.y, local.z) != 0;
 	}
 
-	private bool IsFaceVisible(int3 voxelPos)
+	// ──────────────────────────────────────────────────────────────────────────
+	// L O W  ‑  L E V E L   M E S H   O U T P U T
+	// ──────────────────────────────────────────────────────────────────────────
+	private void WriteToMeshData(int                meshDataIndex,
+	                             NativeList<float3> verts,
+	                             NativeList<float2> uvs,
+	                             NativeList<int>    triangles)
 	{
-		return ChunkMap[chunkPos].VoxelMap.GetAtFlatIndex(ChunkSystem.ChunkSize, voxelPos.x, voxelPos.y, voxelPos.z) == 1; 
+		MeshDataArray[meshDataIndex][0].SetVertexBufferParams(verts.Length, Layout);
+
+		// interleave ----------------------------------------------------------
+		NativeArray<Vertex> vtx = MeshDataArray[meshDataIndex][0].GetVertexData<Vertex>();
+		for (var i = 0; i < verts.Length; i++)
+			vtx[i] = new Vertex { Position = verts[i], UV = uvs[i] };
+
+		// indices -------------------------------------------------------------
+		MeshDataArray[meshDataIndex][0].SetIndexBufferParams(triangles.Length, IndexFormat.UInt32);
+		NativeArray<int> indexData = MeshDataArray[meshDataIndex][0].GetIndexData<int>();
+		indexData.CopyFrom(triangles.AsArray());
+		
+		MeshDataArray[meshDataIndex][0].SetSubMesh(0, new SubMeshDescriptor(0, triangles.Length));
 	}
 }

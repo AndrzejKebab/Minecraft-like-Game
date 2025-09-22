@@ -1,6 +1,9 @@
 using Unity.Collections;
+using Unity.Mathematics;
 
-public struct Chunk
+namespace PatataGames;
+
+public struct Chunk()
 {
-	public NativeArray<short> VoxelMap;
+	public NativeArray<short> VoxelMap = new((int)math.pow(ChunkSystem.CHUNK_SIZE, 3), Allocator.Persistent);
 }
