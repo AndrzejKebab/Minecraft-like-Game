@@ -9,7 +9,7 @@ using UnityEngine.Rendering;
 using static PopulateVoxelMapJob;
 using Object = UnityEngine.Object;
 
-public class Chunk
+public class Chunk(int3 coord, World world)
 {
 	private GameObject chunkObject;
 	private MeshRenderer meshRenderer;
@@ -17,9 +17,8 @@ public class Chunk
 	private MeshCollider meshCollider;
 	private readonly Mesh mesh = new();
 
-	private int3 Coord { get; }
-	private readonly World world;
-	private bool isActive;
+	private int3 Coord { get; } = coord;
+	private bool isActive = true;
 
 	public bool IsActive
 	{
@@ -27,7 +26,7 @@ public class Chunk
 		set
 		{
 			isActive = value;
-			if (chunkObject != null) chunkObject.SetActive(value);
+			chunkObject?.SetActive(value);
 		}
 	}
 
@@ -41,7 +40,7 @@ public class Chunk
 	private float3 ChunkPosition { get; set; }
 
 	private NativeArray<ushort> voxelMap =
-		new((int)Mathf.Pow(VoxelData.ChunkSize, 3), Allocator.Persistent);
+		new((int)Mathf.Pow(VoxelData.CHUNK_SIZE, 3), Allocator.Persistent);
 
 	private JobHandle chunkJobHandle;
 	private ChunkJob.MeshData meshData;
@@ -57,13 +56,6 @@ public class Chunk
 	                                                };
 	private Mesh.MeshDataArray meshDataArray;
 
-	public Chunk(int3 coord, World world)
-	{
-		Coord = coord;
-		this.world = world;
-		isActive = true;
-	}
-
 	public void Initialise()
 	{
 		IsScheduled = true;
@@ -75,8 +67,8 @@ public class Chunk
 		meshRenderer.material = world.Material;
 
 		chunkObject.transform.SetParent(world.transform);
-		chunkObject.transform.position = new Vector3(Coord.x * VoxelData.ChunkSize, Coord.y * VoxelData.ChunkSize,
-			Coord.z * VoxelData.ChunkSize);
+		chunkObject.transform.position = new Vector3(Coord.x * VoxelData.CHUNK_SIZE, Coord.y * VoxelData.CHUNK_SIZE,
+			Coord.z * VoxelData.CHUNK_SIZE);
 		chunkObject.name = $"Chunk [{Coord.x}, {Coord.y}, {Coord.z}]";
 		chunkObject.layer = LayerMask.NameToLayer("Chunk");
 
@@ -89,7 +81,7 @@ public class Chunk
 	{
 		voxelMapData = new VoxelMapData
 		{
-			ChunkSize = VoxelData.ChunkSize,
+			ChunkSize = VoxelData.CHUNK_SIZE,
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels,
 			BiomeData = world.BiomeAttributesJob
 		};
@@ -128,8 +120,8 @@ public class Chunk
 				BiomeData = world.BiomeAttributesJob
 			},
 
-			ChunkSize = VoxelData.ChunkSize,
-			TextureAtlasSize = VoxelData.TextureAtlasSizeInBlocks,
+			ChunkSize = VoxelData.CHUNK_SIZE,
+			TextureAtlasSize = VoxelData.TEXTURE_ATLAS_SIZE_IN_BLOCKS,
 			NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
 			Position = new int3(ChunkPosition),
 			WorldSizeInVoxels = VoxelData.WorldSizeInVoxels,
@@ -166,12 +158,12 @@ public class Chunk
 		var yCheck = Mathf.FloorToInt(pos.y);
 		var zCheck = Mathf.FloorToInt(pos.z);
 
-		var position = chunkObject.transform.position;
+		Vector3 position = chunkObject.transform.position;
 		xCheck -= Mathf.FloorToInt(position.x);
 		yCheck -= Mathf.FloorToInt(position.y);
 		zCheck -= Mathf.FloorToInt(position.z);
 
-		voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck, VoxelData.ChunkSize)] = blockId;
+		voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck)] = blockId;
 
 		UpdateSurroundingVoxels(xCheck, yCheck, zCheck);
 		CreateMeshDataJob();
@@ -184,7 +176,7 @@ public class Chunk
 
 		for (var p = 0; p < 6; p++)
 		{
-			var currentVoxel = thisVoxel + VoxelData.FaceChecks[p];
+			int3 currentVoxel = thisVoxel + VoxelData.FaceChecks[p];
 
 			if (!IsVoxelInChunk(currentVoxel))
 				world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition)).CreateMeshDataJob();
@@ -201,7 +193,7 @@ public class Chunk
 		yCheck -= Mathf.FloorToInt(ChunkPosition.y);
 		zCheck -= Mathf.FloorToInt(ChunkPosition.z);
 
-		return voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck, VoxelData.ChunkSize)];
+		return voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck)];
 	}
 
 	public void OnDestroy()
@@ -221,43 +213,28 @@ public class Chunk
 
 	private static bool IsVoxelInChunk(int3 pos)
 	{
-		return pos.x is >= 0 and <= VoxelData.ChunkSize - 1 &&
-			   pos.y is >= 0 and <= VoxelData.ChunkSize - 1 &&
-			   pos.z is >= 0 and <= VoxelData.ChunkSize - 1;
+		return pos.x is >= 0 and <= VoxelData.CHUNK_SIZE - 1 &&
+			   pos.y is >= 0 and <= VoxelData.CHUNK_SIZE - 1 &&
+			   pos.z is >= 0 and <= VoxelData.CHUNK_SIZE - 1;
 	}
 }
 
 [StructLayout(LayoutKind.Sequential)]
-public struct Vertex
+public struct Vertex(half4 position, sbyte4 normal, sbyte4 color, half2 uv)
 {
-	public half4 Position;
-	public sbyte4 Normal;
-	public Color32 Color;
-	public half2 UVs;
-
-	public Vertex(half4 position, sbyte4 normal, Color32 color, half2 uv)
-	{
-		Position = position;
-		Normal = normal;
-		Color = color;
-		UVs = uv;
-	}
+	public half4  Position = position;
+	public sbyte4 Normal   = normal;
+	public sbyte4 Color    = color;
+	public half2  UVs      = uv;
 }
 
 #pragma warning disable 0659
 [Serializable]
-public struct sbyte4 : IEquatable<sbyte4>, IFormattable
+[method: MethodImpl(MethodImplOptions.AggressiveInlining)]
+public struct sbyte4(sbyte x, sbyte y, sbyte z, sbyte w)
+	: IEquatable<sbyte4>, IFormattable
 {
-	public sbyte x, y, z, w;
-
-	[MethodImpl(MethodImplOptions.AggressiveInlining)]
-	public sbyte4(sbyte x, sbyte y, sbyte z, sbyte w)
-	{
-		this.x = x;
-		this.y = y;
-		this.z = z;
-		this.w = w;
-	}
+	public sbyte x = x, y = y, z = z, w = w;
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public bool Equals(sbyte4 rhs)
@@ -273,13 +250,13 @@ public struct sbyte4 : IEquatable<sbyte4>, IFormattable
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public override string ToString()
 	{
-		return string.Format("sbyte4({0}, {1}, {2}, {3})", x, y, z, w);
+		return $"sbyte4({x}, {y}, {z}, {w})";
 	}
 
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public string ToString(string format, IFormatProvider formatProvider)
 	{
-		return string.Format("sbyte4({0}, {1}, {2}, {3})", x.ToString(format, formatProvider),
-			y.ToString(format, formatProvider), z.ToString(format, formatProvider), w.ToString(format, formatProvider));
+		return
+			$"sbyte4({x.ToString(format, formatProvider)}, {y.ToString(format, formatProvider)}, {z.ToString(format, formatProvider)}, {w.ToString(format, formatProvider)})";
 	}
 }

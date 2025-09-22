@@ -39,7 +39,7 @@ public class World : MonoBehaviour
 	{
 		Instance = this;
 
-		Vector3 size = new(VoxelData.ChunkSize, VoxelData.ChunkSize, VoxelData.ChunkSize);
+		Vector3 size = new(VoxelData.CHUNK_SIZE, VoxelData.CHUNK_SIZE, VoxelData.CHUNK_SIZE);
 		ChunkBound = new Bounds(size / 2, size);
 
 		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
@@ -159,32 +159,32 @@ public class World : MonoBehaviour
 
 	private static int3 GetChunkCoordFromVector3(Vector3 pos)
 	{
-		var x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
-		var y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
-		var z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
+		var x = Mathf.FloorToInt(pos.x / VoxelData.CHUNK_SIZE);
+		var y = Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE);
+		var z = Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE);
 
 		return new int3(x, y, z);
 	}
 
 	public Chunk GetChunkFromVector3(Vector3 pos)
 	{
-		var x = Mathf.FloorToInt(pos.x / VoxelData.ChunkSize);
-		var y = Mathf.FloorToInt(pos.y / VoxelData.ChunkSize);
-		var z = Mathf.FloorToInt(pos.z / VoxelData.ChunkSize);
+		var x = Mathf.FloorToInt(pos.x / VoxelData.CHUNK_SIZE);
+		var y = Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE);
+		var z = Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE);
 
 		return ChunkStorage[new int3(x, y, z)];
 	}
 
 	private static bool IsChunkInWorld(int3 coord)
 	{
-		return coord.x >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.x < VoxelData.WorldSizeInChunks * 0.5f &&
-		       coord.y >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.y < VoxelData.WorldSizeInChunks * 0.5f &&
-		       coord.z >= -(VoxelData.WorldSizeInChunks * 0.5f) && coord.z < VoxelData.WorldSizeInChunks * 0.5f;
+		return coord.x >= -(VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f) && coord.x < VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f &&
+		       coord.y >= -(VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f) && coord.y < VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f &&
+		       coord.z >= -(VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f) && coord.z < VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f;
 	}
 
 	public bool CheckForVoxel(Vector3 pos)
 	{
-		int3 thisChunk = new(math.floor(pos) / VoxelData.ChunkSize);
+		int3 thisChunk = new(math.floor(pos) / VoxelData.CHUNK_SIZE);
 
 		if (!IsChunkInWorld(thisChunk)) return false;
 
@@ -192,7 +192,7 @@ public class World : MonoBehaviour
 			return blockTypes[ChunkStorage[thisChunk].GetVoxelFromGlobalVector3(pos)].BlockTypeData.IsSolid;
 
 		return blockTypes
-			       [WorldExtensions.GetVoxel(WorldGenNodePtr, pos.x, pos.y, pos.z, VoxelData.ChunkSize, BiomeAttributesJob.BiomeScale, BiomeAttributesJob.BiomeHeight, BiomeAttributesJob.SolidGroundHeight)]
+			       [WorldExtensions.GetVoxel(WorldGenNodePtr, pos.x, pos.y, pos.z, VoxelData.CHUNK_SIZE, BiomeAttributesJob.BiomeScale, BiomeAttributesJob.BiomeHeight, BiomeAttributesJob.SolidGroundHeight)]
 		       .BlockTypeData.IsSolid;
 	}
 

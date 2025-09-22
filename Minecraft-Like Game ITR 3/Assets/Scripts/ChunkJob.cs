@@ -58,13 +58,13 @@ public struct ChunkJob : IJob
 			}
 		}
 
-		var data = MeshDataArray[0];
+		Mesh.MeshData data = MeshDataArray[0];
 		data.subMeshCount = 1;
 		data.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
-		var index = data.GetIndexData<ushort>();
+		NativeArray<ushort> index = data.GetIndexData<ushort>();
 		index.CopyFrom(meshData.MeshTriangles.AsArray());
 		data.SetVertexBufferParams(meshData.Vertex.Length, Layout);
-		var vertex = data.GetVertexData<Vertex>();
+		NativeArray<Vertex> vertex = data.GetVertexData<Vertex>();
 		vertex.CopyFrom(meshData.Vertex.AsArray());
 		
 		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
@@ -94,7 +94,10 @@ public struct ChunkJob : IJob
 				(sbyte)VoxelData.FaceChecks[p].z,
 				0);
 
-			var tangent = new Color32((byte)normal.x, (byte)normal.y, (byte)normal.z, (byte)normal.w);
+			var tangent = new sbyte4((sbyte)VoxelData.FaceTangents[p].x,
+			                         (sbyte)VoxelData.FaceTangents[p].y,
+			                         (sbyte)VoxelData.FaceTangents[p].z,
+			                         -1);
 
 			meshData.Vertex.Add(new Vertex(vertices[0], normal, tangent, textureUVs[0]));
 			meshData.Vertex.Add(new Vertex(vertices[1], normal, tangent, textureUVs[1]));
@@ -107,7 +110,7 @@ public struct ChunkJob : IJob
 		}
 	}
 
-	private NativeArray<half4> GetFaceVertices(int faceIndex, half4 pos)
+	private static NativeArray<half4> GetFaceVertices(int faceIndex, half4 pos)
 	{
 		var faceVertices = new NativeArray<half4>(4, Allocator.Temp);
 

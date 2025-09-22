@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: HDRP High Fidelity
   m_EditorClassIdentifier: 
   m_RenderPipelineSettings:
-    supportShadowMask: 0
+    supportShadowMask: 1
     supportSSR: 0
     supportSSRTransparent: 0
     supportSSAO: 1
@@ -28,7 +28,7 @@ MonoBehaviour:
       m_Values: 000000000000000000000000
       m_SchemaId:
         m_Id: With3Levels
-    supportVolumetrics: 1
+    supportVolumetrics: 0
     supportVolumetricClouds: 0
     supportLightLayers: 1
     renderingLayerMaskBuffer: 0
@@ -54,7 +54,7 @@ MonoBehaviour:
     supportCustomPass: 1
     supportVariableRateShading: 1
     customBufferFormat: 12
-    supportedLitShaderMode: 1
+    supportedLitShaderMode: 2
     planarReflectionResolution:
       m_Values: 000100000004000000080000
       m_SchemaId:
@@ -149,7 +149,7 @@ MonoBehaviour:
       maxDirectionalShadowMapResolution: 4096
       maxPunctualShadowMapResolution: 4096
       maxAreaShadowMapResolution: 4096
-      supportScreenSpaceShadows: 0
+      supportScreenSpaceShadows: 1
       maxScreenSpaceShadowSlots: 4
       screenSpaceShadowBufferFormat: 48
     decalSettings:
@@ -176,8 +176,8 @@ MonoBehaviour:
       defaultInjectionPoint: 2
       DLSSUseOptimalSettings: 1
       DLSSSharpness: 0
-      FSR2EnableSharpness: 0
-      FSR2Sharpness: 0
+      FSR2EnableSharpness: 1
+      FSR2Sharpness: 0.0597
       FSR2UseOptimalSettings: 1
       FSR2QualitySetting: 0
       FSR2InjectionPoint: 2

@@ -56,7 +56,20 @@ public class WorldExtensions : MonoBehaviour
 	}
 
 	[BurstCompile]
-	public static int FlattenIndex(int posX, int posY, int posZ, int chunkSize) => math.abs((posZ * chunkSize * chunkSize) + (posY * chunkSize) + posX);
+	public static int FlattenIndex(int posX, int posY, int posZ)
+	{
+		return posX | (posY << 5) | (posZ << 10);
+	}
+
+	[BurstCompile]
+	public static void UnflattenIndex(in int index, out int3 pos)
+	{
+		var x = index & 0x1f;
+		var y = index >> 5 & 0x1f;
+		var z = index >> 10 & 0x1f;
+		
+		pos = new int3(x, y, z);
+	}
 
 	//public static bool CheckForVoxel(Vector3 pos)
 	//{
