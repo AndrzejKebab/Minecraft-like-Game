@@ -19,7 +19,7 @@ public class ChunkSystem : MonoBehaviour
 
 	// -- Native containers ------------------------------------------------------------------
 	private NativeParallelHashMap<int3, Chunk> chunkMap;      // allocated in OnEnable
-	private NativeArray<Mesh.MeshDataArray>    meshDataArray; // allocated in OnEnable
+	private Mesh.MeshDataArray    meshDataArray; // allocated in OnEnable
 
 	// -- Runtime lists / queues --------------------------------------------------------------
 	private readonly List<int3>  chunksToUpdate    = [];
@@ -56,7 +56,7 @@ public class ChunkSystem : MonoBehaviour
 		chunkMap = new NativeParallelHashMap<int3, Chunk>(initialChunkCapacity, Allocator.Persistent);
 
 		var meshCapacity = (int)math.pow(viewdistance * 2, 3);
-		meshDataArray = new NativeArray<Mesh.MeshDataArray>(meshCapacity, Allocator.Persistent);
+		meshDataArray = new Mesh.MeshDataArray();
 	}
 
 	private void Start()
@@ -69,8 +69,8 @@ public class ChunkSystem : MonoBehaviour
 
 		// Initialise job schedulers
 		populateJobScheduler                                  = new JobForScheduler<PopulateVoxelMapParallel>(64);
-		populateJobScheduler.baseScheduler.OnAllJobsCompleted = JobsComplete;
-		populateJobScheduler.baseScheduler.OnBatchCompleted   = BatchComplete;
+		//populateJobScheduler.baseScheduler.OnAllJobsCompleted = JobsComplete;
+		//populateJobScheduler.baseScheduler.OnBatchCompleted   = BatchComplete;
 
 		createMeshJobScheduler = new JobForScheduler<CreateMeshParallel>(64);
 
@@ -200,8 +200,7 @@ public class ChunkSystem : MonoBehaviour
 
 	private void CreateChunkMesh()
 	{
-		for (var i = 0; i < chunksToUpdate.Count; i++)
-			meshDataArray[i] = Mesh.AllocateWritableMeshData(1);
+		meshDataArray = Mesh.AllocateWritableMeshData(chunksToUpdate.Count);
 
 		var job = new CreateMeshParallel
 		          {
@@ -219,21 +218,28 @@ public class ChunkSystem : MonoBehaviour
 
 	private void ApplyMeshData()
 	{
+		var meshList = new List<Mesh>();
 		for (var i = 0; i < chunksToUpdate.Count; i++)
 		{
-			var chunkMesh = new Mesh();
-			chunkMesh.MarkDynamic();
-			Mesh.ApplyAndDisposeWritableMeshData(meshDataArray[i], chunkMesh);
-			chunkMesh.RecalculateBounds();
-			chunkMesh.RecalculateTangents();
-			chunkMesh.Optimize();
+			var mesh = new Mesh();
+			mesh.MarkDynamic();
+			meshList.Add(mesh);
+		}
+		
+		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, meshList);
+		
+		for (var i = 0; i < chunksToUpdate.Count; i++)
+		{
+			meshList[i].RecalculateBounds();
+			meshList[i].RecalculateTangents();
+			meshList[i].Optimize();
 
 			var chunk = new GameObject();
 			chunk.AddComponent<MeshFilter>();
 			var meshRenderer  = chunk.AddComponent<MeshRenderer>();
 			var chunkCollider = chunk.AddComponent<MeshCollider>();
 			meshRenderer.material    = Mat;
-			chunkCollider.sharedMesh = chunkMesh;
+			chunkCollider.sharedMesh = meshList[i];
 			chunk.transform.SetParent(transform);
 			chunk.transform.position = new Vector3(chunksToUpdate[i].x * CHUNK_SIZE, chunksToUpdate[i].y * CHUNK_SIZE,
 			                                       chunksToUpdate[i].z * CHUNK_SIZE);
@@ -245,7 +251,6 @@ public class ChunkSystem : MonoBehaviour
 	{
 		// Clean up native collections
 		if (chunkMap.IsCreated) chunkMap.Dispose();
-		if (meshDataArray.IsCreated) meshDataArray.Dispose();
 		if (layout.IsCreated) layout.Dispose();
 
 		if (populateJobScheduler.JobsCount > 0)

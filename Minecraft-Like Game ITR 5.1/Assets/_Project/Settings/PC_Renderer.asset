@@ -26,9 +26,7 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
-  - {fileID: 0}
-  m_RendererFeatureMap: ad6b866f10d7b46c8856a6278c43af55
-  m_UseNativeRenderPass: 1
+  m_RendererFeatureMap: ad6b866f10d7b46c
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -56,22 +54,6 @@ MonoBehaviour:
   m_DepthTextureFormat: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
---- !u!114 &6174227883387934344
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f0af2abd085f80f4f9a9d752783da070, type: 3}
-  m_Name: DLSSRenderFeature
-  m_EditorClassIdentifier: com.thenakeddev.dlss.Runtime.URP::TND.DLSS.DLSSScriptableRenderFeature
-  m_Active: 1
-  IsEnabled: 0
-  usingRenderGraph: 1
-  m_upscaler: {fileID: 0}
 --- !u!114 &7833122117494664109
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -35,7 +35,7 @@ public struct CreateMeshParallel : IJobFor
 	// OUTPUT ‑ one MeshData per chunk
 	// ──────────────────────────────────────────────────────────────────────────
 	[NativeDisableContainerSafetyRestriction]
-	public NativeArray<Mesh.MeshDataArray> MeshDataArray;
+	public Mesh.MeshDataArray MeshDataArray;
 
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -156,16 +156,23 @@ public struct CreateMeshParallel : IJobFor
 	// ──────────────────────────────────────────────────────────────────────────
 	private bool NeighbourIsSolid(int3 baseChunkPos, int3 localPos)
 	{
-		int3 worldVoxel = baseChunkPos * CHUNK_SIZE + localPos;
-		var chkPos = new int3(
-		                      worldVoxel.x / CHUNK_SIZE,
-		                      worldVoxel.y / CHUNK_SIZE,
-		                      worldVoxel.z / CHUNK_SIZE);
-		int3 local = worldVoxel - chkPos * CHUNK_SIZE;
-
-		if (!ChunkMap.ContainsKey(chkPos)) return true;
-		Chunk chunk = ChunkMap[chkPos];
-		return chunk.VoxelMap.GetAtFlatIndex(CHUNK_SIZE, local.x, local.y, local.z) != 0;
+		 int3 worldVoxel = baseChunkPos * CHUNK_SIZE + localPos;
+        
+                // Optimized Math for Chunk Size 32 (2^5):
+                // ---------------------------------------
+                // Right shift by 5 is equivalent to floor(val / 32.0).
+                // This correctly handles negative numbers (e.g., -1 >> 5 == -1),
+                // whereas integer division would truncate (-1 / 32 == 0).
+                int3 chkPos = worldVoxel >> 5;
+        
+                // Bitwise AND with 31 is equivalent to modulo 32.
+                // This handles wrapping correctly (e.g., -1 & 31 == 31).
+                int3 local = worldVoxel & (CHUNK_SIZE - 1);
+        
+                if (!ChunkMap.ContainsKey(chkPos)) return true;
+                Chunk chunk = ChunkMap[chkPos];
+                
+                return chunk.VoxelMap.GetAtFlatIndex(CHUNK_SIZE, local.x, local.y, local.z) != 0;
 	}
 
 	// ──────────────────────────────────────────────────────────────────────────
@@ -176,18 +183,26 @@ public struct CreateMeshParallel : IJobFor
 	                             NativeList<float2> uvs,
 	                             NativeList<int>    triangles)
 	{
-		MeshDataArray[meshDataIndex][0].SetVertexBufferParams(verts.Length, Layout);
+		// 1. Get the handle
+		Mesh.MeshData meshData = MeshDataArray[meshDataIndex];
+        
+		// 2. EXPLICITLY set the submesh count. 
+		// Without this, SetSubMesh(0, ...) throws "should be [0,0)"
+		meshData.subMeshCount = 1;
 
-		// interleave ----------------------------------------------------------
-		NativeArray<Vertex> vtx = MeshDataArray[meshDataIndex][0].GetVertexData<Vertex>();
+		// 3. Set buffer params
+		meshData.SetVertexBufferParams(verts.Length, Layout);
+		meshData.SetIndexBufferParams(triangles.Length, IndexFormat.UInt32);
+
+		// 4. Write Data
+		NativeArray<Vertex> vtx = meshData.GetVertexData<Vertex>();
 		for (var i = 0; i < verts.Length; i++)
 			vtx[i] = new Vertex { Position = verts[i], UV = uvs[i] };
 
-		// indices -------------------------------------------------------------
-		MeshDataArray[meshDataIndex][0].SetIndexBufferParams(triangles.Length, IndexFormat.UInt32);
-		NativeArray<int> indexData = MeshDataArray[meshDataIndex][0].GetIndexData<int>();
+		NativeArray<int> indexData = meshData.GetIndexData<int>();
 		indexData.CopyFrom(triangles.AsArray());
-		
-		MeshDataArray[meshDataIndex][0].SetSubMesh(0, new SubMeshDescriptor(0, triangles.Length));
+
+		// 5. Define SubMesh
+		meshData.SetSubMesh(0, new SubMeshDescriptor(0, triangles.Length));
 	}
 }
