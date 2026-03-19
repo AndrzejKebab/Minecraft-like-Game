@@ -91,11 +91,11 @@ fmod_editor.log
 
 # Custom
 .idea
-*/[Aa]ssets/*
-!_Project
 /FMOD/ProjectCorn/.cache
 /FMOD/ProjectCorn/.user
 /FMOD/ProjectCorn/.unsaved
 /FMOD/ProjectCorn/Assets
 /Assets/_Project/tests
-/Minecraft-Like Game ITR 5.1
+!*/Assets/*
+*/Assets/*
+!*/Assets/_Project
