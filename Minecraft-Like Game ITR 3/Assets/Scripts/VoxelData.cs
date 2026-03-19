@@ -4,12 +4,10 @@ using Unity.Mathematics;
 [BurstCompile]
 public static class VoxelData
 {
-	public const  byte  CHUNK_SIZE           = 32;
-	public const  int   WORLD_SIZE_IN_CHUNKS = 1875000;
-	public static int   WorldSizeInVoxels => WORLD_SIZE_IN_CHUNKS * CHUNK_SIZE;
-	public static byte  ViewDistanceInChunks         = 8;
-	public const  byte  TEXTURE_ATLAS_SIZE_IN_BLOCKS = 16;
-	public static float NormalizedBlockTextureSize => 1f / TEXTURE_ATLAS_SIZE_IN_BLOCKS;
+	public const  byte CHUNK_SIZE                   = 32;
+	public const  int  WORLD_SIZE_IN_CHUNKS         = 1875000;
+	public const  byte TEXTURE_ATLAS_SIZE_IN_BLOCKS = 16;
+	public static byte ViewDistanceInChunks         = 8;
 
 	public static readonly half4[] VoxelVertices =
 	[
@@ -60,4 +58,7 @@ public static class VoxelData
 		new(0, 0, -1), // X-
 		new(0, 0, 1)   // X+
 	];
+
+	public static int   WorldSizeInVoxels          => WORLD_SIZE_IN_CHUNKS * CHUNK_SIZE;
+	public static float NormalizedBlockTextureSize => 1f / TEXTURE_ATLAS_SIZE_IN_BLOCKS;
 }

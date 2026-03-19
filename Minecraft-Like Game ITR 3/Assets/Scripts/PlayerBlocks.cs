@@ -5,16 +5,16 @@ using UnityEngine;
 public class PlayerBlocks : MonoBehaviour
 {
 	[SerializeField] private TextMeshProUGUI selectedBlockText;
-	[SerializeField] private Transform highlightBlock;
-	[SerializeField] private Transform placeHighlightBlock;
-	[SerializeField]private Camera cam;
-	[SerializeField]private World world;
-	[SerializeField] private int reach;
-	private ushort selectedBlockIndex = 1;
+	[SerializeField] private Transform       highlightBlock;
+	[SerializeField] private Transform       placeHighlightBlock;
+	[SerializeField] private Camera          cam;
+	[SerializeField] private World           world;
+	[SerializeField] private int             reach;
 
-	[SerializeField] private LayerMask chunkMask = 6;
-	private Ray ray;
-	private RaycastHit hit;
+	[SerializeField] private LayerMask  chunkMask = 6;
+	private                  RaycastHit hit;
+	private                  Ray        ray;
+	private                  ushort     selectedBlockIndex = 1;
 
 	private void Awake()
 	{
@@ -34,35 +34,26 @@ public class PlayerBlocks : MonoBehaviour
 		if (scroll != 0)
 		{
 			if (scroll > 0)
-			{
 				selectedBlockIndex++;
-			}
 			else
-			{
 				selectedBlockIndex--;
-			}
 		}
 
-		if (selectedBlockIndex > (ushort)world.BlockTypesJobs.Length - 1)
-		{
-			selectedBlockIndex = 1;
-		}
-		if (selectedBlockIndex < 1)
-		{
-			selectedBlockIndex = (ushort)(world.BlockTypesJobs.Length - 1);
-		}
+		if (selectedBlockIndex > (ushort)world.BlockTypesJobs.Length - 1) selectedBlockIndex = 1;
+		if (selectedBlockIndex < 1) selectedBlockIndex = (ushort)(world.BlockTypesJobs.Length - 1);
 
 		selectedBlockText.text = $"Selected Block: {world.BlockTypes[selectedBlockIndex].name}";
 
 		if (!highlightBlock.gameObject.activeSelf) return;
 		if (Input.GetMouseButtonDown(0))
 		{
-			var position = highlightBlock.position;
+			Vector3 position = highlightBlock.position;
 			world.GetChunkFromVector3(position).EditVoxel(new int3(position), 0);
 		}
+
 		if (Input.GetMouseButtonDown(1))
 		{
-			var position = placeHighlightBlock.position;
+			Vector3 position = placeHighlightBlock.position;
 			world.GetChunkFromVector3(position).EditVoxel(new int3(position), selectedBlockIndex);
 		}
 	}
@@ -74,26 +65,26 @@ public class PlayerBlocks : MonoBehaviour
 		if (Physics.Raycast(ray, out hit, reach, chunkMask))
 		{
 			Debug.DrawLine(ray.origin, hit.point, Color.red);
-			var desiredPoint = hit.point - (hit.normal / 2);
+			Vector3 desiredPoint = hit.point - hit.normal / 2;
 
 			var gridIndex = new Vector3
-			(
-				Mathf.FloorToInt(desiredPoint.x),
-				Mathf.FloorToInt(desiredPoint.y),
-				Mathf.FloorToInt(desiredPoint.z)
-			);
+				(
+				 Mathf.FloorToInt(desiredPoint.x),
+				 Mathf.FloorToInt(desiredPoint.y),
+				 Mathf.FloorToInt(desiredPoint.z)
+				);
 
 			highlightBlock.gameObject.SetActive(true);
 			highlightBlock.position = gridIndex;
 
-			var sideDesiredPoint = hit.point + (hit.normal / 2);
+			Vector3 sideDesiredPoint = hit.point + hit.normal / 2;
 
 			var sideGridIndex = new Vector3
-			(
-				Mathf.FloorToInt(sideDesiredPoint.x),
-				Mathf.FloorToInt(sideDesiredPoint.y),
-				Mathf.FloorToInt(sideDesiredPoint.z)
-			);
+				(
+				 Mathf.FloorToInt(sideDesiredPoint.x),
+				 Mathf.FloorToInt(sideDesiredPoint.y),
+				 Mathf.FloorToInt(sideDesiredPoint.z)
+				);
 
 			placeHighlightBlock.gameObject.SetActive(true);
 			placeHighlightBlock.position = sideGridIndex;

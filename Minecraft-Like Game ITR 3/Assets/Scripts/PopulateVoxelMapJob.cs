@@ -11,19 +11,16 @@ public struct PopulateVoxelMapJob : IJob
 {
 	public struct VoxelMapData
 	{
-		public int ChunkSize;
-		public int WorldSizeInVoxels;
+		public int                ChunkSize;
+		public int                WorldSizeInVoxels;
 		public BiomeAttributesJob BiomeData;
 	}
 
-	[ReadOnly]
-	public Vector3 Position;
-	[ReadOnly]
-	public VoxelMapData VoxelData;
-	[WriteOnly]
-	public NativeArray<ushort> VoxelMap;
-	[WriteOnly]
-	[NativeDisableUnsafePtrRestriction]
+	[ReadOnly]  public Vector3             Position;
+	[ReadOnly]  public VoxelMapData        VoxelData;
+	[WriteOnly] public NativeArray<ushort> VoxelMap;
+
+	[WriteOnly] [NativeDisableUnsafePtrRestriction]
 	public IntPtr nodeHandle;
 
 	public void Execute()
@@ -33,23 +30,19 @@ public struct PopulateVoxelMapJob : IJob
 
 	private void PopulateVoxelMap()
 	{
-		for (int y = 0; y < VoxelData.ChunkSize; y++)
+		for (var y = 0; y < VoxelData.ChunkSize; y++)
+		for (var x = 0; x < VoxelData.ChunkSize; x++)
+		for (var z = 0; z < VoxelData.ChunkSize; z++)
 		{
-			for (int x = 0; x < VoxelData.ChunkSize; x++)
-			{
-				for (int z = 0; z < VoxelData.ChunkSize; z++)
-				{
-					float posX = x + Position.x;
-					float posY = y + Position.y;
-					float posZ = z + Position.z;
-					var voxel = WorldExtensions.GetVoxel(nodeHandle, posX, posY, posZ,
-						VoxelData.WorldSizeInVoxels,
-						VoxelData.BiomeData.BiomeScale,
-						VoxelData.BiomeData.BiomeHeight,
-						VoxelData.BiomeData.SolidGroundHeight);
-					VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z, voxel);
-				}
-			}
+			var posX = x + Position.x;
+			var posY = y + Position.y;
+			var posZ = z + Position.z;
+			var voxel = WorldExtensions.GetVoxel(nodeHandle, posX, posY, posZ,
+			                                     VoxelData.WorldSizeInVoxels,
+			                                     VoxelData.BiomeData.BiomeScale,
+			                                     VoxelData.BiomeData.BiomeHeight,
+			                                     VoxelData.BiomeData.SolidGroundHeight);
+			VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z, voxel);
 		}
 	}
 }

@@ -1,21 +1,22 @@
+using System;
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "New BlockType", menuName = "BlockTypes")]
 public class BlockTypes : ScriptableObject
 {
-	[Header("Block Data")]
-	public string BlockName;
+	[Header("Block Data")] public string BlockName;
+
 	public BlockTypesJob BlockTypeData;
 }
 
-[System.Serializable]
+[Serializable]
 public struct BlockTypesJob
 {
-	public ushort BlockID;
-	public bool IsSolid;
+	public ushort   BlockID;
+	public bool     IsSolid;
 	public Textures TexturesIndex;
 
-	[System.Serializable]
+	[Serializable]
 	public struct Textures
 	{
 		public short BackFaceTexture;

@@ -7,52 +7,41 @@ using UnityEngine;
 public class WorldExtensions : MonoBehaviour
 {
 	[BurstCompile]
-	public static ushort GetVoxel(IntPtr nodeHandle, float posX, float posY, float posZ, int worldSizeInVoxels, int biomeScale, int biomeHeight, int solidBiomeHeight)
+	public static ushort GetVoxel(IntPtr nodeHandle, float posX,        float posY, float posZ, int worldSizeInVoxels,
+	                              int    biomeScale, int   biomeHeight, int   solidBiomeHeight)
 	{
-		var biomeAttributes = new BiomeAttributesJob()
-		{
-			BiomeHeight = biomeHeight,
-			BiomeScale = biomeScale,
-			SolidGroundHeight = solidBiomeHeight
-		};
+		var biomeAttributes = new BiomeAttributesJob
+		                      {
+			                      BiomeHeight       = biomeHeight,
+			                      BiomeScale        = biomeScale,
+			                      SolidGroundHeight = solidBiomeHeight
+		                      };
 
-		var yPos = Mathf.FloorToInt(posY);
+		var yPos          = Mathf.FloorToInt(posY);
 		var terrainHeight = NoiseGenerator.Get2DPerlin(nodeHandle, posX, posZ, biomeAttributes.BiomeScale);
-		terrainHeight = Mathf.FloorToInt(terrainHeight * biomeAttributes.BiomeHeight) + biomeAttributes.SolidGroundHeight;
+		terrainHeight = Mathf.FloorToInt(terrainHeight * biomeAttributes.BiomeHeight) +
+		                biomeAttributes.SolidGroundHeight;
 
 		ushort voxelValue = 2;
 
-		if (!IsVoxelInWorld(posX, posY, posZ, worldSizeInVoxels))
-		{
-			return 0;
-		}
-		if (posY == 0)
-		{
-			return 1;
-		}
+		if (!IsVoxelInWorld(posX, posY, posZ, worldSizeInVoxels)) return 0;
+		if (posY == 0) return 1;
 
 		if (yPos > terrainHeight)
-		{
 			voxelValue = yPos <= 256 ? (ushort)5 : (ushort)0;
-		}
 		else if (yPos == terrainHeight)
-		{
-			voxelValue = 4;
-		}
-		else if (yPos < terrainHeight && yPos > terrainHeight - 6)
-		{
-			voxelValue = 3;
-		}
+			voxelValue                                                        = 4;
+		else if (yPos < terrainHeight && yPos > terrainHeight - 6) voxelValue = 3;
 
 		return voxelValue;
 	}
 
 	[BurstCompile]
-	public static bool IsVoxelInWorld(float posX, float posY, float posZ, int worldSizeInVoxels)
+	private static bool IsVoxelInWorld(float posX, float posY, float posZ, int worldSizeInVoxels)
 	{
-		return posX >= -(worldSizeInVoxels * 0.5f) && posX < (worldSizeInVoxels * 0.5f) &&
-		       posY >= -(worldSizeInVoxels * 0.5f) && posY < (worldSizeInVoxels * 0.5f) &&
-		       posZ >= -(worldSizeInVoxels * 0.5f) && posZ < (worldSizeInVoxels * 0.5f);
+		return posX >= -(worldSizeInVoxels * 0.5f) && posX < worldSizeInVoxels * 0.5f &&
+		       posY >= -(worldSizeInVoxels * 0.5f) && posY < worldSizeInVoxels * 0.5f &&
+		       posZ >= -(worldSizeInVoxels * 0.5f) && posZ < worldSizeInVoxels * 0.5f;
 	}
 
 	[BurstCompile]
@@ -65,26 +54,9 @@ public class WorldExtensions : MonoBehaviour
 	public static void UnflattenIndex(in int index, out int3 pos)
 	{
 		var x = index & 0x1f;
-		var y = index >> 5 & 0x1f;
-		var z = index >> 10 & 0x1f;
-		
+		var y = (index >> 5) & 0x1f;
+		var z = (index >> 10) & 0x1f;
+
 		pos = new int3(x, y, z);
 	}
-
-	//public static bool CheckForVoxel(Vector3 pos)
-	//{
-	//	int3 thisChunk = new int3(math.floor(pos) / VoxelData.ChunkSize);
-	//
-	//	if (!World.instance.IsChunkInWorld(thisChunk))
-	//	{
-	//		return false;
-	//	}
-	//
-	//	if (World.instance.ChunkStorage[thisChunk] != null)
-	//	{
-	//		return World.instance.blockTypesJobs[World.instance.ChunkStorage[thisChunk].GetVoxelFromGlobalVector3(pos)].IsSolid;
-	//	}
-	//
-	//	return World.instance.blockTypesJobs[GetVoxel(pos.x, pos.y, pos.z, VoxelData.ChunkSize, World.instance.biomeAttributesJob.BiomeScale, World.instance.biomeAttributesJob.BiomeHeight, World.instance.biomeAttributesJob.SolidGroundHeight)].IsSolid;
-	//}
 }

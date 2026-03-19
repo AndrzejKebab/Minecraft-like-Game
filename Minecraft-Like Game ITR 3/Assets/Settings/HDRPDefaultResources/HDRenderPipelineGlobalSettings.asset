@@ -156,6 +156,7 @@ MonoBehaviour:
       sssCustomDownsampleSteps: 0
       msaaMode: 1
       materialQuality: 0
+  m_Version: 14
   m_Settings:
     m_SettingsList:
       m_List:
@@ -171,7 +172,6 @@ MonoBehaviour:
       - rid: 4310362098121834505
       - rid: 4310362098121834506
       - rid: 4310362157952008262
-      - rid: 4310362098121834508
       - rid: 4310362098121834509
       - rid: 4310362098121834510
       - rid: 4310362157952008263
@@ -207,7 +207,6 @@ MonoBehaviour:
       - rid: 4310362098121834503
       - rid: 4310362098121834505
       - rid: 4310362098121834506
-      - rid: 4310362098121834508
       - rid: 4310362098121834509
       - rid: 4310362098121834510
       - rid: 4310362098121834512
@@ -262,7 +261,6 @@ MonoBehaviour:
     obsoleteHasProbeVolumes:
       m_Keys: []
       m_Values: 
-  m_Version: 14
   references:
     version: 2
     RefIds:
@@ -296,6 +294,13 @@ MonoBehaviour:
         asm: Unity.RenderPipelines.Core.Runtime}
       data:
         m_version: 0
+        m_PanelSettings: {fileID: 11400000, guid: fa69697be3070b04a893666f5947f18c,
+          type: 2}
+        m_StyleSheets:
+        - {fileID: 7433441132597879392, guid: 0ff99fd36f66f1a41bcc1d3c90e0922a, type: 3}
+        - {fileID: 7433441132597879392, guid: 3a8aa4d508da46d4dace18b280f064aa, type: 3}
+        m_VisualTreeAsset: {fileID: 9197481963319205126, guid: b647ceb1e15264943b9b439971e71110,
+          type: 3}
     - rid: 3532647341367754819
       type: {class: WorldRenderPipelineResources, ns: UnityEngine.PathTracing.Core,
         asm: Unity.PathTracing.Runtime}
@@ -473,12 +478,6 @@ MonoBehaviour:
       data:
         m_Version: 0
         m_SpecularFade: 0
-    - rid: 4310362098121834508
-      type: {class: RenderGraphSettings, ns: UnityEngine.Rendering.HighDefinition,
-        asm: Unity.RenderPipelines.HighDefinition.Runtime}
-      data:
-        m_Version: 0
-        m_DynamicRenderPassCulling: 0
     - rid: 4310362098121834509
       type: {class: RenderingPathFrameSettings, ns: UnityEngine.Rendering.HighDefinition,
         asm: Unity.RenderPipelines.HighDefinition.Runtime}
