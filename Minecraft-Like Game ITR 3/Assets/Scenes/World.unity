@@ -1520,6 +1520,36 @@ PrefabInstance:
       propertyPath: GroundLayers.m_Bits
       value: 64
       objectReference: {fileID: 0}
+    - target: {fileID: 5855996693355742014, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: Lens.FieldOfView
+      value: 90
+      objectReference: {fileID: 0}
+    - target: {fileID: 5855996693355742014, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: Lens.FarClipPlane
+      value: 1000
+      objectReference: {fileID: 0}
+    - target: {fileID: 5855996693355742014, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: Lens.NearClipPlane
+      value: 0.01
+      objectReference: {fileID: 0}
+    - target: {fileID: 5855996693355742014, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: Target.TrackingTarget
+      value: 
+      objectReference: {fileID: 466223067}
+    - target: {fileID: 5855996693355742014, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: Target.CustomLookAtTarget
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7977324258352928302, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: m_Name
+      value: PlayerFollowCamera
+      objectReference: {fileID: 0}
     - target: {fileID: 7977324258352928302, guid: bc5d290ef5433d44bab460c7f9f15583,
         type: 3}
       propertyPath: m_TagString
@@ -1612,6 +1642,9 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 7977324257736861200, guid: bc5d290ef5433d44bab460c7f9f15583, type: 3}
+    - {fileID: 8294080235495925701, guid: bc5d290ef5433d44bab460c7f9f15583, type: 3}
+    - {fileID: 7977324258352928720, guid: bc5d290ef5433d44bab460c7f9f15583, type: 3}
+    - {fileID: 5177660363374882336, guid: bc5d290ef5433d44bab460c7f9f15583, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
@@ -1620,6 +1653,12 @@ PrefabInstance:
       insertIndex: 2
       addedObject: {fileID: 894678858}
   m_SourcePrefab: {fileID: 100100000, guid: bc5d290ef5433d44bab460c7f9f15583, type: 3}
+--- !u!4 &466223067 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 122239825747819685, guid: bc5d290ef5433d44bab460c7f9f15583,
+    type: 3}
+  m_PrefabInstance: {fileID: 466223066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &478275935
 GameObject:
   m_ObjectHideFlags: 0
