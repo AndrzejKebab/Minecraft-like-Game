@@ -12,15 +12,54 @@ using Object = UnityEngine.Object;
 
 public class Chunk
 {
-	private          GameObject   chunkObject;
-	private          MeshRenderer meshRenderer;
-	private          MeshFilter   meshFilter;
-	private          MeshCollider meshCollider;
-	private readonly Mesh         mesh = new();
+	private readonly NativeArray<VertexAttributeDescriptor> layout = new(4, Allocator.Persistent)
+	                                                                 {
+		                                                                 [0] =
+			                                                                 new
+				                                                                 VertexAttributeDescriptor(VertexAttribute
+						                                                                  .Position,
+					                                                                  VertexAttributeFormat.Float16, 4),
+		                                                                 [1] =
+			                                                                 new
+				                                                                 VertexAttributeDescriptor(VertexAttribute
+						                                                                  .Normal,
+					                                                                  VertexAttributeFormat.SNorm8, 4),
+		                                                                 [2] =
+			                                                                 new
+				                                                                 VertexAttributeDescriptor(VertexAttribute
+						                                                                  .Tangent,
+					                                                                  VertexAttributeFormat.UNorm8, 4),
+		                                                                 [3] =
+			                                                                 new
+				                                                                 VertexAttributeDescriptor(VertexAttribute
+						                                                                  .TexCoord0,
+					                                                                  VertexAttributeFormat.Float16, 2)
+	                                                                 };
 
-	private int3  Coord { get; set; }
+	private readonly Mesh mesh = new();
+
+	private JobHandle               chunkJobHandle;
+	private GameObject              chunkObject;
+	private bool                    isActive   = true;
+	public  bool                    IsUpdating = true;
+	private MeshCollider            meshCollider;
+	private ChunkJob.NativeMeshData meshData;
+	private Mesh.MeshDataArray      meshDataArray;
+	private MeshFilter              meshFilter;
+	private MeshRenderer            meshRenderer;
+
+	private NativeArray<ushort>[] neighborDummies = [];
+	private JobHandle             populateVoxelMapHandle;
+
+	private NativeArray<ushort> voxelMap =
+		new((int)Mathf.Pow(VoxelData.CHUNK_SIZE, 3), Allocator.Persistent);
+
+	private VoxelMapData voxelMapData;
+
+	public  bool  VoxelMapPopulated;
 	private World world;
-	private bool  isActive = true;
+
+	private int3 Coord { get; set; }
 
 	public bool IsActive
 	{
@@ -34,82 +73,13 @@ public class Chunk
 
 	public bool IsScheduled         { get; private set; }
 	public bool IsMeshDataCompleted => chunkJobHandle.IsCompleted;
-	public bool IsVoxelMapCompleted => populateVoxelMapHandle.IsCompleted;
-
-	public bool VoxelMapPopulated;
-	public bool IsUpdating = true;
 
 	private float3 ChunkPosition { get; set; }
 
-	// Allocated once at construction and reused across pool cycles — no reallocation needed.
-	private NativeArray<ushort> voxelMap =
-		new((int)Mathf.Pow(VoxelData.CHUNK_SIZE, 3), Allocator.Persistent);
+	private NativeArray<ushort> VoxelMap => voxelMap;
 
-	/// <summary>
-	///     Read-only view of this chunk's voxel map, used by neighbors when building
-	///     their meshes so border faces correctly reflect player edits.
-	///     Only valid after <see cref="VoxelMapPopulated" /> is true.
-	/// </summary>
-	public NativeArray<ushort> VoxelMap => voxelMap;
+	private JobHandle PopulateVoxelMapHandle => populateVoxelMapHandle;
 
-	/// <summary>
-	///     The job handle for the populate step. Neighbors depend on this when
-	///     scheduling their own ChunkJob so we don't race on the voxel map data.
-	/// </summary>
-	public JobHandle PopulateVoxelMapHandle => populateVoxelMapHandle;
-
-	private JobHandle         chunkJobHandle;
-	private ChunkJob.MeshData meshData;
-	private JobHandle         populateVoxelMapHandle;
-	private VoxelMapData      voxelMapData;
-
-	// Zero-length dummy arrays for missing neighbor slots. Persistent so they
-	// survive across multiple frames without triggering TempJob lifetime warnings.
-	private NativeArray<ushort>[] neighborDummies = Array.Empty<NativeArray<ushort>>();
-
-	// Persistent — vertex layout never changes, so allocate once per Chunk instance.
-	private readonly NativeArray<VertexAttributeDescriptor> layout = new(4, Allocator.Persistent)
-	                                                                 {
-		                                                                 [0] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-					                                                                  .Position,
-				                                                                  VertexAttributeFormat.Float16, 4),
-		                                                                 [1] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-					                                                                  .Normal,
-				                                                                  VertexAttributeFormat.SNorm8, 4),
-		                                                                 [2] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-					                                                                  .Tangent,
-				                                                                  VertexAttributeFormat.UNorm8, 4),
-		                                                                 [3] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-					                                                                  .TexCoord0,
-				                                                                  VertexAttributeFormat.Float16, 2)
-	                                                                 };
-
-	private Mesh.MeshDataArray meshDataArray;
-
-	// -------------------------------------------------------------------------
-	// Pooling lifecycle
-	// -------------------------------------------------------------------------
-
-	/// <summary>
-	///     Parameterless constructor required by <see cref="UnityEngine.Pool.ObjectPool{T}" />.
-	///     Call <see cref="Init" /> before using the chunk.
-	/// </summary>
-	public Chunk()
-	{
-	}
-
-	/// <summary>
-	///     Called by the pool's <c>actionOnGet</c> to (re)associate this instance with
-	///     a world coordinate and world reference before <see cref="Initialise" /> runs.
-	/// </summary>
 	public void Init(int3 coord, World worldRef)
 	{
 		Coord             = coord;
@@ -120,13 +90,6 @@ public class Chunk
 		IsUpdating        = true;
 	}
 
-	/// <summary>
-	///     Called by the pool's <c>actionOnRelease</c>. Completes any in-flight jobs,
-	///     cleans up per-frame allocations, and hides the GameObject so it can be
-	///     reassigned to a different coord on the next <see cref="Init" /> call.
-	///     The persistent NativeArrays (<see cref="voxelMap" />, <see cref="layout" />)
-	///     are deliberately kept alive for reuse.
-	/// </summary>
 	public void Release()
 	{
 		chunkJobHandle.Complete();
@@ -139,10 +102,6 @@ public class Chunk
 
 		if (chunkObject != null)
 		{
-			// Null the collider and filter references BEFORE clearing the mesh.
-			// MeshCollider validates its mesh on SetActive — if we only called
-			// mesh.Clear() the collider would still hold a reference to a now-empty
-			// mesh and log a warning the next time this pooled chunk is reactivated.
 			meshCollider.sharedMesh = null;
 			meshFilter.sharedMesh   = null;
 			mesh.Clear();
@@ -155,26 +114,19 @@ public class Chunk
 		isActive          = false;
 	}
 
-	// -------------------------------------------------------------------------
-	// Chunk lifecycle
-	// -------------------------------------------------------------------------
-
 	public void Initialise()
 	{
 		IsScheduled = true;
 
-		if (chunkObject == null)
+		if (chunkObject is null)
 		{
-			// First time this pooled instance is used — create the GameObject once.
-			chunkObject           = new GameObject();
-			meshFilter            = chunkObject.AddComponent<MeshFilter>();
-			meshRenderer          = chunkObject.AddComponent<MeshRenderer>();
-			meshCollider          = chunkObject.AddComponent<MeshCollider>();
-			meshFilter.sharedMesh = mesh;
+			chunkObject  = new GameObject();
+			meshFilter   = chunkObject.AddComponent<MeshFilter>();
+			meshRenderer = chunkObject.AddComponent<MeshRenderer>();
+			meshCollider = chunkObject.AddComponent<MeshCollider>();
 		}
 
-		// Reuse the existing GameObject; just reposition and re-parent it.
-		chunkObject.SetActive(true);
+		chunkObject.SetActive(false);
 		meshRenderer.material = world.Material;
 		chunkObject.transform.SetParent(world.transform);
 		chunkObject.transform.position = new Vector3(
@@ -203,18 +155,18 @@ public class Chunk
 			                         Position   = ChunkPosition,
 			                         VoxelData  = voxelMapData,
 			                         VoxelMap   = voxelMap,
-			                         nodeHandle = world.WorldGenNodePtr
+			                         NodeHandle = world.WorldGenNodePtr
 		                         }.Schedule();
 
 		CreateMeshDataJob();
 	}
 
-	public void CreateMeshDataJob()
+	private void CreateMeshDataJob()
 	{
 		VoxelMapPopulated = true;
 		IsUpdating        = true;
 
-		meshData = new ChunkJob.MeshData
+		meshData = new ChunkJob.NativeMeshData
 		           {
 			           Vertex        = new NativeList<Vertex>(Allocator.Persistent),
 			           MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
@@ -222,30 +174,30 @@ public class Chunk
 
 		meshDataArray = Mesh.AllocateWritableMeshData(1);
 
-		ChunkJob.ChunkData chunkData = BuildChunkData(out JobHandle combinedDependency);
+		ChunkJob.NativeChunkData chunkData = BuildChunkData(out JobHandle combinedDependency);
 
 		chunkJobHandle = new ChunkJob
 		                 {
-			                 meshData               = meshData,
-			                 chunkData              = chunkData,
+			                 MeshData               = meshData,
+			                 ChunkData              = chunkData,
 			                 ChunkSize              = VoxelData.CHUNK_SIZE,
 			                 TextureAtlasSize       = VoxelData.TEXTURE_ATLAS_SIZE_IN_BLOCKS,
 			                 NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
 			                 Position               = new int3(ChunkPosition),
 			                 WorldSizeInVoxels      = VoxelData.WorldSizeInVoxels,
-			                 nodeHandle             = world.WorldGenNodePtr,
+			                 NodeHandle             = world.WorldGenNodePtr,
 			                 MeshDataArray          = meshDataArray,
 			                 Layout                 = layout
 		                 }.Schedule(combinedDependency);
 	}
 
-	private ChunkJob.ChunkData BuildChunkData(out JobHandle combinedDependency)
+	private ChunkJob.NativeChunkData BuildChunkData(out JobHandle combinedDependency)
 	{
 		DisposeDummies();
 
 		var dummies = new List<NativeArray<ushort>>(6);
 
-		var data = new ChunkJob.ChunkData
+		var data = new ChunkJob.NativeChunkData
 		           {
 			           VoxelMap   = voxelMap,
 			           BlockTypes = world.BlockTypesJobs,
@@ -315,7 +267,7 @@ public class Chunk
 		foreach (NativeArray<ushort> d in neighborDummies)
 			if (d.IsCreated)
 				d.Dispose();
-		neighborDummies = Array.Empty<NativeArray<ushort>>();
+		neighborDummies = [];
 	}
 
 	public void CreateMesh()
@@ -325,31 +277,27 @@ public class Chunk
 
 		mesh.Clear();
 
-		// vertexBufferCount is always 1 after SetVertexBufferParams — it counts
-		// buffers, not vertices. Use the actual vertex list length instead so
-		// air chunks (no solid voxels) exit before touching the collider.
 		if (meshData.Vertex.Length == 0)
 		{
 			meshData.Vertex.Dispose();
 			meshData.MeshTriangles.Dispose();
-			// Dispose the unwritten MeshDataArray to avoid a leak.
 			meshDataArray.Dispose();
 			IsUpdating = false;
 			return;
 		}
 
 		mesh.name = "Chunk";
-		mesh.MarkDynamic();
-		mesh.bounds = world.ChunkBound;
 
-		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, mesh);
+		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, mesh, MeshUpdateFlags.DontRecalculateBounds);
+
+		mesh.bounds = world.ChunkBound;
 		mesh.RecalculateUVDistributionMetrics();
 
 		meshFilter.sharedMesh = mesh;
-		// Only assign to the collider when the mesh actually has geometry.
-		// MeshCollider logs an error if assigned an empty mesh.
 		if (mesh.vertexCount > 0)
 			meshCollider.sharedMesh = mesh;
+
+		chunkObject.SetActive(true);
 
 		meshData.Vertex.Dispose();
 		meshData.MeshTriangles.Dispose();
@@ -382,12 +330,10 @@ public class Chunk
 		{
 			int3 currentVoxel = thisVoxel + VoxelData.FaceChecks[p];
 
-			if (!IsVoxelInChunk(currentVoxel))
-			{
-				Chunk neighbor = world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition));
-				neighbor.CreateMeshDataJob();
-				neighbor.CreateMesh();
-			}
+			if (IsVoxelInChunk(currentVoxel)) continue;
+			Chunk neighbor = world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition));
+			neighbor.CreateMeshDataJob();
+			neighbor.CreateMesh();
 		}
 	}
 
@@ -404,11 +350,6 @@ public class Chunk
 		return voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck)];
 	}
 
-	/// <summary>
-	///     Full teardown — called by the pool's <c>actionOnDestroy</c> when the pool
-	///     is cleared or the pool capacity is exceeded. Disposes all native memory
-	///     and destroys the GameObject.
-	/// </summary>
 	public void OnDestroy()
 	{
 		chunkJobHandle.Complete();

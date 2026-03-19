@@ -10,7 +10,7 @@ public partial class FastNoise
 	private static readonly Metadata[]              nodeMetadata;
 	private readonly        int                     mMetadataId = -1;
 
-	private readonly IntPtr mNodeHandle = IntPtr.Zero;
+	private readonly IntPtr mNodeHandle;
 
 	static FastNoise()
 	{
@@ -53,7 +53,7 @@ public partial class FastNoise
 
 					for (var enumIdx = 0; enumIdx < enumCount; enumIdx++)
 						member.enumNames.Add(FormatLookup(Marshal.PtrToStringAnsi(fnGetMetadataEnumName(id, variableIdx,
-						                                   enumIdx))), enumIdx);
+								                                    enumIdx))), enumIdx);
 				}
 
 				metadata.members.Add(member.name, member);

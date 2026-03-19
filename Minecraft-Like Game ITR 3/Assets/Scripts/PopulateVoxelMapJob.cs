@@ -21,7 +21,7 @@ public struct PopulateVoxelMapJob : IJob
 	[WriteOnly] public NativeArray<ushort> VoxelMap;
 
 	[WriteOnly] [NativeDisableUnsafePtrRestriction]
-	public IntPtr nodeHandle;
+	public IntPtr NodeHandle;
 
 	public void Execute()
 	{
@@ -37,7 +37,7 @@ public struct PopulateVoxelMapJob : IJob
 			var posX = x + Position.x;
 			var posY = y + Position.y;
 			var posZ = z + Position.z;
-			var voxel = WorldExtensions.GetVoxel(nodeHandle, posX, posY, posZ,
+			var voxel = WorldExtensions.GetVoxel(NodeHandle, posX, posY, posZ,
 			                                     VoxelData.WorldSizeInVoxels,
 			                                     VoxelData.BiomeData.BiomeScale,
 			                                     VoxelData.BiomeData.BiomeHeight,

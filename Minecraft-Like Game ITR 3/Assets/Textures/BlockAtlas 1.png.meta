@@ -24,7 +24,7 @@ TextureImporter:
   isReadable: 0
   streamingMipmaps: 1
   streamingMipmapsPriority: 0
-  vTOnly: 1
+  vTOnly: 0
   ignoreMipmapLimit: 1
   grayScaleToAlpha: 0
   generateCubemap: 6

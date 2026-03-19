@@ -6,18 +6,13 @@ using UnityEngine.UI;
 public class DebugScreen : MonoBehaviour
 {
 	[Header("Sliders")] [SerializeField] private Slider viewDistance;
-	//[SerializeField] private Slider musicVolume;
 
 	[Header("Slider Text")] [SerializeField]
 	private TextMeshProUGUI viewDistanceText;
-	//[SerializeField] private TextMeshProUGUI musicVolumeText;
 
 	[Header("DebugText")] [SerializeField] private TextMeshProUGUI coordsText;
 	private                                        int3            chunkCoords;
 	private                                        float3          playerCoords;
-
-	//[Header("Mixers")]
-	//[SerializeField] private AudioMixer masterMixer;
 
 	private World world;
 
@@ -27,9 +22,6 @@ public class DebugScreen : MonoBehaviour
 		VoxelData.ViewDistanceInChunks = (byte)PlayerPrefs.GetInt("ViewDist", 8);
 		viewDistance.value             = PlayerPrefs.GetInt("ViewDist", 8);
 		viewDistanceText.text          = "View Distance: " + viewDistance.value;
-
-		//musicVolume.value = PlayerPrefs.GetFloat("MusicVolume", 1f);
-		//musicVolumeText.text = "Music Volume: " + Mathf.Round(musicVolume.value * 100) + "%";
 	}
 
 	public void Update()
@@ -44,17 +36,9 @@ public class DebugScreen : MonoBehaviour
 
 	public void ChangeVolume(Slider slider)
 	{
-		if (slider.name == "ViewDistSlider")
-		{
-			PlayerPrefs.SetInt("ViewDist", (int)viewDistance.value);
-			VoxelData.ViewDistanceInChunks = (byte)viewDistance.value;
-			viewDistanceText.text          = "View Distance: " + viewDistance.value;
-		}
-		//else if (slider.name == "MusicVolume")
-		//{
-		//	masterMixer.SetFloat("MusicVolume", Mathf.Log10(musicVolume.value) * 20);
-		//	PlayerPrefs.SetFloat("MusicVolume", musicVolume.value);
-		//	musicVolumeText.text = "Music Volume: " + Mathf.Round(musicVolume.value * 100) + "%";
-		//}
+		if (slider.name != "ViewDistSlider") return;
+		PlayerPrefs.SetInt("ViewDist", (int)viewDistance.value);
+		VoxelData.ViewDistanceInChunks = (byte)viewDistance.value;
+		viewDistanceText.text          = "View Distance: " + viewDistance.value;
 	}
 }

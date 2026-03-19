@@ -11,21 +11,18 @@ using UtilityLibrary.Unity.Runtime;
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct ChunkJob : IJob
 {
-	public struct MeshData
+	public struct NativeMeshData
 	{
 		public NativeList<Vertex> Vertex;
 		public NativeList<ushort> MeshTriangles;
 	}
 
-	public struct ChunkData
+	public struct NativeChunkData
 	{
 		public NativeArray<BlockTypesJob> BlockTypes;
 		public BiomeAttributesJob         BiomeData;
 		public NativeArray<ushort>        VoxelMap;
 
-		// Neighbor voxel maps, indexed by VoxelData.FaceChecks order:
-		// 0 = Z- (0,0,-1), 1 = Z+ (0,0,1), 2 = Y+ (0,1,0),
-		// 3 = Y- (0,-1,0), 4 = X- (-1,0,0), 5 = X+ (1,0,0)
 		public NativeArray<ushort> NeighborZNeg;
 		public NativeArray<ushort> NeighborZPos;
 		public NativeArray<ushort> NeighborYPos;
@@ -41,11 +38,11 @@ public struct ChunkJob : IJob
 		public bool HasNeighborXPos;
 	}
 
-	[ReadOnly] public ChunkData chunkData;
-	public            MeshData  meshData;
+	[ReadOnly] public NativeChunkData ChunkData;
+	public            NativeMeshData  MeshData;
 
 	[WriteOnly] [NativeDisableUnsafePtrRestriction]
-	public IntPtr nodeHandle;
+	public IntPtr NodeHandle;
 
 	public Mesh.MeshDataArray                     MeshDataArray;
 	public NativeArray<VertexAttributeDescriptor> Layout;
@@ -67,19 +64,22 @@ public struct ChunkJob : IJob
 		for (var y = 0; y < ChunkSize; y++)
 		for (var x = 0; x < ChunkSize; x++)
 		for (var z = 0; z < ChunkSize; z++)
-			if (chunkData.BlockTypes[chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, x, y, z)].IsSolid)
+			if (ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, x, y, z)].IsSolid)
 				AddVoxelDataToChunk(new int3(x, y, z));
 
 		Mesh.MeshData data = MeshDataArray[0];
 		data.subMeshCount = 1;
-		data.SetIndexBufferParams(meshData.MeshTriangles.Length, IndexFormat.UInt16);
+		data.SetIndexBufferParams(MeshData.MeshTriangles.Length, IndexFormat.UInt16);
 		NativeArray<ushort> index = data.GetIndexData<ushort>();
-		index.CopyFrom(meshData.MeshTriangles.AsArray());
-		data.SetVertexBufferParams(meshData.Vertex.Length, Layout);
+		index.CopyFrom(MeshData.MeshTriangles.AsArray());
+		data.SetVertexBufferParams(MeshData.Vertex.Length, Layout);
 		NativeArray<Vertex> vertex = data.GetVertexData<Vertex>();
-		vertex.CopyFrom(meshData.Vertex.AsArray());
+		vertex.CopyFrom(MeshData.Vertex.AsArray());
 
-		var desc = new SubMeshDescriptor(0, meshData.MeshTriangles.Length, MeshTopology.Quads);
+		var desc = new SubMeshDescriptor(0, MeshData.MeshTriangles.Length);
+
+		var half = ChunkSize * 0.5f;
+		desc.bounds = new Bounds(new Vector3(half, half, half), new Vector3(ChunkSize, ChunkSize, ChunkSize));
 		data.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);
 	}
 
@@ -91,15 +91,17 @@ public struct ChunkJob : IJob
 			var posX    = pos.x;
 			var posY    = pos.y;
 			var posZ    = pos.z;
-			var blockID = chunkData.BlockTypes[chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, posX, posY, posZ)].BlockID;
+			var blockID = ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, posX, posY, posZ)].BlockID;
 
-			meshData.MeshTriangles.Add(vertexIndex);
-			meshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
-			meshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
-			meshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
+			MeshData.MeshTriangles.Add(vertexIndex);
+			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
+			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
+			MeshData.MeshTriangles.Add(vertexIndex);
+			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
+			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
 
 			NativeArray<half4> vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
-			NativeArray<half2> textureUVs = GetTextureUVs(chunkData.BlockTypes[blockID].GetTexture2D(p));
+			NativeArray<half2> textureUVs = GetTextureUVs(ChunkData.BlockTypes[blockID].GetTexture2D(p));
 
 			var normal = new sbyte4((sbyte)VoxelData.FaceChecks[p].x,
 			                        (sbyte)VoxelData.FaceChecks[p].y,
@@ -111,10 +113,10 @@ public struct ChunkJob : IJob
 			                         (sbyte)VoxelData.FaceTangents[p].z,
 			                         -1);
 
-			meshData.Vertex.Add(new Vertex(vertices[0], normal, tangent, textureUVs[0]));
-			meshData.Vertex.Add(new Vertex(vertices[1], normal, tangent, textureUVs[1]));
-			meshData.Vertex.Add(new Vertex(vertices[2], normal, tangent, textureUVs[2]));
-			meshData.Vertex.Add(new Vertex(vertices[3], normal, tangent, textureUVs[3]));
+			MeshData.Vertex.Add(new Vertex(vertices[0], normal, tangent, textureUVs[0]));
+			MeshData.Vertex.Add(new Vertex(vertices[1], normal, tangent, textureUVs[1]));
+			MeshData.Vertex.Add(new Vertex(vertices[2], normal, tangent, textureUVs[2]));
+			MeshData.Vertex.Add(new Vertex(vertices[3], normal, tangent, textureUVs[3]));
 
 			textureUVs.Dispose();
 			vertices.Dispose();
@@ -168,57 +170,47 @@ public struct ChunkJob : IJob
 	private bool CheckVoxel(int3 pos)
 	{
 		if (IsVoxelInChunk(pos))
-			return chunkData.BlockTypes[
-			                            chunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z)
+			return ChunkData.BlockTypes[
+			                            ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z)
 			                           ].IsSolid;
-		// Try to read from a loaded neighbor's voxel map first so player
-		// edits near chunk borders are reflected correctly. Each out-of-bounds
-		// axis maps to exactly one neighbor face (FaceChecks are unit vectors,
-		// so only one axis can be out of range at a time).
-
-		if (pos.z < 0 && chunkData.HasNeighborZNeg)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborZNeg.GetAtFlatIndex(ChunkSize, pos.x, pos.y,
-			                                                                  ChunkSize - 1)
+		if (pos.z < 0 && ChunkData.HasNeighborZNeg)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborZNeg.GetAtFlatIndex(ChunkSize, pos.x, pos.y, ChunkSize - 1)
 			                           ].IsSolid;
 
-		if (pos.z >= ChunkSize && chunkData.HasNeighborZPos)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborZPos.GetAtFlatIndex(ChunkSize, pos.x, pos.y, 0)
+		if (pos.z >= ChunkSize && ChunkData.HasNeighborZPos)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborZPos.GetAtFlatIndex(ChunkSize, pos.x, pos.y, 0)
 			                           ].IsSolid;
 
-		if (pos.y >= ChunkSize && chunkData.HasNeighborYPos)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborYPos.GetAtFlatIndex(ChunkSize, pos.x, 0, pos.z)
+		if (pos.y >= ChunkSize && ChunkData.HasNeighborYPos)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborYPos.GetAtFlatIndex(ChunkSize, pos.x, 0, pos.z)
 			                           ].IsSolid;
 
-		if (pos.y < 0 && chunkData.HasNeighborYNeg)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborYNeg.GetAtFlatIndex(ChunkSize, pos.x, ChunkSize - 1,
-			                                                                  pos.z)
+		if (pos.y < 0 && ChunkData.HasNeighborYNeg)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborYNeg.GetAtFlatIndex(ChunkSize, pos.x, ChunkSize - 1, pos.z)
 			                           ].IsSolid;
 
-		if (pos.x < 0 && chunkData.HasNeighborXNeg)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborXNeg.GetAtFlatIndex(ChunkSize, ChunkSize - 1, pos.y,
-			                                                                  pos.z)
+		if (pos.x < 0 && ChunkData.HasNeighborXNeg)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborXNeg.GetAtFlatIndex(ChunkSize, ChunkSize - 1, pos.y, pos.z)
 			                           ].IsSolid;
 
-		if (pos.x >= ChunkSize && chunkData.HasNeighborXPos)
-			return chunkData.BlockTypes[
-			                            chunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)
+		if (pos.x >= ChunkSize && ChunkData.HasNeighborXPos)
+			return ChunkData.BlockTypes[
+			                            ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)
 			                           ].IsSolid;
 
-		// Neighbor not loaded yet — fall back to noise-based generation.
 		float posX = pos.x + Position.x;
 		float posY = pos.y + Position.y;
 		float posZ = pos.z + Position.z;
-		return chunkData.BlockTypes[WorldExtensions.GetVoxel(
-		                                                     nodeHandle, posX, posY, posZ,
+		return ChunkData.BlockTypes[WorldExtensions.GetVoxel(
+		                                                     NodeHandle, posX, posY, posZ,
 		                                                     WorldSizeInVoxels,
-		                                                     chunkData.BiomeData.BiomeScale,
-		                                                     chunkData.BiomeData.BiomeHeight,
-		                                                     chunkData.BiomeData.SolidGroundHeight)].IsSolid;
-
+		                                                     ChunkData.BiomeData.BiomeScale,
+		                                                     ChunkData.BiomeData.BiomeHeight,
+		                                                     ChunkData.BiomeData.SolidGroundHeight)].IsSolid;
 	}
 }

@@ -51,7 +51,7 @@ public class PlayerBlocks : MonoBehaviour
 			world.GetChunkFromVector3(position).EditVoxel(new int3(position), 0);
 		}
 
-		if (Input.GetMouseButtonDown(1))
+		if (!Input.GetMouseButtonDown(1)) return;
 		{
 			Vector3 position = placeHighlightBlock.position;
 			world.GetChunkFromVector3(position).EditVoxel(new int3(position), selectedBlockIndex);

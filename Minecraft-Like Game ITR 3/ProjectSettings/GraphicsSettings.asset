@@ -37,7 +37,7 @@ GraphicsSettings:
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: 0
   m_GraphicsStateCollection: {fileID: 0}
-  m_CollectionStartupAction: 0
+  m_CollectionStartupAction: 1
   m_TraceSavePath: TracedCollection
   m_TraceSendToEditor: 1
   m_AdditionalWarmupCollections: []
@@ -57,7 +57,7 @@ GraphicsSettings:
   m_LightmapStripping: 0
   m_FogStripping: 0
   m_InstancingStripping: 0
-  m_BrgStripping: 0
+  m_BrgStripping: 2
   m_LightmapKeepPlain: 1
   m_LightmapKeepDirCombined: 1
   m_LightmapKeepDynamicPlain: 1
