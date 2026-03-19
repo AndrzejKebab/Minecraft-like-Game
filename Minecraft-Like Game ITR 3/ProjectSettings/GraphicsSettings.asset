@@ -37,7 +37,7 @@ GraphicsSettings:
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: 0
   m_GraphicsStateCollection: {fileID: 0}
-  m_CollectionStartupAction: 1
+  m_CollectionStartupAction: 0
   m_TraceSavePath: TracedCollection
   m_TraceSendToEditor: 1
   m_AdditionalWarmupCollections: []
@@ -47,7 +47,7 @@ GraphicsSettings:
   m_CacheMissCollectionPath: CacheMissCollection
   m_SpritesDefaultMaterial: {fileID: 10754, guid: 0000000000000000f000000000000000,
     type: 0}
-  m_CustomRenderPipeline: {fileID: 11400000, guid: b9f3086da92434da0bc1518f19f0ce86,
+  m_CustomRenderPipeline: {fileID: 11400000, guid: 77c0a3b99993b1641991c9f2167a4275,
     type: 2}
   m_TransparencySortMode: 0
   m_TransparencySortAxis: {x: 0, y: 0, z: 1}
@@ -70,6 +70,8 @@ GraphicsSettings:
   m_AlbedoSwatchInfos: []
   m_RenderPipelineGlobalSettingsMap:
     UnityEngine.Rendering.HighDefinition.HDRenderPipeline: {fileID: 11400000, guid: ac0316ca287ba459492b669ff1317a6f,
+      type: 2}
+    UnityEngine.Rendering.Universal.UniversalRenderPipeline: {fileID: 11400000, guid: e124225ba4ba7014d8425d3a28b065c7,
       type: 2}
   m_ShaderBuildSettings:
     keywordDeclarationOverrides: []
