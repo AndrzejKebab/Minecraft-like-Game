@@ -37,7 +37,7 @@ GraphicsSettings:
   m_PreloadedShaders: []
   m_PreloadShadersBatchTimeLimit: 0
   m_GraphicsStateCollection: {fileID: 0}
-  m_CollectionStartupAction: 0
+  m_CollectionStartupAction: 1
   m_TraceSavePath: TracedCollection
   m_TraceSendToEditor: 1
   m_AdditionalWarmupCollections: []
