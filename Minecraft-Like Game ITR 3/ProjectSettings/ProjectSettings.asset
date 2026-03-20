@@ -838,7 +838,11 @@ PlayerSettings:
   webGLCloseOnQuit: 0
   webWasm2023: 0
   webEnableSubmoduleStrippingCompatibility: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    Android: FN2_USER_SIGNED
+    Server: FN2_USER_SIGNED
+    Standalone: FN2_USER_SIGNED
+    iPhone: FN2_USER_SIGNED
   additionalCompilerArguments:
     Standalone:
     - -langversion:13

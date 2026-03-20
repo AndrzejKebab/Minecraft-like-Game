@@ -1,4 +1,5 @@
 ﻿using System.Runtime.InteropServices;
+using NativeTexture.Formats;
 using Unity.Mathematics;
 
 [StructLayout(LayoutKind.Sequential, Size = 20, Pack = 1)]

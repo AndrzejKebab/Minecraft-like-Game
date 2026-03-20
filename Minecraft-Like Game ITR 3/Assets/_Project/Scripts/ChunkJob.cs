@@ -7,6 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime;
+using sbyte4 = NativeTexture.Formats.sbyte4;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct ChunkJob : IJob
