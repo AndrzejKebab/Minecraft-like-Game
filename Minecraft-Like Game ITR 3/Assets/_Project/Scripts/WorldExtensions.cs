@@ -59,7 +59,7 @@ public static class WorldExtensions
 
 		pos = new int3(x, y, z);
 	}
-	
+
 	public static Vector3 ToVector3(this int3 v)
 	{
 		return new Vector3(v.x, v.y, v.z);

@@ -2,6 +2,8 @@
   "dependencies": {
     "com.andrzejkebab.utilitylibrary": "https://github.com/AndrzejKebab/Utility-Library.git",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+    "com.cysharp.zlinq": "1.5.5",
+    "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.unity.cinemachine": "3.1.5",
     "com.unity.collections": "6.5.0",
     "com.unity.feature.development": "1.0.2",
@@ -47,11 +49,17 @@
   "scopedRegistries": [
     {
       "name": "OpenUPM",
-      "url": "https://package.openupm.com/",
+      "url": "https://package.openupm.com",
       "scopes": [
-        "com.needle"
-      ],
-      "overrideBuiltIns": false
+        "com.github-glitchenzo",
+        "com.cysharp",
+        "com.needle",
+        "com.wooshii",
+        "com.brunomikoski",
+        "com.gustavopsantos",
+        "com.annulusgames",
+        "com.eflatun"
+      ]
     }
   ]
 }

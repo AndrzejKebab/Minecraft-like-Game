@@ -1,65 +1,59 @@
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
-using static PopulateVoxelMapJob;
 using static ChunkJob;
+using static PopulateVoxelMapJob;
 
 public class Chunk
 {
-	private World world;
-	public  Mesh  Mesh        { get; } = new();
-	public  bool  HasMesh     { get; private set; }
-	public  int3  Coord       { get; private set; }
-	public  bool  IsActive    { get; private set; } = true;
-	public  bool  IsScheduled { get; private set; }
-	public  bool  VoxelMapPopulated;
-	public  bool  IsMeshDataCompleted => chunkJobHandle.IsCompleted;
+	#region Public state
 
+	public Mesh Mesh          { get; } = new();
+	public bool HasMesh       { get; private set; }
+	public int3 Coord         { get; private set; }
 	public int3 ChunkPosition { get; private set; }
+	public bool IsActive      { get; private set; } = true;
+	public bool IsScheduled   { get; private set; }
+	public bool VoxelMapPopulated;
+	public bool IsMeshDataCompleted => chunkJobHandle.IsCompleted;
+
+	#endregion
+
+	#region Private native data — allocated once, reused across pool cycles
 
 	private NativeArray<ushort> voxelMap =
-		new((int)Mathf.Pow(VoxelData.CHUNK_SIZE, 3), Allocator.Persistent);
+		new(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
 
 	private NativeArray<ushort> VoxelMap               => voxelMap;
 	private JobHandle           PopulateVoxelMapHandle => populateVoxelMapHandle;
 
-	private JobHandle               chunkJobHandle;
-	private NativeMeshData meshData;
-	private JobHandle               populateVoxelMapHandle;
-	private VoxelMapData            voxelMapData;
-	private NativeArray<ushort>[]   neighborDummies = [];
-	private Mesh.MeshDataArray      meshDataArray;
+	#endregion
 
-	private readonly NativeArray<VertexAttributeDescriptor> layout = new(4, Allocator.Persistent)
-	                                                                 {
-		                                                                 [0] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-						                                                                  .Position,
-					                                                                  VertexAttributeFormat.Float16, 4),
-		                                                                 [1] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-						                                                                  .Normal,
-					                                                                  VertexAttributeFormat.SNorm8, 4),
-		                                                                 [2] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-						                                                                  .Tangent,
-					                                                                  VertexAttributeFormat.UNorm8, 4),
-		                                                                 [3] =
-			                                                                 new
-				                                                                 VertexAttributeDescriptor(VertexAttribute
-						                                                                  .TexCoord0,
-					                                                                  VertexAttributeFormat.Float16, 2),
-	                                                                 };
-	
+	#region Private job state
+
+	private JobHandle          chunkJobHandle;
+	private JobHandle          populateVoxelMapHandle;
+	private NativeMeshData     meshData;
+	private Mesh.MeshDataArray meshDataArray;
+	private VoxelMapData       voxelMapData;
+
+	private readonly List<NativeArray<ushort>> dummiesList     = new(6);
+	private          NativeArray<ushort>[]     neighborDummies = [];
+
+	private World world;
+
+	#endregion
+
+	#region Pool lifecycle
+
 	public void Init(int3 coord, World worldRef)
 	{
 		Coord             = coord;
 		world             = worldRef;
+		ChunkPosition     = coord * VoxelData.CHUNK_SIZE;
 		IsActive          = true;
 		IsScheduled       = false;
 		VoxelMapPopulated = false;
@@ -71,9 +65,7 @@ public class Chunk
 		chunkJobHandle.Complete();
 		populateVoxelMapHandle.Complete();
 		DisposeDummies();
-
-		if (meshData.Vertex.IsCreated) meshData.Vertex.Dispose();
-		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
+		DisposeMeshData();
 
 		Mesh.Clear();
 		HasMesh           = false;
@@ -87,25 +79,22 @@ public class Chunk
 		chunkJobHandle.Complete();
 		populateVoxelMapHandle.Complete();
 		DisposeDummies();
+		DisposeMeshData();
 
 		if (voxelMap.IsCreated) voxelMap.Dispose();
-		if (layout.IsCreated) layout.Dispose();
-		if (meshData.Vertex.IsCreated) meshData.Vertex.Dispose();
-		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
 	}
+
+	#endregion
+
+	#region Chunk lifecycle
 
 	public void Initialise()
 	{
 		IsScheduled = true;
-		ChunkPosition = new int3(
-		                         Coord.x * VoxelData.CHUNK_SIZE,
-		                         Coord.y * VoxelData.CHUNK_SIZE,
-		                         Coord.z * VoxelData.CHUNK_SIZE);
-
-		PopulateVoxelMap();
+		SchedulePopulateVoxelMap();
 	}
 
-	private void PopulateVoxelMap()
+	private void SchedulePopulateVoxelMap()
 	{
 		voxelMapData = new VoxelMapData
 		               {
@@ -122,10 +111,10 @@ public class Chunk
 			                         NodeHandle = world.WorldGenNodePtr
 		                         }.Schedule();
 
-		CreateMeshDataJob();
+		ScheduleMeshDataJob();
 	}
 
-	private void CreateMeshDataJob()
+	private void ScheduleMeshDataJob()
 	{
 		VoxelMapPopulated = true;
 
@@ -137,7 +126,7 @@ public class Chunk
 
 		meshDataArray = Mesh.AllocateWritableMeshData(1);
 
-		NativeChunkData chunkData = BuildChunkData(out JobHandle combinedDependency);
+		NativeChunkData chunkData = BuildChunkData(out JobHandle dependency);
 
 		chunkJobHandle = new ChunkJob
 		                 {
@@ -146,25 +135,81 @@ public class Chunk
 			                 ChunkSize              = VoxelData.CHUNK_SIZE,
 			                 TextureAtlasSize       = VoxelData.TEXTURE_ATLAS_SIZE_IN_BLOCKS,
 			                 NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
-			                 Position               = new int3(ChunkPosition),
+			                 Position               = ChunkPosition,
 			                 WorldSizeInVoxels      = VoxelData.WorldSizeInVoxels,
 			                 NodeHandle             = world.WorldGenNodePtr,
 			                 MeshDataArray          = meshDataArray,
-			                 Layout                 = layout
-		                 }.Schedule(combinedDependency);
+			                 Layout                 = World.Layout
+		                 }.Schedule(dependency);
 	}
+
+	public void CreateMesh()
+	{
+		chunkJobHandle.Complete();
+		DisposeDummies();
+
+		Mesh.Clear();
+		HasMesh = false;
+
+		if (meshData.Vertex.Length == 0)
+		{
+			DisposeMeshData();
+			return;
+		}
+
+		Mesh.name = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
+		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, Mesh, MeshUpdateFlags.DontRecalculateBounds);
+		Mesh.bounds = world.ChunkBound;
+		Mesh.RecalculateUVDistributionMetrics();
+
+		meshData.Vertex.Dispose();
+		meshData.MeshTriangles.Dispose();
+
+		HasMesh = true;
+		world.OnChunkMeshReady(this);
+	}
+
+	#endregion
+
+	#region Voxel editing
+
+	public void EditVoxel(int3 pos, ushort blockId)
+	{
+		int3 local = pos - ChunkPosition;
+		voxelMap[WorldExtensions.FlattenIndex(local.x, local.y, local.z)] = blockId;
+
+		UpdateNeighborMeshes(local);
+		ScheduleMeshDataJob();
+		CreateMesh();
+	}
+
+	private void UpdateNeighborMeshes(int3 localPos)
+	{
+		for (var face = 0; face < 6; face++)
+		{
+			int3 neighborLocal = localPos + VoxelData.FaceChecks[face];
+			if (IsLocalPosInChunk(neighborLocal)) continue;
+
+			Chunk neighbor = world.GetChunkFromVector3(math.float3(neighborLocal + ChunkPosition));
+			neighbor.ScheduleMeshDataJob();
+			neighbor.CreateMesh();
+		}
+	}
+
+	#endregion
+
+	#region Private helpers
 
 	private NativeChunkData BuildChunkData(out JobHandle combinedDependency)
 	{
 		DisposeDummies();
-
-		var dummies = new System.Collections.Generic.List<NativeArray<ushort>>(6);
+		dummiesList.Clear();
 
 		var data = new NativeChunkData
 		           {
 			           VoxelMap   = voxelMap,
 			           BlockTypes = world.BlockTypesJobs,
-			           BiomeData  = world.BiomeAttributesJob,
+			           BiomeData  = world.BiomeAttributesJob
 		           };
 
 		var deps     = new NativeArray<JobHandle>(7, Allocator.Temp);
@@ -186,43 +231,49 @@ public class Chunk
 			else
 			{
 				map = new NativeArray<ushort>(0, Allocator.Persistent);
-				dummies.Add(map);
+				dummiesList.Add(map);
 			}
 
-			switch (face)
-			{
-				case 0:
-					data.NeighborZNeg    = map;
-					data.HasNeighborZNeg = hasNeighbor;
-					break;
-				case 1:
-					data.NeighborZPos    = map;
-					data.HasNeighborZPos = hasNeighbor;
-					break;
-				case 2:
-					data.NeighborYPos    = map;
-					data.HasNeighborYPos = hasNeighbor;
-					break;
-				case 3:
-					data.NeighborYNeg    = map;
-					data.HasNeighborYNeg = hasNeighbor;
-					break;
-				case 4:
-					data.NeighborXNeg    = map;
-					data.HasNeighborXNeg = hasNeighbor;
-					break;
-				case 5:
-					data.NeighborXPos    = map;
-					data.HasNeighborXPos = hasNeighbor;
-					break;
-			}
+			SetNeighborData(ref data, face, map, hasNeighbor);
 		}
 
 		combinedDependency = JobHandle.CombineDependencies(deps.GetSubArray(0, depCount));
 		deps.Dispose();
 
-		neighborDummies = dummies.ToArray();
+		neighborDummies = dummiesList.ToArray();
 		return data;
+	}
+
+	private static void SetNeighborData(ref NativeChunkData data, int  face,
+	                                    NativeArray<ushort> map,  bool present)
+	{
+		switch (face)
+		{
+			case 0:
+				data.NeighborZNeg    = map;
+				data.HasNeighborZNeg = present;
+				break;
+			case 1:
+				data.NeighborZPos    = map;
+				data.HasNeighborZPos = present;
+				break;
+			case 2:
+				data.NeighborYPos    = map;
+				data.HasNeighborYPos = present;
+				break;
+			case 3:
+				data.NeighborYNeg    = map;
+				data.HasNeighborYNeg = present;
+				break;
+			case 4:
+				data.NeighborXNeg    = map;
+				data.HasNeighborXNeg = present;
+				break;
+			case 5:
+				data.NeighborXPos    = map;
+				data.HasNeighborXPos = present;
+				break;
+		}
 	}
 
 	private void DisposeDummies()
@@ -233,76 +284,18 @@ public class Chunk
 		neighborDummies = [];
 	}
 
-	public void CreateMesh()
+	private void DisposeMeshData()
 	{
-		chunkJobHandle.Complete();
-		DisposeDummies();
-
-		Mesh.Clear();
-		HasMesh = false;
-
-		if (meshData.Vertex.Length == 0)
-		{
-			meshData.Vertex.Dispose();
-			meshData.MeshTriangles.Dispose();
-			meshDataArray.Dispose();
-			return;
-		}
-
-		Mesh.name = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
-
-		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, Mesh, MeshUpdateFlags.DontRecalculateBounds);
-
-		Mesh.bounds = world.ChunkBound;
-
-		Mesh.RecalculateUVDistributionMetrics();
-
-		meshData.Vertex.Dispose();
-		meshData.MeshTriangles.Dispose();
-
-		HasMesh    = true;
-
-		world.OnChunkMeshReady(this);
+		if (meshData.Vertex.IsCreated) meshData.Vertex.Dispose();
+		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
+		if (meshDataArray.Length > 0) meshDataArray.Dispose();
 	}
 
-	public void EditVoxel(int3 pos, ushort blockId)
+	private static bool IsLocalPosInChunk(int3 pos)
 	{
-		var xCheck = Mathf.FloorToInt(pos.x) - Mathf.FloorToInt(ChunkPosition.x);
-		var yCheck = Mathf.FloorToInt(pos.y) - Mathf.FloorToInt(ChunkPosition.y);
-		var zCheck = Mathf.FloorToInt(pos.z) - Mathf.FloorToInt(ChunkPosition.z);
-
-		voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck)] = blockId;
-
-		UpdateSurroundingVoxels(xCheck, yCheck, zCheck);
-		CreateMeshDataJob();
-		CreateMesh();
+		return pos.x is >= 0 and < VoxelData.CHUNK_SIZE &&
+		       pos.y is >= 0 and < VoxelData.CHUNK_SIZE &&
+		       pos.z is >= 0 and < VoxelData.CHUNK_SIZE;
 	}
-
-	private void UpdateSurroundingVoxels(int x, int y, int z)
-	{
-		var thisVoxel = new int3(x, y, z);
-		for (var p = 0; p < 6; p++)
-		{
-			int3 currentVoxel = thisVoxel + VoxelData.FaceChecks[p];
-			if (IsVoxelInChunk(currentVoxel)) continue;
-			Chunk neighbor = world.GetChunkFromVector3(math.float3(currentVoxel + ChunkPosition));
-			neighbor.CreateMeshDataJob();
-			neighbor.CreateMesh();
-		}
-	}
-
-	public ushort GetVoxelFromGlobalVector3(Vector3 pos)
-	{
-		var xCheck = Mathf.FloorToInt(pos.x) - Mathf.FloorToInt(ChunkPosition.x);
-		var yCheck = Mathf.FloorToInt(pos.y) - Mathf.FloorToInt(ChunkPosition.y);
-		var zCheck = Mathf.FloorToInt(pos.z) - Mathf.FloorToInt(ChunkPosition.z);
-		return voxelMap[WorldExtensions.FlattenIndex(xCheck, yCheck, zCheck)];
-	}
-
-	private static bool IsVoxelInChunk(int3 pos)
-	{
-		return pos.x is >= 0 and <= VoxelData.CHUNK_SIZE - 1 &&
-		       pos.y is >= 0 and <= VoxelData.CHUNK_SIZE - 1 &&
-		       pos.z is >= 0 and <= VoxelData.CHUNK_SIZE - 1;
-	}
+#endregion
 }

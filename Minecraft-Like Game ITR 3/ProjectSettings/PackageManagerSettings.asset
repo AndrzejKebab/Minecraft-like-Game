@@ -36,7 +36,14 @@ MonoBehaviour:
     m_Name: OpenUPM
     m_Url: https://package.openupm.com
     m_Scopes:
+    - com.github-glitchenzo
+    - com.cysharp
     - com.needle
+    - com.wooshii
+    - com.brunomikoski
+    - com.gustavopsantos
+    - com.annulusgames
+    - com.eflatun
     m_IsDefault: 0
     m_IsUnityRegistry: 0
     m_Capabilities: 0
