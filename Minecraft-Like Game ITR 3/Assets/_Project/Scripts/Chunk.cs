@@ -1,4 +1,7 @@
 using System.Collections.Generic;
+using FastNoise2.Bindings;
+using NativeTexture;
+using NativeTexture.FastNoise2;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -6,6 +9,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using static ChunkJob;
 using static PopulateVoxelMapJob;
+using static VoxelData;
 
 public class Chunk
 {
@@ -16,7 +20,8 @@ public class Chunk
 	public int3 Coord         { get; private set; }
 	public int3 ChunkPosition { get; private set; }
 	public bool IsActive      { get; private set; } = true;
-	public bool IsScheduled   { get; private set; }
+	public bool IsScheduled      { get; private set; }
+	public bool IsMeshScheduled  { get; private set; }
 	public bool VoxelMapPopulated;
 	public bool IsMeshDataCompleted => chunkJobHandle.IsCompleted;
 
@@ -25,7 +30,7 @@ public class Chunk
 	#region Private native data
 
 	private NativeArray<ushort> voxelMap =
-		new(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
+		new(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE, Allocator.Persistent);
 
 	private NativeArray<ushort> VoxelMap               => voxelMap;
 	private JobHandle           PopulateVoxelMapHandle => populateVoxelMapHandle;
@@ -38,11 +43,12 @@ public class Chunk
 	private JobHandle          populateVoxelMapHandle;
 	private NativeMeshData     meshData;
 	private Mesh.MeshDataArray meshDataArray;
-	private bool               meshDataArrayAllocated;
 	private VoxelMapData       voxelMapData;
 
 	private readonly List<NativeArray<ushort>> dummiesList     = new(6);
 	private          NativeArray<ushort>[]     neighborDummies = [];
+
+	private NativeTexture2D<float> heightMap;
 
 	private World world;
 
@@ -54,9 +60,10 @@ public class Chunk
 	{
 		Coord             = coord;
 		world             = worldRef;
-		ChunkPosition     = coord * VoxelData.CHUNK_SIZE;
+		ChunkPosition     = coord * CHUNK_SIZE;
 		IsActive          = true;
 		IsScheduled       = false;
+		IsMeshScheduled   = false;
 		VoxelMapPopulated = false;
 		HasMesh           = false;
 	}
@@ -65,12 +72,14 @@ public class Chunk
 	{
 		chunkJobHandle.Complete();
 		populateVoxelMapHandle.Complete();
+		DisposeHeightMap();
 		DisposeDummies();
 		DisposeMeshData();
 
 		Mesh.Clear();
 		HasMesh           = false;
 		IsScheduled       = false;
+		IsMeshScheduled   = false;
 		VoxelMapPopulated = false;
 		IsActive          = false;
 	}
@@ -98,26 +107,33 @@ public class Chunk
 	private void SchedulePopulateVoxelMap()
 	{
 		voxelMapData = new VoxelMapData
-		               {
-			               ChunkSize         = VoxelData.CHUNK_SIZE,
-			               WorldSizeInVoxels = VoxelData.WorldSizeInVoxels,
-			               BiomeData         = world.BiomeAttributesJob
-		               };
+		{
+			ChunkSize         = CHUNK_SIZE,
+			WorldSizeInVoxels = WorldSizeInVoxels,
+			BiomeData         = world.BiomeAttributesJob
+		};
 
+		var worldGen = world.WorldGen;
+		heightMap = NoiseGenerator.GenerateHeightMap(
+			ref worldGen,
+			ChunkPosition,
+			CHUNK_SIZE,
+			world.BiomeAttributesJob.BiomeScale,
+			world.Seed);
+
+		VoxelMapPopulated = true;
 		populateVoxelMapHandle = new PopulateVoxelMapJob
-		                         {
-			                         Position   = ChunkPosition.ToVector3(),
-			                         VoxelData  = voxelMapData,
-			                         VoxelMap   = voxelMap,
-			                         NodeHandle = world.WorldGenNodePtr
-		                         }.Schedule();
-
-		ScheduleMeshDataJob();
+		{
+			HeightMap     = heightMap.AsReadOnly(),
+			VoxelData     = voxelMapData,
+			ChunkPosition = ChunkPosition,
+			VoxelMap      = voxelMap
+		}.Schedule();
 	}
 
-	private void ScheduleMeshDataJob()
+	public void ScheduleMeshDataJob()
 	{
-		VoxelMapPopulated = true;
+		IsMeshScheduled   = true;
 
 		meshData = new NativeMeshData
 		           {
@@ -125,8 +141,7 @@ public class Chunk
 			           MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
 		           };
 
-		meshDataArray          = Mesh.AllocateWritableMeshData(1);
-		meshDataArrayAllocated = true;
+		meshDataArray = Mesh.AllocateWritableMeshData(1);
 
 		NativeChunkData chunkData = BuildChunkData(out JobHandle dependency);
 
@@ -134,20 +149,20 @@ public class Chunk
 		                 {
 			                 MeshData               = meshData,
 			                 ChunkData              = chunkData,
-			                 ChunkSize              = VoxelData.CHUNK_SIZE,
-			                 TextureAtlasSize       = VoxelData.TEXTURE_ATLAS_SIZE_IN_BLOCKS,
-			                 NormalizedTextureAtlas = VoxelData.NormalizedBlockTextureSize,
+			                 ChunkSize              = CHUNK_SIZE,
+			                 TextureAtlasSize       = TEXTURE_ATLAS_SIZE_IN_BLOCKS,
+			                 NormalizedTextureAtlas = NormalizedBlockTextureSize,
 			                 Position               = ChunkPosition,
-			                 WorldSizeInVoxels      = VoxelData.WorldSizeInVoxels,
-			                 NodeHandle             = world.WorldGenNodePtr,
+			                 WorldSizeInVoxels      = WorldSizeInVoxels,
 			                 MeshDataArray          = meshDataArray,
-			                 Layout                 = World.Layout
+			                 Layout                 = World.Layout,
 		                 }.Schedule(dependency);
 	}
 
 	public void CreateMesh()
 	{
 		chunkJobHandle.Complete();
+		DisposeHeightMap();
 		DisposeDummies();
 
 		Mesh.Clear();
@@ -161,8 +176,7 @@ public class Chunk
 
 		Mesh.name = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
 		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, Mesh, MeshUpdateFlags.DontRecalculateBounds);
-		meshDataArrayAllocated = false;
-		Mesh.bounds            = world.ChunkBound;
+		Mesh.bounds = world.ChunkBound;
 		Mesh.RecalculateUVDistributionMetrics();
 
 		meshData.Vertex.Dispose();
@@ -190,7 +204,7 @@ public class Chunk
 	{
 		for (var face = 0; face < 6; face++)
 		{
-			int3 neighborLocal = localPos + VoxelData.FaceChecks[face];
+			int3 neighborLocal = localPos + FaceChecks[face];
 			if (IsLocalPosInChunk(neighborLocal)) continue;
 
 			Chunk neighbor = world.GetChunkFromVector3(math.float3(neighborLocal + ChunkPosition));
@@ -221,7 +235,7 @@ public class Chunk
 
 		for (var face = 0; face < 6; face++)
 		{
-			int3 neighborCoord = Coord + VoxelData.FaceChecks[face];
+			int3 neighborCoord = Coord + FaceChecks[face];
 			var hasNeighbor = world.TryGetChunk(neighborCoord, out Chunk neighbor)
 			                  && neighbor.VoxelMapPopulated;
 
@@ -279,6 +293,11 @@ public class Chunk
 		}
 	}
 
+	private void DisposeHeightMap()
+	{
+		if (heightMap.IsCreated) heightMap.Dispose();
+	}
+
 	private void DisposeDummies()
 	{
 		foreach (NativeArray<ushort> d in neighborDummies)
@@ -291,16 +310,13 @@ public class Chunk
 	{
 		if (meshData.Vertex.IsCreated) meshData.Vertex.Dispose();
 		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
-		if (!meshDataArrayAllocated) return;
-		meshDataArray.Dispose();
-		meshDataArrayAllocated = false;
 	}
 
 	private static bool IsLocalPosInChunk(int3 pos)
 	{
-		return pos.x is >= 0 and < VoxelData.CHUNK_SIZE &&
-		       pos.y is >= 0 and < VoxelData.CHUNK_SIZE &&
-		       pos.z is >= 0 and < VoxelData.CHUNK_SIZE;
+		return pos.x is >= 0 and < CHUNK_SIZE &&
+		       pos.y is >= 0 and < CHUNK_SIZE &&
+		       pos.z is >= 0 and < CHUNK_SIZE;
 	}
 
 	#endregion

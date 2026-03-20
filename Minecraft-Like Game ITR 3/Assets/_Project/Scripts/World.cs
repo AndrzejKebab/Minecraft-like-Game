@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
+using FastNoise2.Bindings;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Assertions;
 using UnityEngine.Rendering;
 using ZLinq;
 using Random = UnityEngine.Random;
@@ -12,6 +12,109 @@ using ColliderPool = UnityEngine.Pool.ObjectPool<UnityEngine.GameObject>;
 
 public class World : MonoBehaviour
 {
+	#region Rendering
+
+	private void DrawChunks()
+	{
+		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value).Where(chunk => chunk.IsActive && chunk.HasMesh))
+			Graphics.DrawMesh(chunk.Mesh, chunk.ChunkPosition.ToVector3(), drawRotation, material, chunkLayer);
+	}
+
+	#endregion
+
+	#region Chunk queue
+
+	private void ProcessChunkQueue()
+	{
+		if (chunksToCreate.Count == 0) return;
+
+		var initsThisFrame = 0;
+		removeIndices.Clear();
+
+		for (var i = 0; i < chunksToCreate.Count; i++)
+		{
+			int3 coord = chunksToCreate[i];
+
+			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
+			{
+				removeIndices.Add(i);
+				continue;
+			}
+
+			// Phase 1 — schedule the voxel populate job.
+			if (!chunk.IsScheduled)
+			{
+				if (initsThisFrame >= maxChunkInitsPerFrame) continue;
+				chunk.Initialise();
+				initsThisFrame++;
+				continue;
+			}
+
+			// Phase 2 — wait for voxel job to finish.
+			if (!chunk.VoxelMapPopulated) continue;
+
+			// Phase 3 — wait until every in-storage neighbor has its voxel map ready.
+			// CheckVoxel returns true (cull) for neighbors outside storage, so those
+			// are fine. We only wait for neighbors that exist but aren't populated yet.
+			if (!AllStoredNeighborsMapped(coord)) continue;
+
+			// Phase 4 — schedule mesh job once, then wait for it.
+			if (!chunk.IsMeshScheduled)
+			{
+				chunk.ScheduleMeshDataJob();
+				continue;
+			}
+
+			// Phase 5 — mesh job finished, apply geometry.
+			if (!chunk.IsMeshDataCompleted) continue;
+
+			chunk.CreateMesh();
+			removeIndices.Add(i);
+		}
+
+		for (var i = removeIndices.Count - 1; i >= 0; i--)
+			chunksToCreate.RemoveAt(removeIndices[i]);
+	}
+
+	/// <summary>
+	/// Returns true when every chunk neighbor that exists in storage has its
+	/// voxel map populated. Neighbors outside storage are outside view range —
+	/// CheckVoxel culls those faces with return true, so they don't need to wait.
+	/// </summary>
+	private bool AllStoredNeighborsMapped(int3 coord)
+	{
+		for (int face = 0; face < 6; face++)
+		{
+			int3 neighborCoord = coord + VoxelData.FaceChecks[face];
+			if (chunkStorage.TryGetValue(neighborCoord, out Chunk neighbor)
+			    && !neighbor.VoxelMapPopulated)
+				return false;
+		}
+		return true;
+	}
+
+	#endregion
+
+	#region Collider bake queue
+
+	private void ProcessColliderBakeQueue()
+	{
+		var baked = 0;
+		while (pendingBakes.Count > 0 && baked < maxColliderBakesPerFrame)
+		{
+			Chunk chunk = pendingBakes.Dequeue();
+
+			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
+			if (!IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS)) continue;
+
+			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
+			AssignColliderImmediate(chunk);
+			baked++;
+		}
+	}
+
+	#endregion
+
 	#region Constants & shared data
 
 	private const int COLLIDER_RADIUS = 1;
@@ -29,21 +132,22 @@ public class World : MonoBehaviour
 	[SerializeField] private int             seed;
 	[SerializeField] private BiomeAttributes biomeAttributes;
 	[SerializeField] private string          encodedNodeTree;
-	[SerializeField] private int maxChunkInitsPerFrame = 1;
-	[SerializeField] private int maxColliderBakesPerFrame = 1;
+	[SerializeField] private int             maxChunkInitsPerFrame    = 1;
+	[SerializeField] private int             maxColliderBakesPerFrame = 1;
 
 	#endregion
 
 	#region Public API
 
 	public BlockTypes[]       BlockTypes         => blockTypes;
-	public Material           Material           => material;
-	public string             EncodedNodeTree    => encodedNodeTree;
 	public BiomeAttributesJob BiomeAttributesJob { get; private set; }
 	public Bounds             ChunkBound         { get; private set; }
 	public Transform          PlayerTransform    { get; private set; }
 	public int3               PlayerChunkCoord   { get; private set; }
-	public IntPtr             WorldGenNodePtr    { get; private set; }
+
+	public int Seed => seed;
+
+	public FastNoise WorldGen { get; private set; }
 
 	[NonSerialized] public NativeArray<BlockTypesJob> BlockTypesJobs;
 
@@ -88,13 +192,32 @@ public class World : MonoBehaviour
 	private void Awake()
 	{
 		Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent)
-		         {
-			         [0] = new VertexAttributeDescriptor(VertexAttribute.Position,  VertexAttributeFormat.Float16, 4),
-			         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal,    VertexAttributeFormat.SNorm8,  4),
-			         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent,   VertexAttributeFormat.UNorm8,  4),
-			         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-		         };
-		
+	                                                                       {
+		                                                                       [0] =
+			                                                                       new
+				                                                                       VertexAttributeDescriptor(VertexAttribute
+						                                                                        .Position,
+					                                                                        VertexAttributeFormat
+						                                                                        .Float16, 4),
+		                                                                       [1] =
+			                                                                       new
+				                                                                       VertexAttributeDescriptor(VertexAttribute
+						                                                                        .Normal,
+					                                                                        VertexAttributeFormat
+						                                                                        .SNorm8, 4),
+		                                                                       [2] =
+			                                                                       new
+				                                                                       VertexAttributeDescriptor(VertexAttribute
+						                                                                        .Tangent,
+					                                                                        VertexAttributeFormat
+						                                                                        .UNorm8, 4),
+		                                                                       [3] =
+			                                                                       new
+				                                                                       VertexAttributeDescriptor(VertexAttribute
+						                                                                        .TexCoord0,
+					                                                                        VertexAttributeFormat
+						                                                                        .Float16, 2)
+	                                                                       };
 		const float size = VoxelData.CHUNK_SIZE;
 		ChunkBound = new Bounds(
 		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
@@ -160,77 +283,6 @@ public class World : MonoBehaviour
 
 	#endregion
 
-	#region Rendering
-
-	private void DrawChunks()
-	{
-		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value).Where(chunk => chunk.IsActive && chunk.HasMesh))
-		{
-			Graphics.DrawMesh(chunk.Mesh, chunk.ChunkPosition.ToVector3(), drawRotation, material, chunkLayer);
-		}
-	}
-
-	#endregion
-
-	#region Chunk queue
-
-	private void ProcessChunkQueue()
-	{
-		if (chunksToCreate.Count == 0) return;
-
-		var initsThisFrame = 0;
-		removeIndices.Clear();
-
-		for (var i = 0; i < chunksToCreate.Count; i++)
-		{
-			int3 coord = chunksToCreate[i];
-
-			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
-			{
-				removeIndices.Add(i);
-				continue;
-			}
-
-			if (!chunk.IsScheduled)
-			{
-				if (initsThisFrame >= maxChunkInitsPerFrame) continue;
-				chunk.Initialise();
-				initsThisFrame++;
-				continue;
-			}
-
-			if (!chunk.IsMeshDataCompleted || !chunk.VoxelMapPopulated) continue;
-
-			chunk.CreateMesh();
-			removeIndices.Add(i);
-		}
-
-		for (var i = removeIndices.Count - 1; i >= 0; i--)
-			chunksToCreate.RemoveAt(removeIndices[i]);
-	}
-
-	#endregion
-
-	#region Collider bake queue
-
-	private void ProcessColliderBakeQueue()
-	{
-		var baked = 0;
-		while (pendingBakes.Count > 0 && baked < maxColliderBakesPerFrame)
-		{
-			Chunk chunk = pendingBakes.Dequeue();
-
-			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
-			if (!IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS)) continue;
-
-			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
-			AssignColliderImmediate(chunk);
-			baked++;
-		}
-	}
-
-	#endregion
-
 	#region View distance
 
 	private void CheckViewDistance()
@@ -271,8 +323,14 @@ public class World : MonoBehaviour
 
 	public void OnChunkMeshReady(Chunk chunk)
 	{
-		if (IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS))
-			pendingBakes.Enqueue(chunk);
+		// Bake collider immediately — don't queue, to avoid the 1-2 frame gap
+		// where Mesh.Clear() ran but the new collider isn't assigned yet.
+		if (IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS)
+		    && chunk.Mesh.vertexCount > 0)
+		{
+			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
+			AssignColliderImmediate(chunk);
+		}
 	}
 
 	#endregion
@@ -379,9 +437,8 @@ public class World : MonoBehaviour
 
 	private void SetFastNoise()
 	{
-		worldGen        = FastNoise.FromEncodedNodeTree(encodedNodeTree);
-		WorldGenNodePtr = worldGen.NodeHandlePtr;
-		Assert.IsNotNull(worldGen, "worldGen is null — check EncodedNodeTree in the Inspector.");
+		worldGen = FastNoise.FromEncodedNodeTree(encodedNodeTree);
+		WorldGen = worldGen;
 	}
 
 	private void CreateNewChunk(int3 coord)

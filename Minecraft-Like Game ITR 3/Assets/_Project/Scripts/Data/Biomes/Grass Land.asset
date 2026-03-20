@@ -14,6 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   BiomeName: Grass Land
   BiomeData:
-    SolidGroundHeight: 192
+    SolidGroundHeight: 0
     BiomeHeight: 192
-    BiomeScale: 300
+    BiomeScale: 1

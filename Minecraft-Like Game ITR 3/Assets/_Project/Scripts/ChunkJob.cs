@@ -1,4 +1,3 @@
-using System;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -42,12 +41,8 @@ public struct ChunkJob : IJob
 	[ReadOnly] public NativeChunkData ChunkData;
 	public            NativeMeshData  MeshData;
 
-	[WriteOnly] [NativeDisableUnsafePtrRestriction]
-	public IntPtr NodeHandle;
-
-	public Mesh.MeshDataArray                     MeshDataArray;
-	[ReadOnly]
-	public NativeArray<VertexAttributeDescriptor> Layout;
+	public            Mesh.MeshDataArray                     MeshDataArray;
+	[ReadOnly] public NativeArray<VertexAttributeDescriptor> Layout;
 
 	private           ushort vertexIndex;
 	[ReadOnly] public int    ChunkSize;
@@ -205,14 +200,10 @@ public struct ChunkJob : IJob
 			                            ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)
 			                           ].IsSolid;
 
-		float posX = pos.x + Position.x;
-		float posY = pos.y + Position.y;
-		float posZ = pos.z + Position.z;
-		return ChunkData.BlockTypes[WorldExtensions.GetVoxel(
-		                                                     NodeHandle, posX, posY, posZ,
-		                                                     WorldSizeInVoxels,
-		                                                     ChunkData.BiomeData.BiomeScale,
-		                                                     ChunkData.BiomeData.BiomeHeight,
-		                                                     ChunkData.BiomeData.SolidGroundHeight)].IsSolid;
+		// No loaded neighbor in storage — cull the face.
+		// ProcessChunkQueue waits for all in-storage neighbors to be voxel-populated
+		// before scheduling this job, so this only triggers for view-range edge chunks
+		// whose outer neighbors will never be loaded.
+		return true;
 	}
 }

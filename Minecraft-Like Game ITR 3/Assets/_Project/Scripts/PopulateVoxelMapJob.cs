@@ -1,11 +1,16 @@
-using System;
+using NativeTexture;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
-using UnityEngine;
+using Unity.Mathematics;
 using UtilityLibrary.Unity.Runtime;
 
+/// <summary>
+/// Populates a chunk's voxel map from a pre-generated 2D heightmap.
+/// Heightmap values are raw FastNoise2 output in [-1, 1] — no normalization.
+/// Classification logic delegates to <see cref="NoiseGenerator"/> so the
+/// terrain rules live in one place.
+/// </summary>
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct PopulateVoxelMapJob : IJob
 {
@@ -16,33 +21,46 @@ public struct PopulateVoxelMapJob : IJob
 		public BiomeAttributesJob BiomeData;
 	}
 
-	[ReadOnly]  public Vector3             Position;
+	/// <summary>Raw [-1, 1] heightmap, one float per (x,z) column.</summary>
+	[ReadOnly] public NativeTexture2D<float>.ReadOnly HeightMap;
+
 	[ReadOnly]  public VoxelMapData        VoxelData;
+	[ReadOnly]  public int3                ChunkPosition;
 	[WriteOnly] public NativeArray<ushort> VoxelMap;
 
-	[WriteOnly] [NativeDisableUnsafePtrRestriction]
-	public IntPtr NodeHandle;
-
 	public void Execute()
-	{
-		PopulateVoxelMap();
-	}
-
-	private void PopulateVoxelMap()
 	{
 		for (var y = 0; y < VoxelData.ChunkSize; y++)
 		for (var x = 0; x < VoxelData.ChunkSize; x++)
 		for (var z = 0; z < VoxelData.ChunkSize; z++)
 		{
-			var posX = x + Position.x;
-			var posY = y + Position.y;
-			var posZ = z + Position.z;
-			var voxel = WorldExtensions.GetVoxel(NodeHandle, posX, posY, posZ,
-			                                     VoxelData.WorldSizeInVoxels,
-			                                     VoxelData.BiomeData.BiomeScale,
-			                                     VoxelData.BiomeData.BiomeHeight,
-			                                     VoxelData.BiomeData.SolidGroundHeight);
-			VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z, voxel);
+			float posX = ChunkPosition.x + x;
+			float posY = ChunkPosition.y + y;
+			float posZ = ChunkPosition.z + z;
+
+			if (!IsVoxelInWorld(posX, posY, posZ, VoxelData.WorldSizeInVoxels))
+			{
+				VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z, (ushort)0);
+				continue;
+			}
+
+			float rawNoise    = HeightMap[new int2(x, z)];
+			int terrainHeight = NoiseGenerator.HeightFromNoise(
+				rawNoise,
+				VoxelData.BiomeData.BiomeHeight,
+				VoxelData.BiomeData.SolidGroundHeight);
+
+			VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z,
+				NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight, VoxelData.BiomeData.SolidGroundHeight));
 		}
+	}
+
+	[BurstCompile]
+	private static bool IsVoxelInWorld(float posX, float posY, float posZ, int worldSizeInVoxels)
+	{
+		float half = worldSizeInVoxels * 0.5f;
+		return posX >= -half && posX < half &&
+		       posY >= -half && posY < half &&
+		       posZ >= -half && posZ < half;
 	}
 }
