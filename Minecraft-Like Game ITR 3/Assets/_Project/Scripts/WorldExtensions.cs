@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using UnityEngine;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-public class WorldExtensions : MonoBehaviour
+public static class WorldExtensions
 {
 	[BurstCompile]
 	public static ushort GetVoxel(IntPtr nodeHandle, float posX,        float posY, float posZ, int worldSizeInVoxels,
@@ -58,5 +58,10 @@ public class WorldExtensions : MonoBehaviour
 		var z = (index >> 10) & 0x1f;
 
 		pos = new int3(x, y, z);
+	}
+	
+	public static Vector3 ToVector3(this int3 v)
+	{
+		return new Vector3(v.x, v.y, v.z);
 	}
 }
