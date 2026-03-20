@@ -45,6 +45,7 @@ public struct ChunkJob : IJob
 	public IntPtr NodeHandle;
 
 	public Mesh.MeshDataArray                     MeshDataArray;
+	[ReadOnly]
 	public NativeArray<VertexAttributeDescriptor> Layout;
 
 	private           ushort vertexIndex;

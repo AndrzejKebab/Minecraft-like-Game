@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "com.andrzejkebab.utilitylibrary": "https://github.com/AndrzejKebab/Utility-Library.git",
+    "com.api-haus.fastnoise2": "https://github.com/api-haus/FastNoise2Unity.git",
+    "com.api-haus.native-texture": "https://github.com/api-haus/im.pala.nativetexture.git",
     "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
     "com.cysharp.zlinq": "1.5.5",
     "com.github-glitchenzo.nugetforunity": "4.5.0",

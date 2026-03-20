@@ -22,7 +22,7 @@ public class Chunk
 
 	#endregion
 
-	#region Private native data — allocated once, reused across pool cycles
+	#region Private native data
 
 	private NativeArray<ushort> voxelMap =
 		new(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
@@ -38,6 +38,7 @@ public class Chunk
 	private JobHandle          populateVoxelMapHandle;
 	private NativeMeshData     meshData;
 	private Mesh.MeshDataArray meshDataArray;
+	private bool               meshDataArrayAllocated;
 	private VoxelMapData       voxelMapData;
 
 	private readonly List<NativeArray<ushort>> dummiesList     = new(6);
@@ -124,7 +125,8 @@ public class Chunk
 			           MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
 		           };
 
-		meshDataArray = Mesh.AllocateWritableMeshData(1);
+		meshDataArray          = Mesh.AllocateWritableMeshData(1);
+		meshDataArrayAllocated = true;
 
 		NativeChunkData chunkData = BuildChunkData(out JobHandle dependency);
 
@@ -159,7 +161,8 @@ public class Chunk
 
 		Mesh.name = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
 		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, Mesh, MeshUpdateFlags.DontRecalculateBounds);
-		Mesh.bounds = world.ChunkBound;
+		meshDataArrayAllocated = false;
+		Mesh.bounds            = world.ChunkBound;
 		Mesh.RecalculateUVDistributionMetrics();
 
 		meshData.Vertex.Dispose();
@@ -288,7 +291,9 @@ public class Chunk
 	{
 		if (meshData.Vertex.IsCreated) meshData.Vertex.Dispose();
 		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
-		if (meshDataArray.Length > 0) meshDataArray.Dispose();
+		if (!meshDataArrayAllocated) return;
+		meshDataArray.Dispose();
+		meshDataArrayAllocated = false;
 	}
 
 	private static bool IsLocalPosInChunk(int3 pos)
@@ -297,5 +302,6 @@ public class Chunk
 		       pos.y is >= 0 and < VoxelData.CHUNK_SIZE &&
 		       pos.z is >= 0 and < VoxelData.CHUNK_SIZE;
 	}
-#endregion
+
+	#endregion
 }

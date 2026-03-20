@@ -15,34 +15,8 @@ public class World : MonoBehaviour
 	#region Constants & shared data
 
 	private const int COLLIDER_RADIUS = 1;
-	
-	public static readonly NativeArray<VertexAttributeDescriptor> Layout = new(4, Allocator.Persistent)
-	                                                                       {
-		                                                                       [0] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-					                                                                                                 .Position,
-				                                                                                                 VertexAttributeFormat
-					                                                                                                 .Float16, 4),
-		                                                                       [1] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-					                                                                                                 .Normal,
-				                                                                                                 VertexAttributeFormat
-					                                                                                                 .SNorm8, 4),
-		                                                                       [2] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-					                                                                                                 .Tangent,
-				                                                                                                 VertexAttributeFormat
-					                                                                                                 .UNorm8, 4),
-		                                                                       [3] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-					                                                                                                 .TexCoord0,
-				                                                                                                 VertexAttributeFormat
-					                                                                                                 .Float16, 2)
-	                                                                       };
+
+	public static NativeArray<VertexAttributeDescriptor> Layout;
 
 	private static readonly Quaternion drawRotation = Quaternion.identity;
 
@@ -113,6 +87,14 @@ public class World : MonoBehaviour
 
 	private void Awake()
 	{
+		Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent)
+		         {
+			         [0] = new VertexAttributeDescriptor(VertexAttribute.Position,  VertexAttributeFormat.Float16, 4),
+			         [1] = new VertexAttributeDescriptor(VertexAttribute.Normal,    VertexAttributeFormat.SNorm8,  4),
+			         [2] = new VertexAttributeDescriptor(VertexAttribute.Tangent,   VertexAttributeFormat.UNorm8,  4),
+			         [3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
+		         };
+		
 		const float size = VoxelData.CHUNK_SIZE;
 		ChunkBound = new Bounds(
 		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
