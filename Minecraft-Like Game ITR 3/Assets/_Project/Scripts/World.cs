@@ -19,8 +19,9 @@ public class World : MonoBehaviour
 
 	private const int COLLIDER_RADIUS = 1;
 
-	// Shader property ID for the StructuredBuffer<vertex> in GetVertexData.hlsl
-	public static readonly int VerticesPropertyId = Shader.PropertyToID("Vertices");
+	// Shader property IDs — must match names in GetVertexData.hlsl / your main shader
+	public static readonly int VerticesPropertyId      = Shader.PropertyToID("vertices");
+	public static readonly int ChunkPositionPropertyId = Shader.PropertyToID("uChunkPosition");
 
 	private static readonly Quaternion drawRotation = Quaternion.identity;
 
@@ -178,27 +179,39 @@ public class World : MonoBehaviour
 			shadowCastingMode     = ShadowCastingMode.On,
 			receiveShadows        = true,
 			lightProbeUsage       = LightProbeUsage.Off,
-			matProps = new MaterialPropertyBlock()
+			lightProbeProxyVolume = null,
+			matProps              = new MaterialPropertyBlock()
 		};
 	}
 
 	private void DrawChunks()
 	{
 		const float size = VoxelData.CHUNK_SIZE;
-		var half = new Vector3(size * 0.5f, size * 0.5f, size * 0.5f);
+		var extents = new Vector3(size, size, size);
+		var half    = extents * 0.5f;
 
 		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value)
 		                                    .Where(c => c.IsActive && c.HasMesh))
 		{
-			// Per-chunk world-space bounds for culling
+			// Guard: HasMesh is set synchronously in CreateMesh, but EditVoxel can
+			// release buffers and re-schedule in the same frame, leaving a window
+			// where HasMesh is true but the new buffers aren't allocated yet.
+			if (chunk.VerticesBuffer    == null ||
+			    chunk.IndicesBuffer     == null ||
+			    chunk.IndirectArgsBuffer == null) continue;
+
+			// Per-chunk world-space bounds for frustum culling
 			int3 chunkChunkPosition = chunk.ChunkPosition;
-			renderParams.worldBounds = new Bounds(chunkChunkPosition.ToVector3() + half,
-			                                      new Vector3(size, size, size));
+			renderParams.worldBounds = new Bounds(chunkChunkPosition.ToVector3() + half, extents);
 
-			// Bind this chunk's StructuredBuffer<vertex> — matches "Vertices" in GetVertexData.hlsl
-			renderParams.matProps.SetBuffer(VerticesPropertyId, chunk.VerticesBuffer);
+			// Use each chunk's own MaterialPropertyBlock — sharing one across chunks
+			// in the same frame would clobber earlier draw calls since
+			// RenderPrimitivesIndexedIndirect does not snapshot matProps at call time.
+			chunk.MatProps.SetBuffer(VerticesPropertyId, chunk.VerticesBuffer);
+			chunk.MatProps.SetVector(ChunkPositionPropertyId,
+				new Vector4(chunkChunkPosition.x, chunkChunkPosition.y, chunkChunkPosition.z, 0f));
+			renderParams.matProps = chunk.MatProps;
 
-			// One indirect indexed draw call per chunk — zero CPU-side vertex data
 			Graphics.RenderPrimitivesIndexedIndirect(
 				in renderParams,
 				MeshTopology.Triangles,
