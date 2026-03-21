@@ -175,11 +175,10 @@ public class World : MonoBehaviour
 			rendererPriority      = 0,
 			worldBounds           = ChunkBound,          // overridden per-chunk below
 			motionVectorMode      = MotionVectorGenerationMode.Camera,
-			reflectionProbeUsage  = ReflectionProbeUsage.Off,
+			reflectionProbeUsage  = ReflectionProbeUsage.BlendProbesAndSkybox,
 			shadowCastingMode     = ShadowCastingMode.On,
 			receiveShadows        = true,
-			lightProbeUsage       = LightProbeUsage.Off,
-			lightProbeProxyVolume = null,
+			lightProbeUsage       = LightProbeUsage.BlendProbes,
 			matProps              = new MaterialPropertyBlock()
 		};
 	}

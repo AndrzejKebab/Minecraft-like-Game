@@ -1,3 +1,5 @@
+#define UNITY_INDIRECT_DRAW_ARGS IndirectDrawIndexedArgs
+#include "UnityIndirect.cginc"
 // ─────────────────────────────────────────────────────────────────────────────
 //  GetVertexData.hlsl
 //
@@ -32,24 +34,24 @@ StructuredBuffer<vertex> vertices;
 float3 uChunkPosition;
 
 // Face order matches VoxelData.cs:  Z-  Z+  Y+  Y-  X-  X+
-static const half3 FaceNormals[6] =
+static const float3 FaceNormals[6] =
 {
-    half3( 0,  0, -1), // 0  Z-
-    half3( 0,  0,  1), // 1  Z+
-    half3( 0,  1,  0), // 2  Y+
-    half3( 0, -1,  0), // 3  Y-
-    half3(-1,  0,  0), // 4  X-
-    half3( 1,  0,  0), // 5  X+
+    float3( 0,  0, -1), // 0  Z-
+    float3( 0,  0,  1), // 1  Z+
+    float3( 0,  1,  0), // 2  Y+
+    float3( 0, -1,  0), // 3  Y-
+    float3(-1,  0,  0), // 4  X-
+    float3( 1,  0,  0), // 5  X+
 };
 
-static const half3 FaceTangents[6] =
+static const float3 FaceTangents[6] =
 {
-    half3( 1,  0,  0), // 0  Z-
-    half3(-1,  0,  0), // 1  Z+
-    half3( 1,  0,  0), // 2  Y+
-    half3(-1,  0,  0), // 3  Y-
-    half3( 0,  0, -1), // 4  X-
-    half3( 0,  0,  1), // 5  X+
+    float3( 1,  0,  0), // 0  Z-
+    float3(-1,  0,  0), // 1  Z+
+    float3( 1,  0,  0), // 2  Y+
+    float3(-1,  0,  0), // 3  Y-
+    float3( 0,  0, -1), // 4  X-
+    float3( 0,  0,  1), // 5  X+
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -60,12 +62,13 @@ static const half3 FaceTangents[6] =
 //    tangent  → Tangent  (Object Space)   ← needed for normal maps
 //    uv       → UV0                       ← uv.z carries the texture array index
 // ─────────────────────────────────────────────────────────────────────────────
-void get_vertex_data_half(half vertex_id,
-                          out half3 position,
-                          out half3 normal,
-                          out half3 tangent,
-                          out half3 uv)
+void get_vertex_data_float(float vertex_id,
+                          out float3 position,
+                          out float3 normal,
+                          out float3 tangent,
+                          out float3 uv)
 {
+    InitIndirectDrawArgs(0);
     uint d         = vertices[(uint)round(vertex_id)].data;
 
     uint px        =  d        & 0x3Fu;
@@ -77,16 +80,16 @@ void get_vertex_data_half(half vertex_id,
 
     // Local voxel position + chunk world offset.
     // uChunkPosition is set per-draw via MaterialPropertyBlock.
-    position = half3((half)(px + uChunkPosition.x),
-                     (half)(py + uChunkPosition.y),
-                     (half)(pz + uChunkPosition.z));
+    position = float3((px + uChunkPosition.x),
+                      (py + uChunkPosition.y),
+                      (pz + uChunkPosition.z));
 
     normal  = FaceNormals[face];
     tangent = FaceTangents[face];
 
     // uv.xy = one of the four (0,0) (0,1) (1,0) (1,1) corners
     // uv.z  = Texture2DArray slice index, pass to SAMPLE_TEXTURE2D_ARRAY as the slice param
-    uv = half3((half)((uvCorner >> 1u) & 1u),
-               (half)( uvCorner        & 1u),
-               (half)texIndex);
+    uv = float3(((uvCorner >> 1u) & 1u),
+                ( uvCorner        & 1u),
+                texIndex);
 }
