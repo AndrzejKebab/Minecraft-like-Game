@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using ZLinq;
 using Random = UnityEngine.Random;
-using ChunkPool = UnityEngine.Pool.ObjectPool<Chunk>;
+using ChunkPool    = UnityEngine.Pool.ObjectPool<Chunk>;
 using ColliderPool = UnityEngine.Pool.ObjectPool<UnityEngine.GameObject>;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
@@ -19,9 +19,12 @@ public class World : MonoBehaviour
 
 	private const int COLLIDER_RADIUS = 1;
 
-	public static NativeArray<VertexAttributeDescriptor> Layout;
+	// Shader property ID for the StructuredBuffer<vertex> in GetVertexData.hlsl
+	public static readonly int VerticesPropertyId = Shader.PropertyToID("Vertices");
 
 	private static readonly Quaternion drawRotation = Quaternion.identity;
+
+	// Layout removed — no longer using Mesh vertex attribute streams for rendering.
 
 	#endregion
 
@@ -51,15 +54,8 @@ public class World : MonoBehaviour
 
 	[NonSerialized] public NativeArray<BlockTypesJob> BlockTypesJobs;
 
-	public Chunk GetChunkFromVector3(Vector3 pos)
-	{
-		return chunkStorage[WorldToChunkCoord(pos)];
-	}
-
-	public bool TryGetChunk(int3 coord, out Chunk chunk)
-	{
-		return chunkStorage.TryGetValue(coord, out chunk);
-	}
+	public Chunk GetChunkFromVector3(Vector3 pos)   => chunkStorage[WorldToChunkCoord(pos)];
+	public bool  TryGetChunk(int3 coord, out Chunk chunk) => chunkStorage.TryGetValue(coord, out chunk);
 
 	#endregion
 
@@ -77,122 +73,137 @@ public class World : MonoBehaviour
 	private readonly Dictionary<int3, GameObject> activeColliders = new();
 
 	private readonly List<int3> chunksToCreate = [];
-
 	private readonly Queue<Chunk> pendingBakes = new();
 
 	private readonly List<int>     removeIndices     = [];
 	private readonly List<int3>    chunksToRelease   = [];
 	private readonly List<int3>    collidersToReturn = [];
-	private readonly HashSet<int3> desiredCoords  = [];
+	private readonly HashSet<int3> desiredCoords     = [];
 	/// <summary>Subset of desiredCoords within render distance — only these get a mesh job.</summary>
-	private readonly HashSet<int3> renderCoords   = [];
+	private readonly HashSet<int3> renderCoords      = [];
+
+	// ── Rendering ─────────────────────────────────────────────────────────────
+	// A single shared RenderParams. worldBounds and matProps.Vertices are
+	// patched per-chunk inside DrawChunks before each indirect draw call.
+	private RenderParams renderParams;
 
 	#endregion
-	
+
 	#region Unity lifecycle
-    
-    	private void Awake()
-    	{
-    		Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent)
-    	                                                                       {
-    		                                                                       [0] =
-    			                                                                       new
-    				                                                                       VertexAttributeDescriptor(VertexAttribute
-    						                                                                        .Position,
-    					                                                                        VertexAttributeFormat
-    						                                                                        .Float16, 4),
-    		                                                                       [1] =
-    			                                                                       new
-    				                                                                       VertexAttributeDescriptor(VertexAttribute
-    						                                                                        .Normal,
-    					                                                                        VertexAttributeFormat
-    						                                                                        .SNorm8, 4),
-    		                                                                       [2] =
-    			                                                                       new
-    				                                                                       VertexAttributeDescriptor(VertexAttribute
-    						                                                                        .Tangent,
-    					                                                                        VertexAttributeFormat
-    						                                                                        .UNorm8, 4),
-    		                                                                       [3] =
-    			                                                                       new
-    				                                                                       VertexAttributeDescriptor(VertexAttribute
-    						                                                                        .TexCoord0,
-    					                                                                        VertexAttributeFormat
-    						                                                                        .Float16, 2)
-    	                                                                       };
-    		const float size = VoxelData.CHUNK_SIZE;
-    		ChunkBound = new Bounds(
-    		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
-    		                        new Vector3(size, size, size));
-    
-    		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
-    		for (var i = 0; i < blockTypes.Length; i++)
-    			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
-    
-    		BiomeAttributesJob = biomeAttributes.BiomeData;
-    		PlayerTransform    = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
-    		chunkLayer         = LayerMask.NameToLayer("Chunk");
-    
-    		InitChunkPool();
-    		InitColliderPool();
-    	}
-    
-    	private void Start()
-    	{
-    		Random.InitState(seed);
-    		SetFastNoise();
-    		CheckViewDistance();
-    	}
-    
-    	private void Update()
-    	{
-    		PlayerChunkCoord = WorldToChunkCoord(PlayerTransform.position);
-    
-    		var chunkChanged    = !PlayerChunkCoord.Equals(playerLastChunkCoord);
-    		var distanceChanged = VoxelData.ViewDistanceInChunks != lastViewDistance;
-    
-    		if (chunkChanged || distanceChanged)
-    		{
-    			lastViewDistance = VoxelData.ViewDistanceInChunks;
-    			CheckViewDistance();
-    
-    			if (chunkChanged)
-    			{
-    				playerLastChunkCoord = PlayerChunkCoord;
-    				UpdateNearbyColliders(PlayerChunkCoord);
-    			}
-    		}
-    
-    		ProcessChunkQueue();
-    		ProcessColliderBakeQueue();
-    		DrawChunks();
-    	}
-    
-    	private void OnApplicationQuit()
-    	{
-    		foreach (KeyValuePair<int3, Chunk> pair in chunkStorage) chunkPool.Release(pair.Value);
-    		foreach (KeyValuePair<int3, GameObject> pair in activeColliders) colliderGoPool.Release(pair.Value);
-    
-    		chunkStorage.Clear();
-    		chunkPool.Dispose();
-    
-    		activeColliders.Clear();
-    		colliderGoPool.Dispose();
-    
-    		if (Layout.IsCreated) Layout.Dispose();
-    		BlockTypesJobs.Dispose();
-    	}
-    
-    	#endregion
-	
+
+	private void Awake()
+	{
+		// No Layout NativeArray — we no longer set vertex attribute descriptors on
+		// a Mesh. The GPU reads packed uint vertices from a StructuredBuffer instead.
+
+		const float size = VoxelData.CHUNK_SIZE;
+		ChunkBound = new Bounds(
+			new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
+			new Vector3(size, size, size));
+
+		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
+		for (var i = 0; i < blockTypes.Length; i++)
+			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
+
+		BiomeAttributesJob = biomeAttributes.BiomeData;
+		PlayerTransform    = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
+		chunkLayer         = LayerMask.NameToLayer("Chunk");
+
+		InitChunkPool();
+		InitColliderPool();
+		SetupRenderParams();
+	}
+
+	private void Start()
+	{
+		Random.InitState(seed);
+		SetFastNoise();
+		CheckViewDistance();
+	}
+
+	private void Update()
+	{
+		PlayerChunkCoord = WorldToChunkCoord(PlayerTransform.position);
+
+		var chunkChanged    = !PlayerChunkCoord.Equals(playerLastChunkCoord);
+		var distanceChanged = VoxelData.ViewDistanceInChunks != lastViewDistance;
+
+		if (chunkChanged || distanceChanged)
+		{
+			lastViewDistance = VoxelData.ViewDistanceInChunks;
+			CheckViewDistance();
+
+			if (chunkChanged)
+			{
+				playerLastChunkCoord = PlayerChunkCoord;
+				UpdateNearbyColliders(PlayerChunkCoord);
+			}
+		}
+
+		ProcessChunkQueue();
+		ProcessColliderBakeQueue();
+		DrawChunks();
+	}
+
+	private void OnApplicationQuit()
+	{
+		foreach (KeyValuePair<int3, Chunk> pair in chunkStorage) chunkPool.Release(pair.Value);
+		foreach (KeyValuePair<int3, GameObject> pair in activeColliders) colliderGoPool.Release(pair.Value);
+
+		chunkStorage.Clear();
+		chunkPool.Dispose();
+
+		activeColliders.Clear();
+		colliderGoPool.Dispose();
+
+		BlockTypesJobs.Dispose();
+		// Layout.Dispose() removed — Layout was deleted.
+	}
+
+	#endregion
+
 	#region Rendering
+
+	private void SetupRenderParams()
+	{
+		// worldBounds is a placeholder; it is overwritten per-chunk in DrawChunks.
+		renderParams = new RenderParams(material)
+		{
+			layer                 = chunkLayer,
+			renderingLayerMask    = RenderingLayerMask.defaultRenderingLayerMask,
+			rendererPriority      = 0,
+			worldBounds           = ChunkBound,          // overridden per-chunk below
+			motionVectorMode      = MotionVectorGenerationMode.Camera,
+			reflectionProbeUsage  = ReflectionProbeUsage.Off,
+			shadowCastingMode     = ShadowCastingMode.On,
+			receiveShadows        = true,
+			lightProbeUsage       = LightProbeUsage.Off,
+			matProps = new MaterialPropertyBlock()
+		};
+	}
 
 	private void DrawChunks()
 	{
-		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value).Where(chunk => chunk.IsActive && chunk.HasMesh))
+		const float size = VoxelData.CHUNK_SIZE;
+		var half = new Vector3(size * 0.5f, size * 0.5f, size * 0.5f);
+
+		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value)
+		                                    .Where(c => c.IsActive && c.HasMesh))
 		{
+			// Per-chunk world-space bounds for culling
 			int3 chunkChunkPosition = chunk.ChunkPosition;
-			Graphics.DrawMesh(chunk.Mesh, chunkChunkPosition.ToVector3(), drawRotation, material, chunkLayer);
+			renderParams.worldBounds = new Bounds(chunkChunkPosition.ToVector3() + half,
+			                                      new Vector3(size, size, size));
+
+			// Bind this chunk's StructuredBuffer<vertex> — matches "Vertices" in GetVertexData.hlsl
+			renderParams.matProps.SetBuffer(VerticesPropertyId, chunk.VerticesBuffer);
+
+			// One indirect indexed draw call per chunk — zero CPU-side vertex data
+			Graphics.RenderPrimitivesIndexedIndirect(
+				in renderParams,
+				MeshTopology.Triangles,
+				chunk.IndicesBuffer,
+				chunk.IndirectArgsBuffer);
 		}
 	}
 
@@ -218,10 +229,6 @@ public class World : MonoBehaviour
 			}
 
 			// Phase 1 — schedule the voxel populate job.
-			// Outer-ring chunks (populate-only) bypass the per-frame cap: they are
-			// cheap (voxel job only, no mesh) and render-ring edge chunks are blocked
-			// at Phase 4 until all their outer-ring neighbors are populated.
-			// Capping outer-ring inits creates a stall that prevents those chunks rendering.
 			if (!chunk.IsScheduled)
 			{
 				bool isOuterRing = !renderCoords.Contains(coord);
@@ -235,15 +242,14 @@ public class World : MonoBehaviour
 			if (!chunk.VoxelMapPopulated) continue;
 
 			// Phase 3 — outer-ring (populate-only) chunks are done as soon as their
-			// voxel map is ready. They need no mesh — they exist only as neighbor data.
+			// voxel map is ready.
 			if (!renderCoords.Contains(coord))
 			{
 				removeIndices.Add(i);
 				continue;
 			}
 
-			// Phase 4 — render-ring: wait until every in-storage neighbor has its
-			// voxel map populated before scheduling the mesh job.
+			// Phase 4 — wait until every in-storage neighbor has its voxel map populated.
 			if (!AllStoredNeighborsMapped(coord)) continue;
 
 			// Phase 5 — schedule mesh job once.
@@ -253,7 +259,7 @@ public class World : MonoBehaviour
 				continue;
 			}
 
-			// Phase 6 — mesh job finished, apply geometry.
+			// Phase 6 — mesh job finished, upload to GPU.
 			if (!chunk.IsMeshDataCompleted) continue;
 
 			chunk.CreateMesh();
@@ -266,8 +272,7 @@ public class World : MonoBehaviour
 
 	/// <summary>
 	/// Returns true when every chunk neighbor that exists in storage has its
-	/// voxel map populated. Neighbors outside storage are outside view range —
-	/// CheckVoxel culls those faces with return true, so they don't need to wait.
+	/// voxel map populated.
 	/// </summary>
 	private bool AllStoredNeighborsMapped(int3 coord)
 	{
@@ -292,7 +297,9 @@ public class World : MonoBehaviour
 		{
 			Chunk chunk = pendingBakes.Dequeue();
 
+			// chunk.Mesh is a position-only collider mesh — vertexCount check still valid
 			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
+
 			int3 chunkCoord       = chunk.Coord;
 			int3 playerChunkCoord = PlayerChunkCoord;
 			if (!IsChebyshevNear(ref chunkCoord, ref playerChunkCoord, COLLIDER_RADIUS)) continue;
@@ -304,16 +311,15 @@ public class World : MonoBehaviour
 	}
 
 	#endregion
-	
+
 	#region View distance
 
 	private void CheckViewDistance()
 	{
 		int3 center      = WorldToChunkCoord(PlayerTransform.position);
 		int  renderDist  = VoxelData.ViewDistanceInChunks;
-		int  populateDist = renderDist + 1; // one extra ring for neighbor voxel data
+		int  populateDist = renderDist + 1;
 
-		// Build two sets: all chunks to keep in storage, and the inner render-only set.
 		desiredCoords.Clear();
 		renderCoords.Clear();
 		for (var y = center.y - populateDist; y < center.y + populateDist; y++)
@@ -323,7 +329,6 @@ public class World : MonoBehaviour
 			int3 c = new(x, y, z);
 			if (!IsChunkInWorld(ref c)) continue;
 			desiredCoords.Add(c);
-			// Only chunks within render distance get a mesh.
 			if (math.abs(x - center.x) < renderDist &&
 			    math.abs(y - center.y) < renderDist &&
 			    math.abs(z - center.z) < renderDist)
@@ -350,8 +355,6 @@ public class World : MonoBehaviour
 				CreateNewChunk(c);
 				anyAdded = true;
 			}
-			// Chunk exists but was in the outer ring (no mesh) and has now entered
-			// render range — re-queue it so it gets a mesh job this session.
 			else if (renderCoords.Contains(c)
 			      && chunkStorage.TryGetValue(c, out Chunk existing)
 			      && existing.VoxelMapPopulated
@@ -370,10 +373,9 @@ public class World : MonoBehaviour
 
 	public void OnChunkMeshReady(Chunk chunk)
 	{
-		// Bake collider immediately — don't queue, to avoid the 1-2 frame gap
-		// where Mesh.Clear() ran but the new collider isn't assigned yet.
 		int3 chunkCoord       = chunk.Coord;
 		int3 playerChunkCoord = PlayerChunkCoord;
+		// chunk.Mesh is the collider-only mesh — vertexCount check still valid
 		if (!IsChebyshevNear(ref chunkCoord, ref playerChunkCoord, COLLIDER_RADIUS)
 		    || chunk.Mesh.vertexCount <= 0) return;
 		Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
@@ -427,7 +429,7 @@ public class World : MonoBehaviour
 				pendingBakes.Enqueue(chunk);
 		}
 	}
-	
+
 	[BurstCompile]
 	private static bool IsChebyshevNear(ref int3 a, ref int3 b, int radius)
 	{
@@ -441,17 +443,17 @@ public class World : MonoBehaviour
 
 	private void InitChunkPool()
 	{
-		var viewDiam   = (VoxelData.ViewDistanceInChunks + 1) * 2; // +1 for the populate-only outer ring
+		var viewDiam   = (VoxelData.ViewDistanceInChunks + 1) * 2;
 		var maxVisible = viewDiam * viewDiam * viewDiam;
 
 		chunkPool = new ChunkPool(
-		                          () => new Chunk(),
-		                          _ => { },
-		                          chunk => chunk.Release(),
-		                          chunk => chunk.OnDestroy(),
-		                          false,
-		                          maxVisible,
-		                          maxVisible * 2);
+			() => new Chunk(),
+			_ => { },
+			chunk => chunk.Release(),
+			chunk => chunk.OnDestroy(),
+			false,
+			maxVisible,
+			maxVisible * 2);
 	}
 
 	private void InitColliderPool()
@@ -460,25 +462,25 @@ public class World : MonoBehaviour
 		const int capacity = diameter * diameter * diameter;
 
 		colliderGoPool = new ColliderPool(
-		                                  () =>
-		                                  {
-			                                  var go = new GameObject("ChunkCollider");
-			                                  go.transform.SetParent(transform);
-			                                  go.AddComponent<MeshCollider>();
-			                                  go.layer = chunkLayer;
-			                                  go.SetActive(false);
-			                                  return go;
-		                                  },
-		                                  go => go.SetActive(true),
-		                                  go =>
-		                                  {
-			                                  go.GetComponent<MeshCollider>().sharedMesh = null;
-			                                  go.SetActive(false);
-		                                  },
-		                                  Destroy,
-		                                  false,
-		                                  capacity,
-		                                  capacity * 2);
+			() =>
+			{
+				var go = new GameObject("ChunkCollider");
+				go.transform.SetParent(transform);
+				go.AddComponent<MeshCollider>();
+				go.layer = chunkLayer;
+				go.SetActive(false);
+				return go;
+			},
+			go => go.SetActive(true),
+			go =>
+			{
+				go.GetComponent<MeshCollider>().sharedMesh = null;
+				go.SetActive(false);
+			},
+			Destroy,
+			false,
+			capacity,
+			capacity * 2);
 	}
 
 	#endregion
@@ -498,15 +500,15 @@ public class World : MonoBehaviour
 		chunkStorage[coord] = chunk;
 		chunksToCreate.Add(coord);
 	}
-	
+
 	private static int3 WorldToChunkCoord(Vector3 pos)
 	{
 		return new int3(
-		                Mathf.FloorToInt(pos.x / VoxelData.CHUNK_SIZE),
-		                Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE),
-		                Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE));
+			Mathf.FloorToInt(pos.x / VoxelData.CHUNK_SIZE),
+			Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE),
+			Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE));
 	}
-	
+
 	[BurstCompile]
 	private static bool IsChunkInWorld(ref int3 coord)
 	{

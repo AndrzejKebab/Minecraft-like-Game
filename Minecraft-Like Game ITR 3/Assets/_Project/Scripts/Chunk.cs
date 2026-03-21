@@ -16,15 +16,25 @@ public class Chunk
 {
 	#region Public state
 
-	public Mesh Mesh          { get; } = new();
-	public bool HasMesh       { get; private set; }
-	public int3 Coord         { get; private set; }
-	public int3 ChunkPosition { get; private set; }
-	public bool IsActive      { get; private set; } = true;
-	public bool IsScheduled      { get; private set; }
-	public bool IsMeshScheduled  { get; private set; }
+	// Mesh is kept solely for the MeshCollider — it is NOT used for rendering.
+	// Rendering goes through VerticesBuffer / IndicesBuffer / IndirectArgsBuffer.
+	public Mesh Mesh              { get; } = new();
+	public bool HasMesh           { get; private set; }
+	public int3 Coord             { get; private set; }
+	public int3 ChunkPosition     { get; private set; }
+	public bool IsActive          { get; private set; } = true;
+	public bool IsScheduled       { get; private set; }
+	public bool IsMeshScheduled   { get; private set; }
 	public bool VoxelMapPopulated;
 	public bool IsMeshDataCompleted => chunkJobHandle.IsCompleted;
+
+	// GPU buffers consumed by World.DrawChunks via RenderPrimitivesIndexedIndirect
+	public GraphicsBuffer VerticesBuffer     { get; private set; }
+	public GraphicsBuffer IndicesBuffer      { get; private set; }
+	public GraphicsBuffer IndirectArgsBuffer { get; private set; }
+
+	// Per-chunk property block — World sets Vertices on it each draw call
+	public readonly MaterialPropertyBlock MatProps = new();
 
 	#endregion
 
@@ -33,25 +43,23 @@ public class Chunk
 	private NativeArray<ushort> voxelMap =
 		new(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE, Allocator.Persistent);
 
-	private NativeArray<ushort> VoxelMap               => voxelMap;
+	private NativeArray<ushort> VoxelMap              => voxelMap;
 	private JobHandle           PopulateVoxelMapHandle => populateVoxelMapHandle;
 
 	#endregion
 
 	#region Private job state
 
-	private JobHandle          chunkJobHandle;
-	private JobHandle          populateVoxelMapHandle;
-	private NativeMeshData     meshData;
-	private Mesh.MeshDataArray meshDataArray;
-	private VoxelMapData       voxelMapData;
+	private JobHandle      chunkJobHandle;
+	private JobHandle      populateVoxelMapHandle;
+	private NativeMeshData meshData;
+	private VoxelMapData   voxelMapData;
 
 	private readonly List<NativeArray<ushort>> dummiesList     = new(6);
 	private          NativeArray<ushort>[]     neighborDummies = [];
 
 	private NativeTexture2D<float> heightMap;
-
-	private World world;
+	private World                  world;
 
 	#endregion
 
@@ -76,6 +84,7 @@ public class Chunk
 		DisposeHeightMap();
 		DisposeDummies();
 		DisposeMeshData();
+		ReleaseGfxBuffers();
 
 		Mesh.Clear();
 		HasMesh           = false;
@@ -91,6 +100,7 @@ public class Chunk
 		populateVoxelMapHandle.Complete();
 		DisposeDummies();
 		DisposeMeshData();
+		ReleaseGfxBuffers();
 
 		if (voxelMap.IsCreated) voxelMap.Dispose();
 	}
@@ -117,11 +127,11 @@ public class Chunk
 		FastNoise worldGen      = world.WorldGen;
 		int3      chunkWorldPos = ChunkPosition;
 		NoiseGenerator.GenerateHeightMap(out heightMap,
-		                                             ref worldGen,
-		                                             ref chunkWorldPos,
-		                                             CHUNK_SIZE,
-		                                             world.BiomeAttributesJob.BiomeScale,
-		                                             world.Seed);
+		                                 ref worldGen,
+		                                 ref chunkWorldPos,
+		                                 CHUNK_SIZE,
+		                                 world.BiomeAttributesJob.BiomeScale,
+		                                 world.Seed);
 
 		VoxelMapPopulated = true;
 		var populateJob = new PopulateVoxelMapJob
@@ -131,36 +141,31 @@ public class Chunk
 			ChunkPosition = chunkWorldPos,
 			VoxelMap      = voxelMap
 		};
-		
 		populateVoxelMapHandle = populateJob.ScheduleByRef();
 	}
 
 	public void ScheduleMeshDataJob()
 	{
-		IsMeshScheduled   = true;
+		IsMeshScheduled = true;
 
 		meshData = new NativeMeshData
-		           {
-			           Vertex        = new NativeList<Vertex>(Allocator.Persistent),
-			           MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
-		           };
+		{
+			Vertex        = new NativeList<Vertex>(Allocator.Persistent),
+			MeshTriangles = new NativeList<ushort>(Allocator.Persistent)
+		};
 
-		meshDataArray = Mesh.AllocateWritableMeshData(1);
-
+		// No MeshDataArray — we upload to GraphicsBuffers ourselves after the job.
 		NativeChunkData chunkData = BuildChunkData(out JobHandle dependency);
 
 		var chunkJob = new ChunkJob
-		                 {
-			                 MeshData               = meshData,
-			                 ChunkData              = chunkData,
-			                 ChunkSize              = CHUNK_SIZE,
-			                 TextureAtlasSize       = TEXTURE_ATLAS_SIZE_IN_BLOCKS,
-			                 NormalizedTextureAtlas = NormalizedBlockTextureSize,
-			                 Position               = ChunkPosition,
-			                 WorldSizeInVoxels      = WorldSizeInVoxels,
-			                 MeshDataArray          = meshDataArray,
-			                 Layout                 = World.Layout,
-		                 };
+		{
+			MeshData          = meshData,
+			ChunkData         = chunkData,
+			ChunkSize         = CHUNK_SIZE,
+			Position          = ChunkPosition,
+			WorldSizeInVoxels = WorldSizeInVoxels,
+			// TextureAtlasSize / NormalizedTextureAtlas removed — not needed for Texture2DArray
+		};
 		chunkJobHandle = chunkJob.ScheduleByRef(dependency);
 	}
 
@@ -170,6 +175,8 @@ public class Chunk
 		DisposeHeightMap();
 		DisposeDummies();
 
+		// Release any previously allocated GPU buffers before overwriting
+		ReleaseGfxBuffers();
 		Mesh.Clear();
 		HasMesh = false;
 
@@ -179,14 +186,42 @@ public class Chunk
 			return;
 		}
 
-		Mesh.name = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
-		Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, Mesh, MeshUpdateFlags.DontRecalculateBounds);
-		Mesh.bounds = world.ChunkBound;
-		Mesh.RecalculateUVDistributionMetrics();
+		int vCount = meshData.Vertex.Length;
+		int iCount = meshData.MeshTriangles.Length;
 
-		meshData.Vertex.Dispose();
-		meshData.MeshTriangles.Dispose();
+		// ── GPU buffers for rendering ─────────────────────────────────────────
+		// Vertices: StructuredBuffer<vertex> in the shader — stride = sizeof(uint) = 4
+		VerticesBuffer = new GraphicsBuffer(
+			GraphicsBuffer.Target.Structured,
+			vCount, 4); // 4 = sizeof(uint) = sizeof(Vertex)
 
+		// Indices: real 16-bit index buffer consumed by the draw call
+		IndicesBuffer = new GraphicsBuffer(
+			GraphicsBuffer.Target.Index,
+			iCount, sizeof(ushort));
+
+		// Indirect draw args: one IndirectDrawIndexedArgs entry
+		IndirectArgsBuffer = new GraphicsBuffer(
+			GraphicsBuffer.Target.IndirectArguments,
+			1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+
+		VerticesBuffer.SetData(meshData.Vertex.AsArray());
+		IndicesBuffer.SetData(meshData.MeshTriangles.AsArray());
+
+		var args = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
+		args[0].indexCountPerInstance = (uint)iCount;
+		args[0].instanceCount         = 1;
+		args[0].startIndex            = 0;
+		args[0].baseVertexIndex       = 0;
+		args[0].startInstance         = 0;
+		IndirectArgsBuffer.SetData(args);
+
+		// ── CPU Mesh — positions only, used exclusively by MeshCollider ───────
+		// We unpack integer XYZ from the packed uint. Only positions are needed
+		// for physics; normals/UVs are decoded GPU-side from the same uint.
+		BuildColliderMesh(vCount, iCount);
+
+		DisposeMeshData();
 		HasMesh = true;
 		world.OnChunkMeshReady(this);
 	}
@@ -222,17 +257,40 @@ public class Chunk
 
 	#region Private helpers
 
+	/// <summary>
+	/// Builds a position-only CPU Mesh used by MeshCollider.
+	/// Unpacks integer XYZ from the packed uint vertex data.
+	/// </summary>
+	private void BuildColliderMesh(int vCount, int iCount)
+	{
+		var positions = new Vector3[vCount];
+		for (var i = 0; i < vCount; i++)
+		{
+			uint d        = meshData.Vertex[i].Data;
+			positions[i]  = new Vector3(d & 0x3Fu, (d >> 6) & 0x3Fu, (d >> 12) & 0x3Fu);
+		}
+
+		var triangles = new int[iCount];
+		for (var i = 0; i < iCount; i++)
+			triangles[i] = meshData.MeshTriangles[i];
+
+		Mesh.name      = $"Chunk [{Coord.x},{Coord.y},{Coord.z}]";
+		Mesh.vertices  = positions;
+		Mesh.triangles = triangles;
+		Mesh.bounds    = world.ChunkBound;
+	}
+
 	private NativeChunkData BuildChunkData(out JobHandle combinedDependency)
 	{
 		DisposeDummies();
 		dummiesList.Clear();
 
 		var data = new NativeChunkData
-		           {
-			           VoxelMap   = voxelMap,
-			           BlockTypes = world.BlockTypesJobs,
-			           BiomeData  = world.BiomeAttributesJob
-		           };
+		{
+			VoxelMap   = voxelMap,
+			BlockTypes = world.BlockTypesJobs,
+			BiomeData  = world.BiomeAttributesJob
+		};
 
 		var deps     = new NativeArray<JobHandle>(7, Allocator.Temp);
 		var depCount = 0;
@@ -256,7 +314,7 @@ public class Chunk
 				dummiesList.Add(map);
 			}
 
-			SetNeighborData(ref data, face,ref map, hasNeighbor);
+			SetNeighborData(ref data, face, ref map, hasNeighbor);
 		}
 
 		combinedDependency = JobHandle.CombineDependencies(deps.GetSubArray(0, depCount));
@@ -267,36 +325,29 @@ public class Chunk
 	}
 
 	[BurstCompile]
-	private static void SetNeighborData(ref NativeChunkData data, int  face,
-	                                   ref NativeArray<ushort> map,  bool present)
+	private static void SetNeighborData(ref NativeChunkData data, int face,
+	                                    ref NativeArray<ushort> map, bool present)
 	{
 		switch (face)
 		{
-			case 0:
-				data.NeighborZNeg    = map;
-				data.HasNeighborZNeg = present;
-				break;
-			case 1:
-				data.NeighborZPos    = map;
-				data.HasNeighborZPos = present;
-				break;
-			case 2:
-				data.NeighborYPos    = map;
-				data.HasNeighborYPos = present;
-				break;
-			case 3:
-				data.NeighborYNeg    = map;
-				data.HasNeighborYNeg = present;
-				break;
-			case 4:
-				data.NeighborXNeg    = map;
-				data.HasNeighborXNeg = present;
-				break;
-			case 5:
-				data.NeighborXPos    = map;
-				data.HasNeighborXPos = present;
-				break;
+			case 0: data.NeighborZNeg = map; data.HasNeighborZNeg = present; break;
+			case 1: data.NeighborZPos = map; data.HasNeighborZPos = present; break;
+			case 2: data.NeighborYPos = map; data.HasNeighborYPos = present; break;
+			case 3: data.NeighborYNeg = map; data.HasNeighborYNeg = present; break;
+			case 4: data.NeighborXNeg = map; data.HasNeighborXNeg = present; break;
+			case 5: data.NeighborXPos = map; data.HasNeighborXPos = present; break;
 		}
+	}
+
+	/// <summary>Releases all three GPU GraphicsBuffers if they exist.</summary>
+	private void ReleaseGfxBuffers()
+	{
+		VerticesBuffer?.Release();
+		IndicesBuffer?.Release();
+		IndirectArgsBuffer?.Release();
+		VerticesBuffer     = null;
+		IndicesBuffer      = null;
+		IndirectArgsBuffer = null;
 	}
 
 	private void DisposeHeightMap()
@@ -307,8 +358,7 @@ public class Chunk
 	private void DisposeDummies()
 	{
 		foreach (NativeArray<ushort> d in neighborDummies)
-			if (d.IsCreated)
-				d.Dispose();
+			if (d.IsCreated) d.Dispose();
 		neighborDummies = [];
 	}
 

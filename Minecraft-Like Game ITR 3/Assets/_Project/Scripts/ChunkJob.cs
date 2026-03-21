@@ -3,20 +3,19 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
-using UnityEngine.Rendering;
 using UtilityLibrary.Unity.Runtime;
-using sbyte4 = NativeTexture.Formats.sbyte4;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct ChunkJob : IJob
 {
+	// ── Output: raw lists uploaded to GraphicsBuffers by Chunk after the job ──
 	public struct NativeMeshData
 	{
-		public NativeList<Vertex> Vertex;
-		public NativeList<ushort> MeshTriangles;
+		public NativeList<Vertex>  Vertex;
+		public NativeList<ushort>  MeshTriangles;
 	}
 
+	// ── Per-chunk voxel data ──────────────────────────────────────────────────
 	public struct NativeChunkData
 	{
 		public NativeArray<BlockTypesJob> BlockTypes;
@@ -38,23 +37,21 @@ public struct ChunkJob : IJob
 		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborXPos;
 	}
 
+	// ── Job fields ────────────────────────────────────────────────────────────
 	[ReadOnly] public NativeChunkData ChunkData;
 	public            NativeMeshData  MeshData;
 
-	public            Mesh.MeshDataArray                     MeshDataArray;
-	[ReadOnly] public NativeArray<VertexAttributeDescriptor> Layout;
+	[ReadOnly] public int  ChunkSize;
+	[ReadOnly] public int  WorldSizeInVoxels;
+	[ReadOnly] public int3 Position;
 
-	private           ushort vertexIndex;
-	[ReadOnly] public int    ChunkSize;
-	[ReadOnly] public int    TextureAtlasSize;
-	[ReadOnly] public float  NormalizedTextureAtlas;
-	[ReadOnly] public int    WorldSizeInVoxels;
-	[ReadOnly] public int3   Position;
+	// MeshDataArray and Layout are gone — the NativeLists are uploaded directly
+	// to GraphicsBuffers by Chunk.CreateMesh() once the job completes.
 
-	public void Execute()
-	{
-		CreateMeshData();
-	}
+	private ushort vertexIndex;
+
+	// ── Entry point ───────────────────────────────────────────────────────────
+	public void Execute() => CreateMeshData();
 
 	private void CreateMeshData()
 	{
@@ -63,32 +60,25 @@ public struct ChunkJob : IJob
 		for (var z = 0; z < ChunkSize; z++)
 			if (ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, x, y, z)].IsSolid)
 				AddVoxelDataToChunk(new int3(x, y, z));
-
-		Mesh.MeshData data = MeshDataArray[0];
-		data.subMeshCount = 1;
-		data.SetIndexBufferParams(MeshData.MeshTriangles.Length, IndexFormat.UInt16);
-		NativeArray<ushort> index = data.GetIndexData<ushort>();
-		index.CopyFrom(MeshData.MeshTriangles.AsArray());
-		data.SetVertexBufferParams(MeshData.Vertex.Length, Layout);
-		NativeArray<Vertex> vertex = data.GetVertexData<Vertex>();
-		vertex.CopyFrom(MeshData.Vertex.AsArray());
-
-		var desc = new SubMeshDescriptor(0, MeshData.MeshTriangles.Length);
-
-		var half = ChunkSize * 0.5f;
-		desc.bounds = new Bounds(new Vector3(half, half, half), new Vector3(ChunkSize, ChunkSize, ChunkSize));
-		data.SetSubMesh(0, desc, MeshUpdateFlags.DontRecalculateBounds);
 	}
 
+	// ─────────────────────────────────────────────────────────────────────────
+	//  Packed vertex layout (one uint per vertex — see Vertex struct):
+	//    bits  0– 5   pos.x      (0–32)
+	//    bits  6–11   pos.y      (0–32)
+	//    bits 12–17   pos.z      (0–32)
+	//    bits 18–20   faceIndex  (0–5)   → normal + tangent via shader table
+	//    bits 21–22   uvCorner   (0–3)   → float2(corner>>1, corner&1)
+	//    bits 23–30   texIndex   (0–255) → Texture2DArray slice
+	// ─────────────────────────────────────────────────────────────────────────
 	private void AddVoxelDataToChunk(int3 pos)
 	{
-		for (var p = 0; p < 6; p++)
+		for (var face = 0; face < 6; face++)
 		{
-			if (CheckVoxel(pos + VoxelData.FaceChecks[p])) continue;
-			var posX    = pos.x;
-			var posY    = pos.y;
-			var posZ    = pos.z;
-			var blockID = ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, posX, posY, posZ)].BlockID;
+			if (CheckVoxel(pos + VoxelData.FaceChecks[face])) continue;
+
+			var blockID  = ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z);
+			var texIndex = ChunkData.BlockTypes[blockID].GetTexture2D(face);
 
 			MeshData.MeshTriangles.Add(vertexIndex);
 			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 1));
@@ -97,66 +87,25 @@ public struct ChunkJob : IJob
 			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 3));
 			MeshData.MeshTriangles.Add((ushort)(vertexIndex + 2));
 
-			NativeArray<half4> vertices = GetFaceVertices(p, new half4((half)pos.x, (half)pos.y, (half)pos.z, (half)0));
-			NativeArray<half2> textureUVs = GetTextureUVs(ChunkData.BlockTypes[blockID].GetTexture2D(p));
+			for (byte corner = 0; corner < 4; corner++)
+			{
+				var  vIdx = VoxelData.VoxelTriangles[face * 4 + corner];
+				half vx   = VoxelData.VoxelVertices[vIdx].x;
+				half vy   = VoxelData.VoxelVertices[vIdx].y;
+				half vz   = VoxelData.VoxelVertices[vIdx].z;
 
-			var normal = new sbyte4((sbyte)VoxelData.FaceChecks[p].x,
-			                        (sbyte)VoxelData.FaceChecks[p].y,
-			                        (sbyte)VoxelData.FaceChecks[p].z,
-			                        0);
+				MeshData.Vertex.Add(new Vertex(
+					pos.x + (int)vx,
+					pos.y + (int)vy,
+					pos.z + (int)vz,
+					face, corner, texIndex));
+			}
 
-			var tangent = new sbyte4((sbyte)VoxelData.FaceTangents[p].x,
-			                         (sbyte)VoxelData.FaceTangents[p].y,
-			                         (sbyte)VoxelData.FaceTangents[p].z,
-			                         -1);
-
-			MeshData.Vertex.Add(new Vertex(vertices[0], normal, tangent, textureUVs[0]));
-			MeshData.Vertex.Add(new Vertex(vertices[1], normal, tangent, textureUVs[1]));
-			MeshData.Vertex.Add(new Vertex(vertices[2], normal, tangent, textureUVs[2]));
-			MeshData.Vertex.Add(new Vertex(vertices[3], normal, tangent, textureUVs[3]));
-
-			textureUVs.Dispose();
-			vertices.Dispose();
 			vertexIndex += 4;
 		}
 	}
 
-	private static NativeArray<half4> GetFaceVertices(int faceIndex, half4 pos)
-	{
-		var faceVertices = new NativeArray<half4>(4, Allocator.Temp);
-
-		for (byte i = 0; i < 4; i++)
-		{
-			var index = VoxelData.VoxelTriangles[faceIndex * 4 + i];
-			faceVertices[i] = new half4((half)(VoxelData.VoxelVertices[index].x + pos.x),
-			                            (half)(VoxelData.VoxelVertices[index].y + pos.y),
-			                            (half)(VoxelData.VoxelVertices[index].z + pos.z),
-			                            (half)0);
-		}
-
-		return faceVertices;
-	}
-
-	private NativeArray<half2> GetTextureUVs(int textureID)
-	{
-		var textureUVs = new NativeArray<half2>(4, Allocator.Temp);
-
-		float y = textureID / TextureAtlasSize;
-		var   x = textureID - y * TextureAtlasSize;
-
-		x *= NormalizedTextureAtlas;
-		y *= NormalizedTextureAtlas;
-
-		y = 1f - y - NormalizedTextureAtlas;
-
-		textureUVs[0] = new half2((half)x, (half)y);
-		textureUVs[1] = new half2((half)x, new half(y + NormalizedTextureAtlas));
-		textureUVs[2] = new half2(new half(x + NormalizedTextureAtlas), (half)y);
-		textureUVs[3] = new half2(new half(x + NormalizedTextureAtlas), new half(y + NormalizedTextureAtlas));
-
-		return textureUVs;
-	}
-
+	// ── Neighbour voxel check ──────────────────────────────────────────────────
 	private bool IsVoxelInChunk(int3 pos)
 	{
 		return pos.x >= 0 && pos.x <= ChunkSize - 1 &&
@@ -167,38 +116,21 @@ public struct ChunkJob : IJob
 	private bool CheckVoxel(int3 pos)
 	{
 		if (IsVoxelInChunk(pos))
-			return ChunkData.BlockTypes[
-			                            ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z)
-			                           ].IsSolid;
-		if (pos.z < 0 && ChunkData.HasNeighborZNeg)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborZNeg.GetAtFlatIndex(ChunkSize, pos.x, pos.y, ChunkSize - 1)
-			                           ].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z)].IsSolid;
 
+		if (pos.z < 0          && ChunkData.HasNeighborZNeg)
+			return ChunkData.BlockTypes[ChunkData.NeighborZNeg.GetAtFlatIndex(ChunkSize, pos.x, pos.y, ChunkSize - 1)].IsSolid;
 		if (pos.z >= ChunkSize && ChunkData.HasNeighborZPos)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborZPos.GetAtFlatIndex(ChunkSize, pos.x, pos.y, 0)
-			                           ].IsSolid;
-
+			return ChunkData.BlockTypes[ChunkData.NeighborZPos.GetAtFlatIndex(ChunkSize, pos.x, pos.y, 0)].IsSolid;
 		if (pos.y >= ChunkSize && ChunkData.HasNeighborYPos)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborYPos.GetAtFlatIndex(ChunkSize, pos.x, 0, pos.z)
-			                           ].IsSolid;
-
-		if (pos.y < 0 && ChunkData.HasNeighborYNeg)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborYNeg.GetAtFlatIndex(ChunkSize, pos.x, ChunkSize - 1, pos.z)
-			                           ].IsSolid;
-
-		if (pos.x < 0 && ChunkData.HasNeighborXNeg)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborXNeg.GetAtFlatIndex(ChunkSize, ChunkSize - 1, pos.y, pos.z)
-			                           ].IsSolid;
-
+			return ChunkData.BlockTypes[ChunkData.NeighborYPos.GetAtFlatIndex(ChunkSize, pos.x, 0, pos.z)].IsSolid;
+		if (pos.y < 0          && ChunkData.HasNeighborYNeg)
+			return ChunkData.BlockTypes[ChunkData.NeighborYNeg.GetAtFlatIndex(ChunkSize, pos.x, ChunkSize - 1, pos.z)].IsSolid;
+		if (pos.x < 0          && ChunkData.HasNeighborXNeg)
+			return ChunkData.BlockTypes[ChunkData.NeighborXNeg.GetAtFlatIndex(ChunkSize, ChunkSize - 1, pos.y, pos.z)].IsSolid;
 		if (pos.x >= ChunkSize && ChunkData.HasNeighborXPos)
-			return ChunkData.BlockTypes[
-			                            ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)
-			                           ].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)].IsSolid;
+
 		return true;
 	}
 }
