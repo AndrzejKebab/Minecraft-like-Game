@@ -1299,6 +1299,11 @@ PrefabInstance:
       propertyPath: m_UIInputModule
       value: 
       objectReference: {fileID: 948603536}
+    - target: {fileID: 5711781815915595262, guid: bc5d290ef5433d44bab460c7f9f15583,
+        type: 3}
+      propertyPath: SprintSpeed
+      value: 24
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []

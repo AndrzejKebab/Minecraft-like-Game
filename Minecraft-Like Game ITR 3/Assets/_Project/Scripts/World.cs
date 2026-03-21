@@ -83,7 +83,9 @@ public class World : MonoBehaviour
 	private readonly List<int>     removeIndices     = [];
 	private readonly List<int3>    chunksToRelease   = [];
 	private readonly List<int3>    collidersToReturn = [];
-	private readonly HashSet<int3> desiredCoords     = [];
+	private readonly HashSet<int3> desiredCoords  = [];
+	/// <summary>Subset of desiredCoords within render distance — only these get a mesh job.</summary>
+	private readonly HashSet<int3> renderCoords   = [];
 
 	#endregion
 	
@@ -216,30 +218,42 @@ public class World : MonoBehaviour
 			}
 
 			// Phase 1 — schedule the voxel populate job.
+			// Outer-ring chunks (populate-only) bypass the per-frame cap: they are
+			// cheap (voxel job only, no mesh) and render-ring edge chunks are blocked
+			// at Phase 4 until all their outer-ring neighbors are populated.
+			// Capping outer-ring inits creates a stall that prevents those chunks rendering.
 			if (!chunk.IsScheduled)
 			{
-				if (initsThisFrame >= maxChunkInitsPerFrame) continue;
+				bool isOuterRing = !renderCoords.Contains(coord);
+				if (!isOuterRing && initsThisFrame >= maxChunkInitsPerFrame) continue;
 				chunk.Initialise();
-				initsThisFrame++;
+				if (!isOuterRing) initsThisFrame++;
 				continue;
 			}
 
 			// Phase 2 — wait for voxel job to finish.
 			if (!chunk.VoxelMapPopulated) continue;
 
-			// Phase 3 — wait until every in-storage neighbor has its voxel map ready.
-			// CheckVoxel returns true (cull) for neighbors outside storage, so those
-			// are fine. We only wait for neighbors that exist but aren't populated yet.
+			// Phase 3 — outer-ring (populate-only) chunks are done as soon as their
+			// voxel map is ready. They need no mesh — they exist only as neighbor data.
+			if (!renderCoords.Contains(coord))
+			{
+				removeIndices.Add(i);
+				continue;
+			}
+
+			// Phase 4 — render-ring: wait until every in-storage neighbor has its
+			// voxel map populated before scheduling the mesh job.
 			if (!AllStoredNeighborsMapped(coord)) continue;
 
-			// Phase 4 — schedule mesh job once, then wait for it.
+			// Phase 5 — schedule mesh job once.
 			if (!chunk.IsMeshScheduled)
 			{
 				chunk.ScheduleMeshDataJob();
 				continue;
 			}
 
-			// Phase 5 — mesh job finished, apply geometry.
+			// Phase 6 — mesh job finished, apply geometry.
 			if (!chunk.IsMeshDataCompleted) continue;
 
 			chunk.CreateMesh();
@@ -295,15 +309,25 @@ public class World : MonoBehaviour
 
 	private void CheckViewDistance()
 	{
-		int3 center = WorldToChunkCoord(PlayerTransform.position);
+		int3 center      = WorldToChunkCoord(PlayerTransform.position);
+		int  renderDist  = VoxelData.ViewDistanceInChunks;
+		int  populateDist = renderDist + 1; // one extra ring for neighbor voxel data
 
+		// Build two sets: all chunks to keep in storage, and the inner render-only set.
 		desiredCoords.Clear();
-		for (var y = center.y - VoxelData.ViewDistanceInChunks; y < center.y + VoxelData.ViewDistanceInChunks; y++)
-		for (var x = center.x - VoxelData.ViewDistanceInChunks; x < center.x + VoxelData.ViewDistanceInChunks; x++)
-		for (var z = center.z - VoxelData.ViewDistanceInChunks; z < center.z + VoxelData.ViewDistanceInChunks; z++)
+		renderCoords.Clear();
+		for (var y = center.y - populateDist; y < center.y + populateDist; y++)
+		for (var x = center.x - populateDist; x < center.x + populateDist; x++)
+		for (var z = center.z - populateDist; z < center.z + populateDist; z++)
 		{
 			int3 c = new(x, y, z);
-			if (IsChunkInWorld(ref c)) desiredCoords.Add(c);
+			if (!IsChunkInWorld(ref c)) continue;
+			desiredCoords.Add(c);
+			// Only chunks within render distance get a mesh.
+			if (math.abs(x - center.x) < renderDist &&
+			    math.abs(y - center.y) < renderDist &&
+			    math.abs(z - center.z) < renderDist)
+				renderCoords.Add(c);
 		}
 
 		chunksToRelease.Clear();
@@ -319,10 +343,25 @@ public class World : MonoBehaviour
 		}
 
 		var anyAdded = false;
-		foreach (int3 c in desiredCoords.Where(c => !chunkStorage.ContainsKey(c)))
+		foreach (int3 c in desiredCoords)
 		{
-			CreateNewChunk(c);
-			anyAdded = true;
+			if (!chunkStorage.ContainsKey(c))
+			{
+				CreateNewChunk(c);
+				anyAdded = true;
+			}
+			// Chunk exists but was in the outer ring (no mesh) and has now entered
+			// render range — re-queue it so it gets a mesh job this session.
+			else if (renderCoords.Contains(c)
+			      && chunkStorage.TryGetValue(c, out Chunk existing)
+			      && existing.VoxelMapPopulated
+			      && !existing.HasMesh
+			      && !existing.IsMeshScheduled
+			      && !chunksToCreate.Contains(c))
+			{
+				chunksToCreate.Add(c);
+				anyAdded = true;
+			}
 		}
 
 		if (anyAdded)
@@ -402,7 +441,7 @@ public class World : MonoBehaviour
 
 	private void InitChunkPool()
 	{
-		var viewDiam   = VoxelData.ViewDistanceInChunks * 2;
+		var viewDiam   = (VoxelData.ViewDistanceInChunks + 1) * 2; // +1 for the populate-only outer ring
 		var maxVisible = viewDiam * viewDiam * viewDiam;
 
 		chunkPool = new ChunkPool(
