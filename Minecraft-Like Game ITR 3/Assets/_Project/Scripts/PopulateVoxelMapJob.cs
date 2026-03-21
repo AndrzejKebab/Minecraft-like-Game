@@ -5,12 +5,6 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using UtilityLibrary.Unity.Runtime;
 
-/// <summary>
-/// Populates a chunk's voxel map from a pre-generated 2D heightmap.
-/// Heightmap values are raw FastNoise2 output in [-1, 1] — no normalization.
-/// Classification logic delegates to <see cref="NoiseGenerator"/> so the
-/// terrain rules live in one place.
-/// </summary>
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct PopulateVoxelMapJob : IJob
 {
@@ -21,7 +15,6 @@ public struct PopulateVoxelMapJob : IJob
 		public BiomeAttributesJob BiomeData;
 	}
 
-	/// <summary>Raw [-1, 1] heightmap, one float per (x,z) column.</summary>
 	[ReadOnly] public NativeTexture2D<float>.ReadOnly HeightMap;
 
 	[ReadOnly]  public VoxelMapData        VoxelData;
@@ -44,11 +37,11 @@ public struct PopulateVoxelMapJob : IJob
 				continue;
 			}
 
-			float rawNoise    = HeightMap[new int2(x, z)];
-			int terrainHeight = NoiseGenerator.HeightFromNoise(
-				rawNoise,
-				VoxelData.BiomeData.BiomeHeight,
-				VoxelData.BiomeData.SolidGroundHeight);
+			var rawNoise    = HeightMap[new int2(x, z)];
+			var terrainHeight = NoiseGenerator.HeightFromNoise(
+			                                                   rawNoise,
+			                                                   VoxelData.BiomeData.BiomeHeight,
+			                                                   VoxelData.BiomeData.SolidGroundHeight);
 
 			VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z,
 				NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight, VoxelData.BiomeData.SolidGroundHeight));
@@ -58,7 +51,7 @@ public struct PopulateVoxelMapJob : IJob
 	[BurstCompile]
 	private static bool IsVoxelInWorld(float posX, float posY, float posZ, int worldSizeInVoxels)
 	{
-		float half = worldSizeInVoxels * 0.5f;
+		var half = worldSizeInVoxels * 0.5f;
 		return posX >= -half && posX < half &&
 		       posY >= -half && posY < half &&
 		       posZ >= -half && posZ < half;

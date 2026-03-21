@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FastNoise2.Bindings;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
@@ -10,111 +12,9 @@ using Random = UnityEngine.Random;
 using ChunkPool = UnityEngine.Pool.ObjectPool<Chunk>;
 using ColliderPool = UnityEngine.Pool.ObjectPool<UnityEngine.GameObject>;
 
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class World : MonoBehaviour
 {
-	#region Rendering
-
-	private void DrawChunks()
-	{
-		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value).Where(chunk => chunk.IsActive && chunk.HasMesh))
-			Graphics.DrawMesh(chunk.Mesh, chunk.ChunkPosition.ToVector3(), drawRotation, material, chunkLayer);
-	}
-
-	#endregion
-
-	#region Chunk queue
-
-	private void ProcessChunkQueue()
-	{
-		if (chunksToCreate.Count == 0) return;
-
-		var initsThisFrame = 0;
-		removeIndices.Clear();
-
-		for (var i = 0; i < chunksToCreate.Count; i++)
-		{
-			int3 coord = chunksToCreate[i];
-
-			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
-			{
-				removeIndices.Add(i);
-				continue;
-			}
-
-			// Phase 1 — schedule the voxel populate job.
-			if (!chunk.IsScheduled)
-			{
-				if (initsThisFrame >= maxChunkInitsPerFrame) continue;
-				chunk.Initialise();
-				initsThisFrame++;
-				continue;
-			}
-
-			// Phase 2 — wait for voxel job to finish.
-			if (!chunk.VoxelMapPopulated) continue;
-
-			// Phase 3 — wait until every in-storage neighbor has its voxel map ready.
-			// CheckVoxel returns true (cull) for neighbors outside storage, so those
-			// are fine. We only wait for neighbors that exist but aren't populated yet.
-			if (!AllStoredNeighborsMapped(coord)) continue;
-
-			// Phase 4 — schedule mesh job once, then wait for it.
-			if (!chunk.IsMeshScheduled)
-			{
-				chunk.ScheduleMeshDataJob();
-				continue;
-			}
-
-			// Phase 5 — mesh job finished, apply geometry.
-			if (!chunk.IsMeshDataCompleted) continue;
-
-			chunk.CreateMesh();
-			removeIndices.Add(i);
-		}
-
-		for (var i = removeIndices.Count - 1; i >= 0; i--)
-			chunksToCreate.RemoveAt(removeIndices[i]);
-	}
-
-	/// <summary>
-	/// Returns true when every chunk neighbor that exists in storage has its
-	/// voxel map populated. Neighbors outside storage are outside view range —
-	/// CheckVoxel culls those faces with return true, so they don't need to wait.
-	/// </summary>
-	private bool AllStoredNeighborsMapped(int3 coord)
-	{
-		for (int face = 0; face < 6; face++)
-		{
-			int3 neighborCoord = coord + VoxelData.FaceChecks[face];
-			if (chunkStorage.TryGetValue(neighborCoord, out Chunk neighbor)
-			    && !neighbor.VoxelMapPopulated)
-				return false;
-		}
-		return true;
-	}
-
-	#endregion
-
-	#region Collider bake queue
-
-	private void ProcessColliderBakeQueue()
-	{
-		var baked = 0;
-		while (pendingBakes.Count > 0 && baked < maxColliderBakesPerFrame)
-		{
-			Chunk chunk = pendingBakes.Dequeue();
-
-			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
-			if (!IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS)) continue;
-
-			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
-			AssignColliderImmediate(chunk);
-			baked++;
-		}
-	}
-
-	#endregion
-
 	#region Constants & shared data
 
 	private const int COLLIDER_RADIUS = 1;
@@ -186,103 +86,211 @@ public class World : MonoBehaviour
 	private readonly HashSet<int3> desiredCoords     = [];
 
 	#endregion
-
+	
 	#region Unity lifecycle
+    
+    	private void Awake()
+    	{
+    		Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent)
+    	                                                                       {
+    		                                                                       [0] =
+    			                                                                       new
+    				                                                                       VertexAttributeDescriptor(VertexAttribute
+    						                                                                        .Position,
+    					                                                                        VertexAttributeFormat
+    						                                                                        .Float16, 4),
+    		                                                                       [1] =
+    			                                                                       new
+    				                                                                       VertexAttributeDescriptor(VertexAttribute
+    						                                                                        .Normal,
+    					                                                                        VertexAttributeFormat
+    						                                                                        .SNorm8, 4),
+    		                                                                       [2] =
+    			                                                                       new
+    				                                                                       VertexAttributeDescriptor(VertexAttribute
+    						                                                                        .Tangent,
+    					                                                                        VertexAttributeFormat
+    						                                                                        .UNorm8, 4),
+    		                                                                       [3] =
+    			                                                                       new
+    				                                                                       VertexAttributeDescriptor(VertexAttribute
+    						                                                                        .TexCoord0,
+    					                                                                        VertexAttributeFormat
+    						                                                                        .Float16, 2)
+    	                                                                       };
+    		const float size = VoxelData.CHUNK_SIZE;
+    		ChunkBound = new Bounds(
+    		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
+    		                        new Vector3(size, size, size));
+    
+    		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
+    		for (var i = 0; i < blockTypes.Length; i++)
+    			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
+    
+    		BiomeAttributesJob = biomeAttributes.BiomeData;
+    		PlayerTransform    = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
+    		chunkLayer         = LayerMask.NameToLayer("Chunk");
+    
+    		InitChunkPool();
+    		InitColliderPool();
+    	}
+    
+    	private void Start()
+    	{
+    		Random.InitState(seed);
+    		SetFastNoise();
+    		CheckViewDistance();
+    	}
+    
+    	private void Update()
+    	{
+    		PlayerChunkCoord = WorldToChunkCoord(PlayerTransform.position);
+    
+    		var chunkChanged    = !PlayerChunkCoord.Equals(playerLastChunkCoord);
+    		var distanceChanged = VoxelData.ViewDistanceInChunks != lastViewDistance;
+    
+    		if (chunkChanged || distanceChanged)
+    		{
+    			lastViewDistance = VoxelData.ViewDistanceInChunks;
+    			CheckViewDistance();
+    
+    			if (chunkChanged)
+    			{
+    				playerLastChunkCoord = PlayerChunkCoord;
+    				UpdateNearbyColliders(PlayerChunkCoord);
+    			}
+    		}
+    
+    		ProcessChunkQueue();
+    		ProcessColliderBakeQueue();
+    		DrawChunks();
+    	}
+    
+    	private void OnApplicationQuit()
+    	{
+    		foreach (KeyValuePair<int3, Chunk> pair in chunkStorage) chunkPool.Release(pair.Value);
+    		foreach (KeyValuePair<int3, GameObject> pair in activeColliders) colliderGoPool.Release(pair.Value);
+    
+    		chunkStorage.Clear();
+    		chunkPool.Dispose();
+    
+    		activeColliders.Clear();
+    		colliderGoPool.Dispose();
+    
+    		if (Layout.IsCreated) Layout.Dispose();
+    		BlockTypesJobs.Dispose();
+    	}
+    
+    	#endregion
+	
+	#region Rendering
 
-	private void Awake()
+	private void DrawChunks()
 	{
-		Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent)
-	                                                                       {
-		                                                                       [0] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-						                                                                        .Position,
-					                                                                        VertexAttributeFormat
-						                                                                        .Float16, 4),
-		                                                                       [1] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-						                                                                        .Normal,
-					                                                                        VertexAttributeFormat
-						                                                                        .SNorm8, 4),
-		                                                                       [2] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-						                                                                        .Tangent,
-					                                                                        VertexAttributeFormat
-						                                                                        .UNorm8, 4),
-		                                                                       [3] =
-			                                                                       new
-				                                                                       VertexAttributeDescriptor(VertexAttribute
-						                                                                        .TexCoord0,
-					                                                                        VertexAttributeFormat
-						                                                                        .Float16, 2)
-	                                                                       };
-		const float size = VoxelData.CHUNK_SIZE;
-		ChunkBound = new Bounds(
-		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
-		                        new Vector3(size, size, size));
-
-		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
-		for (var i = 0; i < blockTypes.Length; i++)
-			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
-
-		BiomeAttributesJob = biomeAttributes.BiomeData;
-		PlayerTransform    = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
-		chunkLayer         = LayerMask.NameToLayer("Chunk");
-
-		InitChunkPool();
-		InitColliderPool();
-	}
-
-	private void Start()
-	{
-		Random.InitState(seed);
-		SetFastNoise();
-		CheckViewDistance();
-	}
-
-	private void Update()
-	{
-		PlayerChunkCoord = WorldToChunkCoord(PlayerTransform.position);
-
-		var chunkChanged    = !PlayerChunkCoord.Equals(playerLastChunkCoord);
-		var distanceChanged = VoxelData.ViewDistanceInChunks != lastViewDistance;
-
-		if (chunkChanged || distanceChanged)
+		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value).Where(chunk => chunk.IsActive && chunk.HasMesh))
 		{
-			lastViewDistance = VoxelData.ViewDistanceInChunks;
-			CheckViewDistance();
-
-			if (chunkChanged)
-			{
-				playerLastChunkCoord = PlayerChunkCoord;
-				UpdateNearbyColliders(PlayerChunkCoord);
-			}
+			int3 chunkChunkPosition = chunk.ChunkPosition;
+			Graphics.DrawMesh(chunk.Mesh, chunkChunkPosition.ToVector3(), drawRotation, material, chunkLayer);
 		}
-
-		ProcessChunkQueue();
-		ProcessColliderBakeQueue();
-		DrawChunks();
-	}
-
-	private void OnApplicationQuit()
-	{
-		foreach (KeyValuePair<int3, Chunk> pair in chunkStorage) chunkPool.Release(pair.Value);
-		foreach (KeyValuePair<int3, GameObject> pair in activeColliders) colliderGoPool.Release(pair.Value);
-
-		chunkStorage.Clear();
-		chunkPool.Dispose();
-
-		activeColliders.Clear();
-		colliderGoPool.Dispose();
-
-		if (Layout.IsCreated) Layout.Dispose();
-		BlockTypesJobs.Dispose();
 	}
 
 	#endregion
 
+	#region Chunk queue
+
+	private void ProcessChunkQueue()
+	{
+		if (chunksToCreate.Count == 0) return;
+
+		var initsThisFrame = 0;
+		removeIndices.Clear();
+
+		for (var i = 0; i < chunksToCreate.Count; i++)
+		{
+			int3 coord = chunksToCreate[i];
+
+			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
+			{
+				removeIndices.Add(i);
+				continue;
+			}
+
+			// Phase 1 — schedule the voxel populate job.
+			if (!chunk.IsScheduled)
+			{
+				if (initsThisFrame >= maxChunkInitsPerFrame) continue;
+				chunk.Initialise();
+				initsThisFrame++;
+				continue;
+			}
+
+			// Phase 2 — wait for voxel job to finish.
+			if (!chunk.VoxelMapPopulated) continue;
+
+			// Phase 3 — wait until every in-storage neighbor has its voxel map ready.
+			// CheckVoxel returns true (cull) for neighbors outside storage, so those
+			// are fine. We only wait for neighbors that exist but aren't populated yet.
+			if (!AllStoredNeighborsMapped(coord)) continue;
+
+			// Phase 4 — schedule mesh job once, then wait for it.
+			if (!chunk.IsMeshScheduled)
+			{
+				chunk.ScheduleMeshDataJob();
+				continue;
+			}
+
+			// Phase 5 — mesh job finished, apply geometry.
+			if (!chunk.IsMeshDataCompleted) continue;
+
+			chunk.CreateMesh();
+			removeIndices.Add(i);
+		}
+
+		for (var i = removeIndices.Count - 1; i >= 0; i--)
+			chunksToCreate.RemoveAt(removeIndices[i]);
+	}
+
+	/// <summary>
+	/// Returns true when every chunk neighbor that exists in storage has its
+	/// voxel map populated. Neighbors outside storage are outside view range —
+	/// CheckVoxel culls those faces with return true, so they don't need to wait.
+	/// </summary>
+	private bool AllStoredNeighborsMapped(int3 coord)
+	{
+		for (var face = 0; face < 6; face++)
+		{
+			int3 neighborCoord = coord + VoxelData.FaceChecks[face];
+			if (chunkStorage.TryGetValue(neighborCoord, out Chunk neighbor)
+			    && !neighbor.VoxelMapPopulated)
+				return false;
+		}
+		return true;
+	}
+
+	#endregion
+
+	#region Collider bake queue
+
+	private void ProcessColliderBakeQueue()
+	{
+		var baked = 0;
+		while (pendingBakes.Count > 0 && baked < maxColliderBakesPerFrame)
+		{
+			Chunk chunk = pendingBakes.Dequeue();
+
+			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
+			int3 chunkCoord       = chunk.Coord;
+			int3 playerChunkCoord = PlayerChunkCoord;
+			if (!IsChebyshevNear(ref chunkCoord, ref playerChunkCoord, COLLIDER_RADIUS)) continue;
+
+			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
+			AssignColliderImmediate(chunk);
+			baked++;
+		}
+	}
+
+	#endregion
+	
 	#region View distance
 
 	private void CheckViewDistance()
@@ -295,7 +303,7 @@ public class World : MonoBehaviour
 		for (var z = center.z - VoxelData.ViewDistanceInChunks; z < center.z + VoxelData.ViewDistanceInChunks; z++)
 		{
 			int3 c = new(x, y, z);
-			if (IsChunkInWorld(c)) desiredCoords.Add(c);
+			if (IsChunkInWorld(ref c)) desiredCoords.Add(c);
 		}
 
 		chunksToRelease.Clear();
@@ -325,12 +333,12 @@ public class World : MonoBehaviour
 	{
 		// Bake collider immediately — don't queue, to avoid the 1-2 frame gap
 		// where Mesh.Clear() ran but the new collider isn't assigned yet.
-		if (IsChebyshevNear(chunk.Coord, PlayerChunkCoord, COLLIDER_RADIUS)
-		    && chunk.Mesh.vertexCount > 0)
-		{
-			Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
-			AssignColliderImmediate(chunk);
-		}
+		int3 chunkCoord       = chunk.Coord;
+		int3 playerChunkCoord = PlayerChunkCoord;
+		if (!IsChebyshevNear(ref chunkCoord, ref playerChunkCoord, COLLIDER_RADIUS)
+		    || chunk.Mesh.vertexCount <= 0) return;
+		Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
+		AssignColliderImmediate(chunk);
 	}
 
 	#endregion
@@ -345,9 +353,10 @@ public class World : MonoBehaviour
 			return;
 		}
 
+		int3 chunkChunkPosition = chunk.ChunkPosition;
 		GameObject go = colliderGoPool.Get();
 		go.name                                    = $"ChunkCollider: {chunk.Coord}";
-		go.transform.position                      = chunk.ChunkPosition.ToVector3();
+		go.transform.position                      = chunkChunkPosition.ToVector3();
 		go.GetComponent<MeshCollider>().sharedMesh = chunk.Mesh;
 		activeColliders[chunk.Coord]               = go;
 	}
@@ -361,7 +370,8 @@ public class World : MonoBehaviour
 	private void UpdateNearbyColliders(int3 center)
 	{
 		collidersToReturn.Clear();
-		foreach (int3 c in activeColliders.Keys.Where(c => !IsChebyshevNear(c, center, COLLIDER_RADIUS)))
+		Func<int3, bool> predicate = c => !IsChebyshevNear(ref c, ref center, COLLIDER_RADIUS);
+		foreach (int3 c in activeColliders.Keys.Where(predicate))
 			collidersToReturn.Add(c);
 
 		foreach (int3 c in collidersToReturn)
@@ -378,8 +388,9 @@ public class World : MonoBehaviour
 				pendingBakes.Enqueue(chunk);
 		}
 	}
-
-	private static bool IsChebyshevNear(int3 a, int3 b, int radius)
+	
+	[BurstCompile]
+	private static bool IsChebyshevNear(ref int3 a, ref int3 b, int radius)
 	{
 		int3 d = math.abs(a - b);
 		return d.x <= radius && d.y <= radius && d.z <= radius;
@@ -448,7 +459,7 @@ public class World : MonoBehaviour
 		chunkStorage[coord] = chunk;
 		chunksToCreate.Add(coord);
 	}
-
+	
 	private static int3 WorldToChunkCoord(Vector3 pos)
 	{
 		return new int3(
@@ -456,8 +467,9 @@ public class World : MonoBehaviour
 		                Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE),
 		                Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE));
 	}
-
-	private static bool IsChunkInWorld(int3 coord)
+	
+	[BurstCompile]
+	private static bool IsChunkInWorld(ref int3 coord)
 	{
 		const float half = VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f;
 		return coord.x >= -half && coord.x < half &&

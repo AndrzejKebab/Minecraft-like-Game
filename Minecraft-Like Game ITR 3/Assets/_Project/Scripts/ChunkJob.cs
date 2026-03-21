@@ -1,6 +1,6 @@
+using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -30,12 +30,12 @@ public struct ChunkJob : IJob
 		public NativeArray<ushort> NeighborXNeg;
 		public NativeArray<ushort> NeighborXPos;
 
-		public bool HasNeighborZNeg;
-		public bool HasNeighborZPos;
-		public bool HasNeighborYPos;
-		public bool HasNeighborYNeg;
-		public bool HasNeighborXNeg;
-		public bool HasNeighborXPos;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborZNeg;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborZPos;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborYPos;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborYNeg;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborXNeg;
+		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborXPos;
 	}
 
 	[ReadOnly] public NativeChunkData ChunkData;
@@ -199,11 +199,6 @@ public struct ChunkJob : IJob
 			return ChunkData.BlockTypes[
 			                            ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)
 			                           ].IsSolid;
-
-		// No loaded neighbor in storage — cull the face.
-		// ProcessChunkQueue waits for all in-storage neighbors to be voxel-populated
-		// before scheduling this job, so this only triggers for view-range edge chunks
-		// whose outer neighbors will never be loaded.
 		return true;
 	}
 }

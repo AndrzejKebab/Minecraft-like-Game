@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using FastNoise2.Bindings;
 using NativeTexture;
-using NativeTexture.FastNoise2;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -11,6 +11,7 @@ using static ChunkJob;
 using static PopulateVoxelMapJob;
 using static VoxelData;
 
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public class Chunk
 {
 	#region Public state
@@ -113,22 +114,25 @@ public class Chunk
 			BiomeData         = world.BiomeAttributesJob
 		};
 
-		var worldGen = world.WorldGen;
-		heightMap = NoiseGenerator.GenerateHeightMap(
-			ref worldGen,
-			ChunkPosition,
-			CHUNK_SIZE,
-			world.BiomeAttributesJob.BiomeScale,
-			world.Seed);
+		FastNoise worldGen      = world.WorldGen;
+		int3      chunkWorldPos = ChunkPosition;
+		NoiseGenerator.GenerateHeightMap(out heightMap,
+		                                             ref worldGen,
+		                                             ref chunkWorldPos,
+		                                             CHUNK_SIZE,
+		                                             world.BiomeAttributesJob.BiomeScale,
+		                                             world.Seed);
 
 		VoxelMapPopulated = true;
-		populateVoxelMapHandle = new PopulateVoxelMapJob
+		var populateJob = new PopulateVoxelMapJob
 		{
 			HeightMap     = heightMap.AsReadOnly(),
 			VoxelData     = voxelMapData,
-			ChunkPosition = ChunkPosition,
+			ChunkPosition = chunkWorldPos,
 			VoxelMap      = voxelMap
-		}.Schedule();
+		};
+		
+		populateVoxelMapHandle = populateJob.ScheduleByRef();
 	}
 
 	public void ScheduleMeshDataJob()
@@ -145,7 +149,7 @@ public class Chunk
 
 		NativeChunkData chunkData = BuildChunkData(out JobHandle dependency);
 
-		chunkJobHandle = new ChunkJob
+		var chunkJob = new ChunkJob
 		                 {
 			                 MeshData               = meshData,
 			                 ChunkData              = chunkData,
@@ -156,7 +160,8 @@ public class Chunk
 			                 WorldSizeInVoxels      = WorldSizeInVoxels,
 			                 MeshDataArray          = meshDataArray,
 			                 Layout                 = World.Layout,
-		                 }.Schedule(dependency);
+		                 };
+		chunkJobHandle = chunkJob.ScheduleByRef(dependency);
 	}
 
 	public void CreateMesh()
@@ -205,7 +210,7 @@ public class Chunk
 		for (var face = 0; face < 6; face++)
 		{
 			int3 neighborLocal = localPos + FaceChecks[face];
-			if (IsLocalPosInChunk(neighborLocal)) continue;
+			if (IsLocalPosInChunk(ref neighborLocal)) continue;
 
 			Chunk neighbor = world.GetChunkFromVector3(math.float3(neighborLocal + ChunkPosition));
 			neighbor.ScheduleMeshDataJob();
@@ -251,7 +256,7 @@ public class Chunk
 				dummiesList.Add(map);
 			}
 
-			SetNeighborData(ref data, face, map, hasNeighbor);
+			SetNeighborData(ref data, face,ref map, hasNeighbor);
 		}
 
 		combinedDependency = JobHandle.CombineDependencies(deps.GetSubArray(0, depCount));
@@ -261,8 +266,9 @@ public class Chunk
 		return data;
 	}
 
+	[BurstCompile]
 	private static void SetNeighborData(ref NativeChunkData data, int  face,
-	                                    NativeArray<ushort> map,  bool present)
+	                                   ref NativeArray<ushort> map,  bool present)
 	{
 		switch (face)
 		{
@@ -312,7 +318,8 @@ public class Chunk
 		if (meshData.MeshTriangles.IsCreated) meshData.MeshTriangles.Dispose();
 	}
 
-	private static bool IsLocalPosInChunk(int3 pos)
+	[BurstCompile]
+	private static bool IsLocalPosInChunk(ref int3 pos)
 	{
 		return pos.x is >= 0 and < CHUNK_SIZE &&
 		       pos.y is >= 0 and < CHUNK_SIZE &&
