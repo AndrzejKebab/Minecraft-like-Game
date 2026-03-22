@@ -1,13 +1,12 @@
-using System.Runtime.InteropServices;
 using Unity.Burst;
 using Unity.Mathematics;
 
 [BurstCompile]
 public static class VoxelData
 {
-	public const  byte CHUNK_SIZE                   = 32;
-	public const  int  WORLD_SIZE_IN_CHUNKS         = 1875000;
-	public static byte ViewDistanceInChunks         = 8;
+	public const  byte CHUNK_SIZE           = 32;
+	public const  int  WORLD_SIZE_IN_CHUNKS = 1875000;
+	public static byte ViewDistanceInChunks = 8;
 
 	public static readonly half4[] VoxelVertices =
 	[
@@ -34,24 +33,24 @@ public static class VoxelData
 
 	public static readonly int3[] FaceChecks =
 	[
-		new(0,  0, -1), // Z-
-		new(0,  0,  1), // Z+
-		new(0,  1,  0), // Y+
-		new(0, -1,  0), // Y-
-		new(-1, 0,  0), // X-
-		new(1,  0,  0)  // X+
+		new(0, 0, -1), // Z-
+		new(0, 0, 1),  // Z+
+		new(0, 1, 0),  // Y+
+		new(0, -1, 0), // Y-
+		new(-1, 0, 0), // X-
+		new(1, 0, 0)   // X+
 	];
 
 	// Kept for C# neighbour logic — shader derives these from face index
 	public static readonly int3[] FaceTangents =
 	[
-		new( 1, 0,  0), // Z-
-		new(-1, 0,  0), // Z+
-		new( 1, 0,  0), // Y+
-		new(-1, 0,  0), // Y-
-		new( 0, 0, -1), // X-
-		new( 0, 0,  1)  // X+
+		new(1, 0, 0),  // Z-
+		new(-1, 0, 0), // Z+
+		new(1, 0, 0),  // Y+
+		new(-1, 0, 0), // Y-
+		new(0, 0, -1), // X-
+		new(0, 0, 1)   // X+
 	];
 
-	public static int   WorldSizeInVoxels          => WORLD_SIZE_IN_CHUNKS * CHUNK_SIZE;
+	public static int WorldSizeInVoxels => WORLD_SIZE_IN_CHUNKS * CHUNK_SIZE;
 }

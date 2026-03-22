@@ -37,14 +37,15 @@ public struct PopulateVoxelMapJob : IJob
 				continue;
 			}
 
-			var rawNoise    = HeightMap[new int2(x, z)];
+			var rawNoise = HeightMap[new int2(x, z)];
 			var terrainHeight = NoiseGenerator.HeightFromNoise(
 			                                                   rawNoise,
 			                                                   VoxelData.BiomeData.BiomeHeight,
 			                                                   VoxelData.BiomeData.SolidGroundHeight);
 
 			VoxelMap.SetAtFlatIndex(VoxelData.ChunkSize, x, y, z,
-				NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight, VoxelData.BiomeData.SolidGroundHeight));
+			                        NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight,
+			                                                     VoxelData.BiomeData.SolidGroundHeight));
 		}
 	}
 

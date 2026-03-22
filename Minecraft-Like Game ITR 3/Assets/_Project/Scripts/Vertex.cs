@@ -12,14 +12,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 using System.Runtime.InteropServices;
+using Unity.Burst;
 
+[BurstCompile]
 [StructLayout(LayoutKind.Sequential)]
 public struct Vertex(int posX, int posY, int posZ, int faceIndex, int uvCorner, int texIndex)
 {
-	public uint Data = ((uint)posX    & 0x3Fu)       |
-	                   (((uint)posY    & 0x3Fu) <<  6) |
-	                   (((uint)posZ    & 0x3Fu) << 12) |
+	public uint Data = ((uint)posX & 0x3Fu) |
+	                   (((uint)posY & 0x3Fu) << 6) |
+	                   (((uint)posZ & 0x3Fu) << 12) |
 	                   (((uint)faceIndex & 0x7u) << 18) |
-	                   (((uint)uvCorner  & 0x3u) << 21) |
-	                   (((uint)texIndex  & 0xFFu)<< 23);
+	                   (((uint)uvCorner & 0x3u) << 21) |
+	                   (((uint)texIndex & 0xFFu) << 23);
 }

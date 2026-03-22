@@ -32,7 +32,6 @@ public class Chunk
 	public GraphicsBuffer VerticesBuffer     { get; private set; }
 	public GraphicsBuffer IndicesBuffer      { get; private set; }
 	public GraphicsBuffer IndirectArgsBuffer { get; private set; }
-	public GraphicsBuffer.IndirectDrawIndexedArgs IndirectArgs { get; private set; }
 	
 	// Per-chunk property block — World sets Vertices on it each draw call
 	public readonly MaterialPropertyBlock MatProps = new();
@@ -76,11 +75,6 @@ public class Chunk
 		IsMeshScheduled   = false;
 		VoxelMapPopulated = false;
 		HasMesh           = false;
-		VerticesBuffer	 = new GraphicsBuffer(GraphicsBuffer.Target.Vertex, short.MaxValue, sizeof(uint));
-		IndicesBuffer	 = new GraphicsBuffer(GraphicsBuffer.Target.Index, short.MaxValue, sizeof(ushort));
-		IndirectArgsBuffer =  new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
-		IndirectArgs = new GraphicsBuffer.IndirectDrawIndexedArgs();
-		IndirectArgs = IndirectArgs with { indexCountPerInstance = 0, instanceCount = 1, startIndex = 0, baseVertexIndex = 0, startInstance = 0 };
 	}
 
 	public void Release()
@@ -90,6 +84,7 @@ public class Chunk
 		DisposeHeightMap();
 		DisposeDummies();
 		DisposeMeshData();
+		ReleaseGfxBuffers();
 
 		Mesh.Clear();
 		HasMesh           = false;
@@ -185,17 +180,15 @@ public class Chunk
 		DisposeDummies();
 
 		// Guard: meshData is disposed after a successful build. If CreateMesh is
-		// called a second time in the same frame (EditVoxel's synchronous path
-		// rebuilds neighbors, but those neighbors may still be in chunksToCreate
-		// so ProcessChunkQueue calls CreateMesh on them again), meshData.Vertex
-		// is already not created. Returning here keeps the existing GPU buffers
-		// and HasMesh intact — no flicker.
+		// called a second time in the same frame (e.g. ProcessChunkQueue + EditVoxel
+		// both reaching Phase 6 for the same chunk), return early and keep the
+		// existing GPU buffers — no flicker, no stale draw.
 		if (!meshData.Vertex.IsCreated)
 			return;
 
 		if (meshData.Vertex.Length == 0)
 		{
-			// Chunk is empty — release buffers and mark invisible.
+			ReleaseGfxBuffers();
 			Mesh.Clear();
 			HasMesh = false;
 			DisposeMeshData();
@@ -205,17 +198,37 @@ public class Chunk
 		int vCount = meshData.Vertex.Length;
 		int iCount = meshData.MeshTriangles.Length;
 
-		// ── Build new GPU buffers BEFORE releasing old ones ───────────────────
-		// HasMesh stays true and old buffers stay valid for DrawChunks right up
-		// until the atomic swap below — zero-frame visibility gap.
+		// Allocate brand-new buffers sized exactly to this mesh.
+		// In-place SetData into a pre-allocated buffer can cause a one-frame
+		// white flash on block removal: the GPU may still be reading the old
+		// buffer contents when SetData overwrites them, because Unity must
+		// internally fence the pipeline — and that fence isn't always invisible.
+		// A freshly allocated buffer has never been referenced by a draw command,
+		// so there is no synchronization hazard.
+		var newVerts    = new GraphicsBuffer(GraphicsBuffer.Target.Structured, vCount, sizeof(uint));
+		var newIndices  = new GraphicsBuffer(GraphicsBuffer.Target.Index,      iCount, sizeof(ushort));
+		var newIndirect = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1,
+		                                      GraphicsBuffer.IndirectDrawIndexedArgs.size);
 
-		VerticesBuffer.SetData(meshData.Vertex.AsArray(),0,0, vCount);
-		IndicesBuffer.SetData(meshData.MeshTriangles.AsArray(),0,0, iCount);
+		newVerts.SetData(meshData.Vertex.AsArray());
+		newIndices.SetData(meshData.MeshTriangles.AsArray());
 
-		IndirectArgs            = IndirectArgs with { indexCountPerInstance = (uint)iCount };
-		IndirectArgsBuffer.SetData([IndirectArgs]);
+		var args = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
+		args[0].indexCountPerInstance = (uint)iCount;
+		args[0].instanceCount         = 1;
+		args[0].startIndex            = 0;
+		args[0].baseVertexIndex       = 0;
+		args[0].startInstance         = 0;
+		newIndirect.SetData(args);
 
-		// CPU Mesh — positions only, used by MeshCollider.
+		// Atomic swap: release old buffers and assign new ones in one block.
+		// Old buffers stay alive until this line — DrawChunks in LateUpdate
+		// cannot observe a frame where VerticesBuffer is null.
+		ReleaseGfxBuffers();
+		VerticesBuffer     = newVerts;
+		IndicesBuffer      = newIndices;
+		IndirectArgsBuffer = newIndirect;
+
 		Mesh.Clear();
 		BuildColliderMesh(vCount, iCount);
 
