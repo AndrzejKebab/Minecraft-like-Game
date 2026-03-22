@@ -1,5 +1,4 @@
 using TMPro;
-using Unity.Mathematics;
 using UnityEngine;
 
 public class PlayerBlocks : MonoBehaviour
@@ -9,9 +8,9 @@ public class PlayerBlocks : MonoBehaviour
 	[SerializeField] private Transform       placeHighlightBlock;
 	[SerializeField] private World           world;
 	[SerializeField] private int             reach;
-	private Camera          cam;
 
 	[SerializeField] private LayerMask  chunkMask;
+	private                  Camera     cam;
 	private                  RaycastHit hit;
 	private                  Ray        ray;
 	private                  ushort     selectedBlockIndex = 1;
@@ -49,21 +48,19 @@ public class PlayerBlocks : MonoBehaviour
 		if (Input.GetMouseButtonDown(0))
 		{
 			Vector3 position = highlightBlock.position;
-			world.TryGetChunkFromVector3(position, out Chunk chunk);
-			chunk.EditVoxel(new int3(position), 0);
+			world.EditVoxelAt(position, 0);
 		}
 
 		if (!Input.GetMouseButtonDown(1)) return;
 		{
 			Vector3 position = placeHighlightBlock.position;
-			world.TryGetChunkFromVector3(position, out Chunk chunk);
-			chunk.EditVoxel(new int3(position), selectedBlockIndex);
+			world.EditVoxelAt(position, selectedBlockIndex);
 		}
 	}
 
 	private void PlaceCursorBlocks()
 	{
-		ray                    = cam!.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
+		ray = cam!.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
 		if (Physics.Raycast(ray, out hit, reach, chunkMask))
 		{
 			Debug.DrawLine(ray.origin, hit.point, Color.red);

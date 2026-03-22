@@ -34,8 +34,8 @@ public struct PopulateVoxelMapJob : IJob
 			                                                   VoxelData.BiomeData.SolidGroundHeight);
 
 			VoxelMap.SetAtIndex(x, y, z,
-			                        NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight,
-			                                                     VoxelData.BiomeData.SolidGroundHeight));
+			                    NoiseGenerator.ClassifyVoxel((int)posY, terrainHeight,
+			                                                 VoxelData.BiomeData.SolidGroundHeight));
 		}
 	}
 }

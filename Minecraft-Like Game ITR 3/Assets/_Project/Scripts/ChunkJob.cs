@@ -83,7 +83,7 @@ public struct ChunkJob : IJob
 
 			for (byte corner = 0; corner < 4; corner++)
 			{
-				var  vIdx = VoxelData.VoxelTriangles[face * 4 + corner];
+				var vIdx = VoxelData.VoxelTriangles[face * 4 + corner];
 				var vx   = VoxelData.VoxelVertices[vIdx].x;
 				var vy   = VoxelData.VoxelVertices[vIdx].y;
 				var vz   = VoxelData.VoxelVertices[vIdx].z;
