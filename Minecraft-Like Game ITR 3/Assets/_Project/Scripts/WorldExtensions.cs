@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -12,9 +13,23 @@ public static class WorldExtensions
 	}
 
 	[BurstCompile]
+	public static void SetAtIndex<T>(this NativeArray<T> array, int posX, int posY, int posZ, T data) where T : struct
+	{
+		var index = posX | (posY << 5) | (posZ << 10);
+		array[index] = data;
+	}
+
+	[BurstCompile]
 	public static void UnflattenIndex(in int index, out int3 pos)
 	{
 		pos = new int3(index & 0x1f, (index >> 5) & 0x1f, (index >> 10) & 0x1f);
+	}
+
+	[BurstCompile]
+	public static T GetAtPosition<T>(this NativeArray<T> array, int posX, int posY, int posZ) where T : struct
+	{
+		var index = FlattenIndex(posX, posY, posZ);
+		return array[index];
 	}
 
 	public static Vector3 ToVector3(this ref int3 v)

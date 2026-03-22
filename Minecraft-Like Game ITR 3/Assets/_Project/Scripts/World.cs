@@ -23,7 +23,6 @@ public class World : MonoBehaviour
 		{
 			Chunk chunk = pendingBakes.Dequeue();
 
-			// chunk.Mesh is a position-only collider mesh — vertexCount check still valid
 			if (!chunk.HasMesh || chunk.Mesh.vertexCount == 0) continue;
 
 			int3 chunkCoord       = chunk.Coord;
@@ -42,14 +41,13 @@ public class World : MonoBehaviour
 
 	private const int COLLIDER_RADIUS = 1;
 
-	// Shader property IDs — must match names in GetVertexData.hlsl / your main shader
-	public static readonly int VerticesPropertyId      = Shader.PropertyToID("vertices");
-	public static readonly int ChunkPositionPropertyId = Shader.PropertyToID("uChunkPosition");
+	private static readonly int verticesPropertyId      = Shader.PropertyToID("vertices");
+	private static readonly int chunkPositionPropertyId = Shader.PropertyToID("uChunkPosition");
 
-	private static readonly Quaternion drawRotation = Quaternion.identity;
-
-	// Layout removed — no longer using Mesh vertex attribute streams for rendering.
-
+	private const           float   SIZE    = VoxelData.CHUNK_SIZE;
+	private static readonly Vector3 extents = new (SIZE, SIZE, SIZE);
+	private static readonly Vector3 half    = extents * 0.5f;
+	
 	#endregion
 
 	#region Inspector fields
@@ -68,8 +66,11 @@ public class World : MonoBehaviour
 
 	public BlockTypes[]       BlockTypes         => blockTypes;
 	public BiomeAttributesJob BiomeAttributesJob { get; private set; }
-	public Bounds             ChunkBound         { get; private set; }
-	public Transform          PlayerTransform    { get; private set; }
+
+	public Bounds ChunkBound { get; } = new(
+	                                        new Vector3(SIZE * 0.5f, SIZE * 0.5f, SIZE * 0.5f),
+	                                        new Vector3(SIZE, SIZE, SIZE));
+	[field:SerializeField] public Transform          PlayerTransform    { get; private set; }
 	public int3               PlayerChunkCoord   { get; private set; }
 
 	public int Seed => seed;
@@ -78,9 +79,9 @@ public class World : MonoBehaviour
 
 	[NonSerialized] public NativeArray<BlockTypesJob> BlockTypesJobs;
 
-	public Chunk GetChunkFromVector3(Vector3 pos)
+	public bool TryGetChunkFromVector3(Vector3 pos, out Chunk chunk)
 	{
-		return chunkStorage[WorldToChunkCoord(pos)];
+		return	chunkStorage.TryGetValue(WorldToChunkCoord(pos), out chunk);
 	}
 
 	public bool TryGetChunk(int3 coord, out Chunk chunk)
@@ -95,7 +96,6 @@ public class World : MonoBehaviour
 	private int       chunkLayer;
 	private int3      playerLastChunkCoord;
 	private byte      lastViewDistance = VoxelData.ViewDistanceInChunks;
-	private FastNoise worldGen;
 
 	private ChunkPool    chunkPool;
 	private ColliderPool colliderGoPool;
@@ -110,13 +110,8 @@ public class World : MonoBehaviour
 	private readonly List<int3>    chunksToRelease   = [];
 	private readonly List<int3>    collidersToReturn = [];
 	private readonly HashSet<int3> desiredCoords     = [];
-
-	/// <summary>Subset of desiredCoords within render distance — only these get a mesh job.</summary>
+	
 	private readonly HashSet<int3> renderCoords = [];
-
-	// ── Rendering ─────────────────────────────────────────────────────────────
-	// A single shared RenderParams. worldBounds and matProps.Vertices are
-	// patched per-chunk inside DrawChunks before each indirect draw call.
 	private RenderParams renderParams;
 
 	#endregion
@@ -125,20 +120,11 @@ public class World : MonoBehaviour
 
 	private void Awake()
 	{
-		// No Layout NativeArray — we no longer set vertex attribute descriptors on
-		// a Mesh. The GPU reads packed uint vertices from a StructuredBuffer instead.
-
-		const float size = VoxelData.CHUNK_SIZE;
-		ChunkBound = new Bounds(
-		                        new Vector3(size * 0.5f, size * 0.5f, size * 0.5f),
-		                        new Vector3(size, size, size));
-
 		BlockTypesJobs = new NativeArray<BlockTypesJob>(blockTypes.Length, Allocator.Persistent);
 		for (var i = 0; i < blockTypes.Length; i++)
 			BlockTypesJobs[i] = blockTypes[i].BlockTypeData;
 
 		BiomeAttributesJob = biomeAttributes.BiomeData;
-		PlayerTransform    = GameObject.Find("PlayerCapsule").GetComponent<Transform>();
 		chunkLayer         = LayerMask.NameToLayer("Chunk");
 
 		InitChunkPool();
@@ -175,12 +161,7 @@ public class World : MonoBehaviour
 		ProcessChunkQueue();
 		ProcessColliderBakeQueue();
 	}
-
-	// DrawChunks is in LateUpdate, not Update, so it always runs after ALL
-	// other MonoBehaviour.Update calls — including PlayerBlocks.Update which
-	// calls EditVoxel and updates the GPU buffers via SetData. If DrawChunks
-	// ran in Update it could submit draw commands before EditVoxel's SetData
-	// calls completed, causing a one-frame stale draw on block removal.
+	
 	private void LateUpdate()
 	{
 		DrawChunks();
@@ -198,7 +179,6 @@ public class World : MonoBehaviour
 		colliderGoPool.Dispose();
 
 		BlockTypesJobs.Dispose();
-		// Layout.Dispose() removed — Layout was deleted.
 	}
 
 	#endregion
@@ -207,13 +187,12 @@ public class World : MonoBehaviour
 
 	private void SetupRenderParams()
 	{
-		// worldBounds is a placeholder; it is overwritten per-chunk in DrawChunks.
 		renderParams = new RenderParams(material)
 		               {
 			               layer                = chunkLayer,
 			               renderingLayerMask   = RenderingLayerMask.defaultRenderingLayerMask,
 			               rendererPriority     = 0,
-			               worldBounds          = ChunkBound, // overridden per-chunk below
+			               worldBounds          = ChunkBound,
 			               motionVectorMode     = MotionVectorGenerationMode.Camera,
 			               reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox,
 			               shadowCastingMode    = ShadowCastingMode.On,
@@ -225,29 +204,18 @@ public class World : MonoBehaviour
 
 	private void DrawChunks()
 	{
-		const float size    = VoxelData.CHUNK_SIZE;
-		var         extents = new Vector3(size, size, size);
-		Vector3     half    = extents * 0.5f;
-
 		foreach (Chunk chunk in chunkStorage.Select(pair => pair.Value)
 		                                    .Where(c => c.IsActive && c.HasMesh))
 		{
-			// Guard: HasMesh is set synchronously in CreateMesh, but EditVoxel can
-			// release buffers and re-schedule in the same frame, leaving a window
-			// where HasMesh is true but the new buffers aren't allocated yet.
 			if (chunk.VerticesBuffer == null ||
 			    chunk.IndicesBuffer == null ||
 			    chunk.IndirectArgsBuffer == null) continue;
-
-			// Per-chunk world-space bounds for frustum culling
+			
 			int3 chunkChunkPosition = chunk.ChunkPosition;
 			renderParams.worldBounds = new Bounds(chunkChunkPosition.ToVector3() + half, extents);
 
-			// Use each chunk's own MaterialPropertyBlock — sharing one across chunks
-			// in the same frame would clobber earlier draw calls since
-			// RenderPrimitivesIndexedIndirect does not snapshot matProps at call time.
-			chunk.MatProps.SetBuffer(VerticesPropertyId, chunk.VerticesBuffer);
-			chunk.MatProps.SetVector(ChunkPositionPropertyId,
+			chunk.MatProps.SetBuffer(verticesPropertyId, chunk.VerticesBuffer);
+			chunk.MatProps.SetVector(chunkPositionPropertyId,
 			                         new Vector4(chunkChunkPosition.x, chunkChunkPosition.y, chunkChunkPosition.z, 0f));
 			renderParams.matProps = chunk.MatProps;
 
@@ -321,11 +289,7 @@ public class World : MonoBehaviour
 		for (var i = removeIndices.Count - 1; i >= 0; i--)
 			chunksToCreate.RemoveAt(removeIndices[i]);
 	}
-
-	/// <summary>
-	///     Returns true when every chunk neighbor that exists in storage has its
-	///     voxel map populated.
-	/// </summary>
+	
 	private bool AllStoredNeighborsMapped(int3 coord)
 	{
 		for (var face = 0; face < 6; face++)
@@ -356,7 +320,6 @@ public class World : MonoBehaviour
 		for (var z = center.z - populateDist; z < center.z + populateDist; z++)
 		{
 			int3 c = new(x, y, z);
-			if (!IsChunkInWorld(ref c)) continue;
 			desiredCoords.Add(c);
 			if (math.abs(x - center.x) < renderDist &&
 			    math.abs(y - center.y) < renderDist &&
@@ -402,7 +365,6 @@ public class World : MonoBehaviour
 	{
 		int3 chunkCoord       = chunk.Coord;
 		int3 playerChunkCoord = PlayerChunkCoord;
-		// chunk.Mesh is the collider-only mesh — vertexCount check still valid
 		if (!IsChebyshevNear(ref chunkCoord, ref playerChunkCoord, COLLIDER_RADIUS)
 		    || chunk.Mesh.vertexCount <= 0) return;
 		Physics.BakeMesh(chunk.Mesh.GetEntityId(), false);
@@ -516,8 +478,7 @@ public class World : MonoBehaviour
 
 	private void SetFastNoise()
 	{
-		worldGen = FastNoise.FromEncodedNodeTree(encodedNodeTree);
-		WorldGen = worldGen;
+		WorldGen = FastNoise.FromEncodedNodeTree(encodedNodeTree);
 	}
 
 	private void CreateNewChunk(int3 coord)
@@ -534,15 +495,6 @@ public class World : MonoBehaviour
 		                Mathf.FloorToInt(pos.x / VoxelData.CHUNK_SIZE),
 		                Mathf.FloorToInt(pos.y / VoxelData.CHUNK_SIZE),
 		                Mathf.FloorToInt(pos.z / VoxelData.CHUNK_SIZE));
-	}
-
-	[BurstCompile]
-	private static bool IsChunkInWorld(ref int3 coord)
-	{
-		const float half = VoxelData.WORLD_SIZE_IN_CHUNKS * 0.5f;
-		return coord.x >= -half && coord.x < half &&
-		       coord.y >= -half && coord.y < half &&
-		       coord.z >= -half && coord.z < half;
 	}
 
 	#endregion

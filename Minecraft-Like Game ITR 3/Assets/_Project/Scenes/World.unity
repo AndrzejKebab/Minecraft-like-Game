@@ -608,7 +608,7 @@ PrefabInstance:
     - target: {fileID: 2303759943111181265, guid: 28206b6d63e02114bb1d33cd8f08e939,
         type: 3}
       propertyPath: m_OnValueChanged.m_PersistentCalls.m_Calls.Array.data[0].m_MethodName
-      value: ChangeVolume
+      value: ChangeViewDistance
       objectReference: {fileID: 0}
     - target: {fileID: 4767659727350700750, guid: 28206b6d63e02114bb1d33cd8f08e939,
         type: 3}
@@ -1486,6 +1486,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!4 &1037505463 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 4904283517436763971, guid: bc5d290ef5433d44bab460c7f9f15583,
+    type: 3}
+  m_PrefabInstance: {fileID: 466223066}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1099953315
 GameObject:
   m_ObjectHideFlags: 0
@@ -1885,6 +1891,7 @@ MonoBehaviour:
   encodedNodeTree: E@BBZEG@BD8JFgokCMP1KD8JLgAB@BCQ0ABw@BgAACBACQc@BWRBA9Cle/GGZmZj8EA5qZGT8LAACAPxwDAABwQgQ=
   maxChunkInitsPerFrame: 1
   maxColliderBakesPerFrame: 1
+  <PlayerTransform>k__BackingField: {fileID: 1037505463}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

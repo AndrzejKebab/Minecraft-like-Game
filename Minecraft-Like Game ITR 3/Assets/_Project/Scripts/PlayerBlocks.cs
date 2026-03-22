@@ -7,11 +7,11 @@ public class PlayerBlocks : MonoBehaviour
 	[SerializeField] private TextMeshProUGUI selectedBlockText;
 	[SerializeField] private Transform       highlightBlock;
 	[SerializeField] private Transform       placeHighlightBlock;
-	[SerializeField] private Camera          cam;
 	[SerializeField] private World           world;
 	[SerializeField] private int             reach;
+	private Camera          cam;
 
-	[SerializeField] private LayerMask  chunkMask = 6;
+	[SerializeField] private LayerMask  chunkMask;
 	private                  RaycastHit hit;
 	private                  Ray        ray;
 	private                  ushort     selectedBlockIndex = 1;
@@ -19,6 +19,7 @@ public class PlayerBlocks : MonoBehaviour
 	private void Awake()
 	{
 		selectedBlockText.text = $"Selected Block: {world.BlockTypes[selectedBlockIndex].name}";
+		cam                    = Camera.main;
 	}
 
 	private void Update()
@@ -48,20 +49,21 @@ public class PlayerBlocks : MonoBehaviour
 		if (Input.GetMouseButtonDown(0))
 		{
 			Vector3 position = highlightBlock.position;
-			world.GetChunkFromVector3(position).EditVoxel(new int3(position), 0);
+			world.TryGetChunkFromVector3(position, out Chunk chunk);
+			chunk.EditVoxel(new int3(position), 0);
 		}
 
 		if (!Input.GetMouseButtonDown(1)) return;
 		{
 			Vector3 position = placeHighlightBlock.position;
-			world.GetChunkFromVector3(position).EditVoxel(new int3(position), selectedBlockIndex);
+			world.TryGetChunkFromVector3(position, out Chunk chunk);
+			chunk.EditVoxel(new int3(position), selectedBlockIndex);
 		}
 	}
 
 	private void PlaceCursorBlocks()
 	{
-		ray = cam.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
-
+		ray                    = cam!.ScreenPointToRay(new Vector3(Screen.width / 2, Screen.height / 2, 0));
 		if (Physics.Raycast(ray, out hit, reach, chunkMask))
 		{
 			Debug.DrawLine(ray.origin, hit.point, Color.red);

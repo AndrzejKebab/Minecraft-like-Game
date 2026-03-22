@@ -34,7 +34,7 @@ public class DebugScreen : MonoBehaviour
 			$"Coord: {playerCoords.x} / {playerCoords.y} / {playerCoords.z} <br>Chunk: {chunkCoords.x} / {chunkCoords.y} / {chunkCoords.z}";
 	}
 
-	public void ChangeVolume(Slider slider)
+	public void ChangeViewDistance(Slider slider)
 	{
 		if (slider.name != "ViewDistSlider") return;
 		PlayerPrefs.SetInt("ViewDist", (int)viewDistance.value);

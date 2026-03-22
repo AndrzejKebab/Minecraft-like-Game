@@ -3,23 +3,19 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UtilityLibrary.Unity.Runtime;
 
 [BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public struct ChunkJob : IJob
 {
-	// ── Output: raw lists uploaded to GraphicsBuffers by Chunk after the job ──
 	public struct NativeMeshData
 	{
 		public NativeList<Vertex> Vertex;
 		public NativeList<ushort> MeshTriangles;
 	}
 
-	// ── Per-chunk voxel data ──────────────────────────────────────────────────
 	public struct NativeChunkData
 	{
 		public NativeArray<BlockTypesJob> BlockTypes;
-		public BiomeAttributesJob         BiomeData;
 		public NativeArray<ushort>        VoxelMap;
 
 		public NativeArray<ushort> NeighborZNeg;
@@ -37,7 +33,6 @@ public struct ChunkJob : IJob
 		[MarshalAs(UnmanagedType.U1)] public bool HasNeighborXPos;
 	}
 
-	// ── Job fields ────────────────────────────────────────────────────────────
 	[ReadOnly] public NativeChunkData ChunkData;
 	public            NativeMeshData  MeshData;
 
@@ -45,12 +40,8 @@ public struct ChunkJob : IJob
 	[ReadOnly] public int  WorldSizeInVoxels;
 	[ReadOnly] public int3 Position;
 
-	// MeshDataArray and Layout are gone — the NativeLists are uploaded directly
-	// to GraphicsBuffers by Chunk.CreateMesh() once the job completes.
-
 	private ushort vertexIndex;
 
-	// ── Entry point ───────────────────────────────────────────────────────────
 	public void Execute()
 	{
 		CreateMeshData();
@@ -61,7 +52,7 @@ public struct ChunkJob : IJob
 		for (var y = 0; y < ChunkSize; y++)
 		for (var x = 0; x < ChunkSize; x++)
 		for (var z = 0; z < ChunkSize; z++)
-			if (ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, x, y, z)].IsSolid)
+			if (ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtPosition(x, y, z)].IsSolid)
 				AddVoxelDataToChunk(new int3(x, y, z));
 	}
 
@@ -80,7 +71,7 @@ public struct ChunkJob : IJob
 		{
 			if (CheckVoxel(pos + VoxelData.FaceChecks[face])) continue;
 
-			var blockID  = ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z);
+			var blockID  = ChunkData.VoxelMap.GetAtPosition(pos.x, pos.y, pos.z);
 			var texIndex = ChunkData.BlockTypes[blockID].GetTexture2D(face);
 
 			MeshData.MeshTriangles.Add(vertexIndex);
@@ -108,7 +99,6 @@ public struct ChunkJob : IJob
 		}
 	}
 
-	// ── Neighbour voxel check ──────────────────────────────────────────────────
 	private bool IsVoxelInChunk(int3 pos)
 	{
 		return pos.x >= 0 && pos.x <= ChunkSize - 1 &&
@@ -119,23 +109,23 @@ public struct ChunkJob : IJob
 	private bool CheckVoxel(int3 pos)
 	{
 		if (IsVoxelInChunk(pos))
-			return ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtFlatIndex(ChunkSize, pos.x, pos.y, pos.z)].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.VoxelMap.GetAtPosition(pos.x, pos.y, pos.z)].IsSolid;
 
 		if (pos.z < 0 && ChunkData.HasNeighborZNeg)
-			return ChunkData.BlockTypes[ChunkData.NeighborZNeg.GetAtFlatIndex(ChunkSize, pos.x, pos.y, ChunkSize - 1)]
+			return ChunkData.BlockTypes[ChunkData.NeighborZNeg.GetAtPosition(pos.x, pos.y, ChunkSize - 1)]
 			                .IsSolid;
 		if (pos.z >= ChunkSize && ChunkData.HasNeighborZPos)
-			return ChunkData.BlockTypes[ChunkData.NeighborZPos.GetAtFlatIndex(ChunkSize, pos.x, pos.y, 0)].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.NeighborZPos.GetAtPosition(pos.x, pos.y, 0)].IsSolid;
 		if (pos.y >= ChunkSize && ChunkData.HasNeighborYPos)
-			return ChunkData.BlockTypes[ChunkData.NeighborYPos.GetAtFlatIndex(ChunkSize, pos.x, 0, pos.z)].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.NeighborYPos.GetAtPosition(pos.x, 0, pos.z)].IsSolid;
 		if (pos.y < 0 && ChunkData.HasNeighborYNeg)
-			return ChunkData.BlockTypes[ChunkData.NeighborYNeg.GetAtFlatIndex(ChunkSize, pos.x, ChunkSize - 1, pos.z)]
+			return ChunkData.BlockTypes[ChunkData.NeighborYNeg.GetAtPosition(pos.x, ChunkSize - 1, pos.z)]
 			                .IsSolid;
 		if (pos.x < 0 && ChunkData.HasNeighborXNeg)
-			return ChunkData.BlockTypes[ChunkData.NeighborXNeg.GetAtFlatIndex(ChunkSize, ChunkSize - 1, pos.y, pos.z)]
+			return ChunkData.BlockTypes[ChunkData.NeighborXNeg.GetAtPosition(ChunkSize - 1, pos.y, pos.z)]
 			                .IsSolid;
 		if (pos.x >= ChunkSize && ChunkData.HasNeighborXPos)
-			return ChunkData.BlockTypes[ChunkData.NeighborXPos.GetAtFlatIndex(ChunkSize, 0, pos.y, pos.z)].IsSolid;
+			return ChunkData.BlockTypes[ChunkData.NeighborXPos.GetAtPosition(0, pos.y, pos.z)].IsSolid;
 
 		return true;
 	}
