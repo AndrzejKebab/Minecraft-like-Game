@@ -91,7 +91,13 @@ fmod_editor.log
 
 # Custom
 .idea
+/FMOD/ProjectCorn/.cache
+/FMOD/ProjectCorn/.user
+/FMOD/ProjectCorn/.unsaved
+/FMOD/ProjectCorn/Assets
+!*/Assets/*
 */Assets/*
-!_Project
-/Packages/com.occasoftware.super-simple-skybox
+!*/Assets/_Project
+/Minecraft-Like Game ITR 3
 /Minecraft-Like Game ITR 5.1
+/Minecraft-Like Game ECS/Packages

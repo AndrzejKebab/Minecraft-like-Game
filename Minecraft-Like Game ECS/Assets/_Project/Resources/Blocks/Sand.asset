@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4c0348593424ed4821cb84cb4245bb3, type: 3}
+  m_Name: Sand
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.World.BlockDataSo
+  BlockName: Sand
+  Block:
+    ID: 5
+    MeshID: 0
+    IsTransparent: 0
+    IsFluid: 0
+    BaseTextures:
+      Front: 10
+      Back: 10
+      Top: 10
+      Bottom: 10
+      Left: 10
+      Right: 10
+    OverlayTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+  VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
+  TexturesLayer:
+  - TextureType: 0
+    FrontTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
+    BackTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
+    TopTexture: {fileID: 2800000, guid: d37eff794db3d9148bcb23ffaae6afbe, type: 3}
+    BottomTexture: {fileID: 2800000, guid: d37eff794db3d9148bcb23ffaae6afbe, type: 3}
+    RightTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
