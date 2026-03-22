@@ -7,16 +7,16 @@ public static class VoxelData
 	public const  byte CHUNK_SIZE           = 32;
 	public static byte ViewDistanceInChunks = 8;
 
-	public static readonly half4[] VoxelVertices =
+	public static readonly int3[] VoxelVertices =
 	[
-		new((half)0, (half)0, (half)0, (half)0),
-		new((half)1, (half)0, (half)0, (half)0),
-		new((half)1, (half)1, (half)0, (half)0),
-		new((half)0, (half)1, (half)0, (half)0),
-		new((half)0, (half)0, (half)1, (half)0),
-		new((half)1, (half)0, (half)1, (half)0),
-		new((half)1, (half)1, (half)1, (half)0),
-		new((half)0, (half)1, (half)1, (half)0)
+		new(0, 0, 0),
+		new(1, 0, 0),
+		new(1, 1, 0),
+		new(0, 1, 0),
+		new(0, 0, 1),
+		new(1, 0, 1),
+		new(1, 1, 1),
+		new(0, 1, 1)
 	];
 
 	// Each row = 4 vertex indices for one face (Z-, Z+, Y+, Y-, X-, X+)

@@ -6,6 +6,7 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UtilityLibrary.Unity.Runtime.PriorityQueue;
 using ZLinq;
 using Random = UnityEngine.Random;
 using ChunkPool = UnityEngine.Pool.ObjectPool<Chunk>;
@@ -103,8 +104,8 @@ public class World : MonoBehaviour
 	private readonly Dictionary<int3, Chunk>      chunkStorage    = new();
 	private readonly Dictionary<int3, GameObject> activeColliders = new();
 
-	private readonly List<int3>   chunksToCreate = [];
-	private readonly Queue<Chunk> pendingBakes   = new();
+	private readonly SimpleFastPriorityQueue<int3, float> chunksToCreate = [];
+	private readonly Queue<Chunk>               pendingBakes   = new();
 
 	private readonly List<int>     removeIndices     = [];
 	private readonly List<int3>    chunksToRelease   = [];
@@ -234,20 +235,17 @@ public class World : MonoBehaviour
 	private void ProcessChunkQueue()
 	{
 		if (chunksToCreate.Count == 0) return;
-
+ 
 		var initsThisFrame = 0;
-		removeIndices.Clear();
-
-		for (var i = 0; i < chunksToCreate.Count; i++)
+ 
+		foreach (int3 coord in chunksToCreate)
 		{
-			int3 coord = chunksToCreate[i];
-
 			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
 			{
-				removeIndices.Add(i);
+				chunksToCreate.Remove(coord);
 				continue;
 			}
-
+ 
 			// Phase 1 — schedule the voxel populate job.
 			if (!chunk.IsScheduled)
 			{
@@ -257,37 +255,33 @@ public class World : MonoBehaviour
 				if (!isOuterRing) initsThisFrame++;
 				continue;
 			}
-
+ 
 			// Phase 2 — wait for voxel job to finish.
 			if (!chunk.VoxelMapPopulated) continue;
-
-			// Phase 3 — outer-ring (populate-only) chunks are done as soon as their
-			// voxel map is ready.
+ 
+			// Phase 3 — outer-ring done, no mesh needed.
 			if (!renderCoords.Contains(coord))
 			{
-				removeIndices.Add(i);
+				chunksToCreate.Remove(coord);
 				continue;
 			}
-
+ 
 			// Phase 4 — wait until every in-storage neighbor has its voxel map populated.
 			if (!AllStoredNeighborsMapped(coord)) continue;
-
+ 
 			// Phase 5 — schedule mesh job once.
 			if (!chunk.IsMeshScheduled)
 			{
 				chunk.ScheduleMeshDataJob();
 				continue;
 			}
-
+ 
 			// Phase 6 — mesh job finished, upload to GPU.
 			if (!chunk.IsMeshDataCompleted) continue;
-
+ 
 			chunk.CreateMesh();
-			removeIndices.Add(i);
+			chunksToCreate.Remove(coord);
 		}
-
-		for (var i = removeIndices.Count - 1; i >= 0; i--)
-			chunksToCreate.RemoveAt(removeIndices[i]);
 	}
 	
 	private bool AllStoredNeighborsMapped(int3 coord)
@@ -312,7 +306,7 @@ public class World : MonoBehaviour
 		int3 center       = WorldToChunkCoord(PlayerTransform.position);
 		int  renderDist   = VoxelData.ViewDistanceInChunks;
 		var  populateDist = renderDist + 1;
-
+ 
 		desiredCoords.Clear();
 		renderCoords.Clear();
 		for (var y = center.y - populateDist; y < center.y + populateDist; y++)
@@ -326,39 +320,39 @@ public class World : MonoBehaviour
 			    math.abs(z - center.z) < renderDist)
 				renderCoords.Add(c);
 		}
-
+ 
 		chunksToRelease.Clear();
 		foreach (int3 c in chunkStorage.Keys.Where(c => !desiredCoords.Contains(c)))
 			chunksToRelease.Add(c);
-
+ 
 		foreach (int3 c in chunksToRelease)
 		{
-			chunksToCreate.Remove(c);
+			if (chunksToCreate.Contains(c)) chunksToCreate.Remove(c);
 			ReturnCollider(c);
 			if (chunkStorage.Remove(c, out Chunk chunk))
 				chunkPool.Release(chunk);
 		}
-
-		var anyAdded = false;
+ 
 		foreach (int3 c in desiredCoords)
+		{
+			var dist = math.distance(center, c);
 			if (!chunkStorage.ContainsKey(c))
 			{
-				CreateNewChunk(c);
-				anyAdded = true;
+				CreateNewChunk(c, dist);
+			}
+			else if (chunksToCreate.Contains(c))
+			{
+				chunksToCreate.UpdatePriority(c, dist);
 			}
 			else if (renderCoords.Contains(c)
 			         && chunkStorage.TryGetValue(c, out Chunk existing)
 			         && existing.VoxelMapPopulated
 			         && !existing.HasMesh
-			         && !existing.IsMeshScheduled
-			         && !chunksToCreate.Contains(c))
+			         && !existing.IsMeshScheduled)
 			{
-				chunksToCreate.Add(c);
-				anyAdded = true;
+				chunksToCreate.Enqueue(c, dist);
 			}
-
-		if (anyAdded)
-			chunksToCreate.Sort((a, b) => math.distance(center, a).CompareTo(math.distance(center, b)));
+		}
 	}
 
 	public void OnChunkMeshReady(Chunk chunk)
@@ -481,12 +475,12 @@ public class World : MonoBehaviour
 		WorldGen = FastNoise.FromEncodedNodeTree(encodedNodeTree);
 	}
 
-	private void CreateNewChunk(int3 coord)
+	private void CreateNewChunk(int3 coord, float priority)
 	{
 		Chunk chunk = chunkPool.Get();
 		chunk.Init(coord, this);
 		chunkStorage[coord] = chunk;
-		chunksToCreate.Add(coord);
+		chunksToCreate.Enqueue(coord, priority);
 	}
 
 	private static int3 WorldToChunkCoord(Vector3 pos)
@@ -498,4 +492,13 @@ public class World : MonoBehaviour
 	}
 
 	#endregion
+}
+
+public sealed class Int3EqualityComparer : IEqualityComparer<Unity.Mathematics.int3>
+{
+	public bool Equals(Unity.Mathematics.int3 x, Unity.Mathematics.int3 y) =>
+		x.x == y.x && x.y == y.y && x.z == y.z;
+ 
+	public int GetHashCode(Unity.Mathematics.int3 obj) =>
+		System.HashCode.Combine(obj.x, obj.y, obj.z);
 }

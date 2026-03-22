@@ -84,14 +84,14 @@ public struct ChunkJob : IJob
 			for (byte corner = 0; corner < 4; corner++)
 			{
 				var  vIdx = VoxelData.VoxelTriangles[face * 4 + corner];
-				half vx   = VoxelData.VoxelVertices[vIdx].x;
-				half vy   = VoxelData.VoxelVertices[vIdx].y;
-				half vz   = VoxelData.VoxelVertices[vIdx].z;
+				var vx   = VoxelData.VoxelVertices[vIdx].x;
+				var vy   = VoxelData.VoxelVertices[vIdx].y;
+				var vz   = VoxelData.VoxelVertices[vIdx].z;
 
 				MeshData.Vertex.Add(new Vertex(
-				                               pos.x + (int)vx,
-				                               pos.y + (int)vy,
-				                               pos.z + (int)vz,
+				                               pos.x + vx,
+				                               pos.y + vy,
+				                               pos.z + vz,
 				                               face, corner, texIndex));
 			}
 
