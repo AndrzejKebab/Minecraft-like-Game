@@ -79,20 +79,6 @@
                 },
                 "m_SlotId": 3
             }
-        },
-        {
-            "m_OutputSlot": {
-                "m_Node": {
-                    "m_Id": "9dd4ad88862542ab8e524a0945fbdcf4"
-                },
-                "m_SlotId": 4
-            },
-            "m_InputSlot": {
-                "m_Node": {
-                    "m_Id": "65ce84ac067b475cbe5341462f565306"
-                },
-                "m_SlotId": 4
-            }
         }
     ],
     "m_VertexContext": {
@@ -117,7 +103,7 @@
         "preventRotation": false
     },
     "m_Path": "Sub Graphs",
-    "m_GraphPrecision": 0,
+    "m_GraphPrecision": 1,
     "m_PreviewMode": 2,
     "m_OutputNode": {
         "m_Id": "65ce84ac067b475cbe5341462f565306"
@@ -265,9 +251,6 @@
             "m_Id": "17ed3e5afd49411088df87241e00ad08"
         },
         {
-            "m_Id": "9877869678a5480cbdd8779e5740d91c"
-        },
-        {
             "m_Id": "19bf6e49ce294cf6ab25fc240eaf2964"
         }
     ],
@@ -280,30 +263,6 @@
         "m_SerializableColors": []
     },
     "IsFirstSlotValid": true
-}
-
-{
-    "m_SGVersion": 0,
-    "m_Type": "UnityEditor.ShaderGraph.Vector3MaterialSlot",
-    "m_ObjectId": "782b95efe0d641b6b797286dea53a06c",
-    "m_Id": 4,
-    "m_DisplayName": "Tangent",
-    "m_SlotType": 1,
-    "m_Hidden": false,
-    "m_HideConnector": false,
-    "m_ShaderOutputName": "Tangent",
-    "m_StageCapability": 3,
-    "m_Value": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0
-    },
-    "m_DefaultValue": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0
-    },
-    "m_Labels": []
 }
 
 {
@@ -321,30 +280,6 @@
     "m_DefaultValue": 0.0,
     "m_Labels": [],
     "m_LiteralMode": false
-}
-
-{
-    "m_SGVersion": 0,
-    "m_Type": "UnityEditor.ShaderGraph.Vector3MaterialSlot",
-    "m_ObjectId": "9877869678a5480cbdd8779e5740d91c",
-    "m_Id": 4,
-    "m_DisplayName": "Tangent",
-    "m_SlotType": 0,
-    "m_Hidden": false,
-    "m_HideConnector": false,
-    "m_ShaderOutputName": "Tangent",
-    "m_StageCapability": 1,
-    "m_Value": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0
-    },
-    "m_DefaultValue": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0
-    },
-    "m_Labels": []
 }
 
 {
@@ -374,9 +309,6 @@
         },
         {
             "m_Id": "55b15fa837b84760bcd168cc7b63cdb7"
-        },
-        {
-            "m_Id": "782b95efe0d641b6b797286dea53a06c"
         },
         {
             "m_Id": "cd0e949790424faf8490ffc975132429"

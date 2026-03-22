@@ -167,7 +167,6 @@ public class World : MonoBehaviour
 
 	private void SetupRenderParams()
 	{
-		// worldBounds is a placeholder; it is overwritten per-chunk in DrawChunks.
 		renderParams = new RenderParams(material)
 		{
 			layer                 = chunkLayer,

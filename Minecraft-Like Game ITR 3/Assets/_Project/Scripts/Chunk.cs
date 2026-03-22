@@ -32,7 +32,8 @@ public class Chunk
 	public GraphicsBuffer VerticesBuffer     { get; private set; }
 	public GraphicsBuffer IndicesBuffer      { get; private set; }
 	public GraphicsBuffer IndirectArgsBuffer { get; private set; }
-
+	public GraphicsBuffer.IndirectDrawIndexedArgs IndirectArgs { get; private set; }
+	
 	// Per-chunk property block — World sets Vertices on it each draw call
 	public readonly MaterialPropertyBlock MatProps = new();
 
@@ -75,6 +76,11 @@ public class Chunk
 		IsMeshScheduled   = false;
 		VoxelMapPopulated = false;
 		HasMesh           = false;
+		VerticesBuffer	 = new GraphicsBuffer(GraphicsBuffer.Target.Vertex, short.MaxValue, sizeof(uint));
+		IndicesBuffer	 = new GraphicsBuffer(GraphicsBuffer.Target.Index, short.MaxValue, sizeof(ushort));
+		IndirectArgsBuffer =  new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+		IndirectArgs = new GraphicsBuffer.IndirectDrawIndexedArgs();
+		IndirectArgs = IndirectArgs with { indexCountPerInstance = 0, instanceCount = 1, startIndex = 0, baseVertexIndex = 0, startInstance = 0 };
 	}
 
 	public void Release()
@@ -84,7 +90,6 @@ public class Chunk
 		DisposeHeightMap();
 		DisposeDummies();
 		DisposeMeshData();
-		ReleaseGfxBuffers();
 
 		Mesh.Clear();
 		HasMesh           = false;
@@ -146,6 +151,10 @@ public class Chunk
 
 	public void ScheduleMeshDataJob()
 	{
+		// Complete and discard any in-flight job before overwriting its NativeLists.
+		chunkJobHandle.Complete();
+		DisposeMeshData();
+
 		IsMeshScheduled = true;
 
 		meshData = new NativeMeshData
@@ -175,13 +184,20 @@ public class Chunk
 		DisposeHeightMap();
 		DisposeDummies();
 
-		// Release any previously allocated GPU buffers before overwriting
-		ReleaseGfxBuffers();
-		Mesh.Clear();
-		HasMesh = false;
+		// Guard: meshData is disposed after a successful build. If CreateMesh is
+		// called a second time in the same frame (EditVoxel's synchronous path
+		// rebuilds neighbors, but those neighbors may still be in chunksToCreate
+		// so ProcessChunkQueue calls CreateMesh on them again), meshData.Vertex
+		// is already not created. Returning here keeps the existing GPU buffers
+		// and HasMesh intact — no flicker.
+		if (!meshData.Vertex.IsCreated)
+			return;
 
 		if (meshData.Vertex.Length == 0)
 		{
+			// Chunk is empty — release buffers and mark invisible.
+			Mesh.Clear();
+			HasMesh = false;
 			DisposeMeshData();
 			return;
 		}
@@ -189,36 +205,18 @@ public class Chunk
 		int vCount = meshData.Vertex.Length;
 		int iCount = meshData.MeshTriangles.Length;
 
-		// ── GPU buffers for rendering ─────────────────────────────────────────
-		// Vertices: StructuredBuffer<vertex> in the shader — stride = sizeof(uint) = 4
-		VerticesBuffer = new GraphicsBuffer(
-			GraphicsBuffer.Target.Structured,
-			vCount, 4); // 4 = sizeof(uint) = sizeof(Vertex)
+		// ── Build new GPU buffers BEFORE releasing old ones ───────────────────
+		// HasMesh stays true and old buffers stay valid for DrawChunks right up
+		// until the atomic swap below — zero-frame visibility gap.
 
-		// Indices: real 16-bit index buffer consumed by the draw call
-		IndicesBuffer = new GraphicsBuffer(
-			GraphicsBuffer.Target.Index,
-			iCount, sizeof(ushort));
+		VerticesBuffer.SetData(meshData.Vertex.AsArray(),0,0, vCount);
+		IndicesBuffer.SetData(meshData.MeshTriangles.AsArray(),0,0, iCount);
 
-		// Indirect draw args: one IndirectDrawIndexedArgs entry
-		IndirectArgsBuffer = new GraphicsBuffer(
-			GraphicsBuffer.Target.IndirectArguments,
-			1, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+		IndirectArgs            = IndirectArgs with { indexCountPerInstance = (uint)iCount };
+		IndirectArgsBuffer.SetData([IndirectArgs]);
 
-		VerticesBuffer.SetData(meshData.Vertex.AsArray());
-		IndicesBuffer.SetData(meshData.MeshTriangles.AsArray());
-
-		var args = new GraphicsBuffer.IndirectDrawIndexedArgs[1];
-		args[0].indexCountPerInstance = (uint)iCount;
-		args[0].instanceCount         = 1;
-		args[0].startIndex            = 0;
-		args[0].baseVertexIndex       = 0;
-		args[0].startInstance         = 0;
-		IndirectArgsBuffer.SetData(args);
-
-		// ── CPU Mesh — positions only, used exclusively by MeshCollider ───────
-		// We unpack integer XYZ from the packed uint. Only positions are needed
-		// for physics; normals/UVs are decoded GPU-side from the same uint.
+		// CPU Mesh — positions only, used by MeshCollider.
+		Mesh.Clear();
 		BuildColliderMesh(vCount, iCount);
 
 		DisposeMeshData();
@@ -345,9 +343,6 @@ public class Chunk
 		VerticesBuffer?.Release();
 		IndicesBuffer?.Release();
 		IndirectArgsBuffer?.Release();
-		VerticesBuffer     = null;
-		IndicesBuffer      = null;
-		IndirectArgsBuffer = null;
 	}
 
 	private void DisposeHeightMap()
