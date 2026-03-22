@@ -107,7 +107,6 @@ public class World : MonoBehaviour
 	private readonly SimpleFastPriorityQueue<int3, float> chunksToCreate = [];
 	private readonly Queue<Chunk>               pendingBakes   = new();
 
-	private readonly List<int>     removeIndices     = [];
 	private readonly List<int3>    chunksToRelease   = [];
 	private readonly List<int3>    collidersToReturn = [];
 	private readonly HashSet<int3> desiredCoords     = [];
@@ -232,20 +231,23 @@ public class World : MonoBehaviour
 
 	#region Chunk queue
 
+	private readonly List<int3> toRemoveFromQueue = [];
+
 	private void ProcessChunkQueue()
 	{
 		if (chunksToCreate.Count == 0) return;
- 
+
 		var initsThisFrame = 0;
- 
+		toRemoveFromQueue.Clear();
+		
 		foreach (int3 coord in chunksToCreate)
 		{
 			if (!chunkStorage.TryGetValue(coord, out Chunk chunk))
 			{
-				chunksToCreate.Remove(coord);
+				toRemoveFromQueue.Add(coord);
 				continue;
 			}
- 
+
 			// Phase 1 — schedule the voxel populate job.
 			if (!chunk.IsScheduled)
 			{
@@ -255,33 +257,36 @@ public class World : MonoBehaviour
 				if (!isOuterRing) initsThisFrame++;
 				continue;
 			}
- 
+
 			// Phase 2 — wait for voxel job to finish.
 			if (!chunk.VoxelMapPopulated) continue;
- 
+
 			// Phase 3 — outer-ring done, no mesh needed.
 			if (!renderCoords.Contains(coord))
 			{
-				chunksToCreate.Remove(coord);
+				toRemoveFromQueue.Add(coord);
 				continue;
 			}
- 
+
 			// Phase 4 — wait until every in-storage neighbor has its voxel map populated.
 			if (!AllStoredNeighborsMapped(coord)) continue;
- 
+
 			// Phase 5 — schedule mesh job once.
 			if (!chunk.IsMeshScheduled)
 			{
 				chunk.ScheduleMeshDataJob();
 				continue;
 			}
- 
+
 			// Phase 6 — mesh job finished, upload to GPU.
 			if (!chunk.IsMeshDataCompleted) continue;
- 
+
 			chunk.CreateMesh();
-			chunksToCreate.Remove(coord);
+			toRemoveFromQueue.Add(coord);
 		}
+
+		foreach (int3 coord in toRemoveFromQueue)
+			chunksToCreate.Remove(coord);
 	}
 	
 	private bool AllStoredNeighborsMapped(int3 coord)
