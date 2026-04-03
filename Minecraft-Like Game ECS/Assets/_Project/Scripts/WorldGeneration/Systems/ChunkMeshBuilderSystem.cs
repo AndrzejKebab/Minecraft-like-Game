@@ -7,13 +7,11 @@ using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Systems
-{
-	[UpdateInGroup(typeof(SimulationSystemGroup))]
+{[UpdateInGroup(typeof(SimulationSystemGroup))]
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
 		private const int MAX_CONCURRENT_JOBS = 16;
-
 		private readonly List<ActiveJob> activeJobs = new();
 
 		protected override void OnCreate()
@@ -22,33 +20,41 @@ namespace _Project.WorldGeneration.Systems
 			RequireForUpdate<ChunkMapSingleton>();
 		}
 
-		// Called by PlayerVisibleChunksSystem before chunks are destroyed to prevent memory corruption
-		public void CompleteAllJobs()
+		// Look through all currently active jobs to see if this chunk is being built or read as a neighbor
+		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			ProcessJobs();
+			JobHandle combined = default;
+			foreach (var job in activeJobs)
+			{
+				if (job.Entity == chunkEntity || 
+				    job.NBack == chunkEntity || job.NFront == chunkEntity || 
+				    job.NTop == chunkEntity || job.NBottom == chunkEntity || 
+				    job.NLeft == chunkEntity || job.NRight == chunkEntity)
+				{
+					combined = JobHandle.CombineDependencies(combined, job.Handle);
+				}
+			}
+			return combined;
 		}
 
 		protected override void OnUpdate()
 		{
-			// 1. Process and complete finished jobs
 			ProcessJobs();
 
-			// 2. Gather chunks that need to be meshed
 			if (activeJobs.Count >= MAX_CONCURRENT_JOBS) return;
-			var                             registry        = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-			NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
-			ComponentLookup<IsPopulated>    populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
+			
+			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+			ComponentLookup<IsPopulated> populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
 			ComponentLookup<ChunkComponent> blockDataLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
 
 			var queue = new NativePriorityQueue<Entity>(128, Allocator.Temp);
 
 			foreach ((RefRO<ChunkComponent> _, RefRO<ChunkPositionComponent> posComp,
 			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
-			                                                                .Query<RefRO<ChunkComponent>,
-				                                                                RefRO<ChunkPositionComponent>,
-				                                                                RefRO<ChunkPriorityComponent>>()
+			                                                                .Query<RefRO<ChunkComponent>, RefRO<ChunkPositionComponent>, RefRO<ChunkPriorityComponent>>()
 			                                                                .WithAll<IsPopulated, NeedsRender>()
-			                                                                .WithNone<ChunkMeshData>()
+			                                                                .WithNone<ChunkMeshData, MarkedToDestroy>()
 			                                                                .WithEntityAccess())
 			{
 				var alreadyProcessing = false;
@@ -79,7 +85,6 @@ namespace _Project.WorldGeneration.Systems
 			{
 				var countToSchedule = math.min(MAX_CONCURRENT_JOBS - activeJobs.Count, queue.Count);
 
-				// 3. Schedule New Jobs
 				for (var i = 0; i < countToSchedule; i++)
 				{
 					Entity entity = queue.Dequeue();
@@ -95,7 +100,6 @@ namespace _Project.WorldGeneration.Systems
 					var solidMesh = new NativeMesh(Allocator.Persistent);
 					var transparentMesh = new NativeMesh(Allocator.Persistent);
 					var fluidMesh = new NativeMesh(Allocator.Persistent);
-					
 					
 					var job = new BuildMeshJob
 					          {
@@ -119,6 +123,9 @@ namespace _Project.WorldGeneration.Systems
 					activeJobs.Add(new ActiveJob
 					               {
 						               Entity = entity,
+						               NBack = neighborZNeg, NFront = neighborZPos,
+						               NTop = neighborYPos, NBottom = neighborYNeg,
+						               NLeft = neighborXNeg, NRight = neighborXPos,
 						               Handle = job.ScheduleByRef(),
 						               SolidMesh = solidMesh,
 						               TransparentMesh = transparentMesh,
@@ -126,7 +133,6 @@ namespace _Project.WorldGeneration.Systems
 					               });
 				}
 
-				// 4. Immediately kick off worker threads
 				if (countToSchedule > 0)
 					JobHandle.ScheduleBatchedJobs();
 			}
@@ -143,10 +149,9 @@ namespace _Project.WorldGeneration.Systems
 				if (!job.Handle.IsCompleted) continue;
 				job.Handle.Complete();
 
+				// If chunk was marked to destroy while thread was running, let ChunkManagerSystem dispose it
 				if (EntityManager.Exists(job.Entity))
 				{
-					// Transfer ownership of the NativeLists to the Component.
-					// Do NOT dispose them here.
 					ecb.AddComponent(job.Entity, new ChunkMeshData
 					                             {
 						                             SolidMesh       = job.SolidMesh,
@@ -186,6 +191,7 @@ namespace _Project.WorldGeneration.Systems
 		private struct ActiveJob
 		{
 			public Entity     Entity;
+			public Entity     NBack, NFront, NTop, NBottom, NLeft, NRight;
 			public JobHandle  Handle;
 			public NativeMesh SolidMesh;
 			public NativeMesh TransparentMesh;

@@ -25,9 +25,7 @@ namespace _Project.WorldGeneration.Systems
 			state.EntityManager.SetName(mapEntity, "ChunkMapSingleton");
 			state.EntityManager.AddComponentData(mapEntity, new ChunkMapSingleton
 			                                                {
-				                                                ChunkMap =
-					                                                new NativeHashMap<int3, Entity>(capacity,
-					                                                 Allocator.Persistent)
+				                                                ChunkMap = new NativeHashMap<int3, Entity>(capacity, Allocator.Persistent)
 			                                                });
 
 			lastPlayerChunk = new int3(int.MaxValue);
@@ -41,7 +39,6 @@ namespace _Project.WorldGeneration.Systems
 				var s = q.GetSingleton<ChunkMapSingleton>();
 				if (s.ChunkMap.IsCreated) s.ChunkMap.Dispose();
 			}
-
 			q.Dispose();
 		}
 
@@ -74,35 +71,24 @@ namespace _Project.WorldGeneration.Systems
 				desired.TryAdd(c, isRender);
 			}
 
-			// ── 2. Destroy chunks that left view ───────────────────────────────
+			// ── 2. Tag chunks that left view for asynchronous destruction ──────
 			var toRemove = new NativeList<int3>(64, Allocator.Temp);
 			foreach (KVPair<int3, Entity> kvp in mapSingleton.ChunkMap)
 				if (!desired.ContainsKey(kvp.Key))
 					toRemove.Add(kvp.Key);
 
-			if (toRemove.Length > 0)
-			{
-				var popSystem  = state.World.GetExistingSystemManaged<ChunkPopulateSystem>();
-				var meshSystem = state.World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-
-				popSystem?.CompleteAllJobs();
-				meshSystem?.CompleteAllJobs();
-			}
-
 			foreach (int3 coord in toRemove)
 			{
 				Entity entity = mapSingleton.ChunkMap[coord];
 
-				if (em.HasComponent<ChunkComponent>(entity))
-				{
-					var comp = em.GetComponentData<ChunkComponent>(entity);
-					if (comp.BlockData.IsCreated) comp.BlockData.Dispose();
-				}
+				// Tag for background destruction
+				em.AddComponentData(entity, new MarkedToDestroy());
+				
+				// Remove visible tags so systems stop feeding it to new jobs
+				em.RemoveComponent<IsVisible>(entity);
+				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
 
-				if (em.HasComponent<ChunkMeshData>(entity))
-					em.GetComponentData<ChunkMeshData>(entity).Dispose();
-
-				em.DestroyEntity(entity);
+				// Immediately remove from the grid so it isn't used as a neighbor
 				mapSingleton.ChunkMap.Remove(coord);
 			}
 
@@ -124,7 +110,7 @@ namespace _Project.WorldGeneration.Systems
 				}
 
 				Entity entity = em.CreateEntity();
-
+                em.SetName(entity, "Chunk");
 				em.AddComponentData(entity, new ChunkPositionComponent { ChunkCoord = coord });
 				em.AddComponentData(entity, new ChunkComponent { BlockData          = default });
 				em.AddComponentData(entity, new IsVisible());

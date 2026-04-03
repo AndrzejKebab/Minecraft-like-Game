@@ -29,10 +29,14 @@ namespace _Project.WorldGeneration.Systems
 				noise.Dispose();
 		}
 
-		// Called by PlayerVisibleChunksSystem before chunks are destroyed to prevent memory corruption
-		public void CompleteAllJobs()
+		// Used by the ChunkManagerSystem to know if a chunk is currently being written to
+		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			ProcessJobs(true);
+			foreach (var job in activeJobs)
+			{
+				if (job.Entity == chunkEntity) return job.Handle;
+			}
+			return default;
 		}
 
 		protected override void OnUpdate()
@@ -47,30 +51,26 @@ namespace _Project.WorldGeneration.Systems
 				isNoiseInitialized = true;
 			}
 
-			// 1. Process and complete finished jobs
-			ProcessJobs(false);
+			ProcessJobs();
 
-			// 2. Gather Entities and Schedule New Jobs
 			if (activeJobs.Count >= MAX_CONCURRENT_JOBS) return;
 			var           registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 			EntityManager em       = EntityManager;
 
 			EntityQuery query = SystemAPI.QueryBuilder()
-			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent,
-				                             ChunkPriorityComponent>()
-			                             .WithNone<IsPopulated>()
+			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent, ChunkPriorityComponent>()
+			                             .WithNone<IsPopulated, MarkedToDestroy>()
 			                             .Build();
 
 			if (query.IsEmpty) return;
 			NativeArray<Entity> entities = query.ToEntityArray(Allocator.Temp);
-			NativeArray<ChunkPriorityComponent> priorities =
-				query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
+			NativeArray<ChunkPriorityComponent> priorities = query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
 
 			var queue = new NativePriorityQueue<Entity>(entities.Length, Allocator.Temp);
 
 			for (var i = 0; i < entities.Length; i++)
 			{
-				Entity e                 = entities[i];
+				Entity e = entities[i];
 				var    alreadyProcessing = false;
 				foreach (ActiveJob job in activeJobs)
 					if (job.Entity == e)
@@ -89,9 +89,7 @@ namespace _Project.WorldGeneration.Systems
 				Entity e = queue.Dequeue();
 
 				int3 chunkWorldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
-				var blockData =
-					new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
-					                        Allocator.Persistent);
+				var blockData = new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
 
 				var populateJob = new PopulateChunkJob
 				                  {
@@ -108,8 +106,7 @@ namespace _Project.WorldGeneration.Systems
 				               {
 					               Entity    = e,
 					               BlockData = blockData,
-					               Handle = populateJob
-						               .ScheduleByRef()
+					               Handle = populateJob.ScheduleByRef()
 				               });
 			}
 
@@ -117,18 +114,17 @@ namespace _Project.WorldGeneration.Systems
 			entities.Dispose();
 			priorities.Dispose();
 
-			// 3. Immediately kick off worker threads
 			if (countToSchedule > 0)
 				JobHandle.ScheduleBatchedJobs();
 		}
 
-		private void ProcessJobs(bool forceWait)
+		private void ProcessJobs()
 		{
 			EntityManager em = EntityManager;
 			for (var i = activeJobs.Count - 1; i >= 0; i--)
 			{
 				ActiveJob job = activeJobs[i];
-				if (!forceWait && !job.Handle.IsCompleted) continue;
+				if (!job.Handle.IsCompleted) continue;
 				job.Handle.Complete();
 
 				if (em.Exists(job.Entity))
