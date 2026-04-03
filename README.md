@@ -11,7 +11,7 @@ A 3D sandbox game inspired by Minecraft, developed using Unity. This project exp
 - **Three multithreading implementations**:
   - Using **System.Threading**.
   - Using **Unity.Jobs** and **Burst Compiler**.
-  - Using **Unity ECS** and **GPU programming** with compute shaders.
+  - Using **Unity ECS**.
 
 ## Branches
 
@@ -23,9 +23,13 @@ This branch includes the game version with multithreading implemented using Syst
 
 This branch includes the game version with multithreading implemented using Unity.Jobs and Burst Compiler for optimal performance. The implementation is based on the tutorial series available [here](https://www.youtube.com/watch?v=HEqbT-RM4s8&list=PLgji-9GMuqkI77VmFk0Rol4AWKp-OgkGr).
 
-### ECS + GPU-Instancing branch (Dropped)
+### Unity Jobs Data Oriented
 
-This branch includes the game version with multithreading implemented using Unity's Entity Component System (ECS) and GPU programming with compute shaders for efficient mesh generation. The implementation is based on the project available [here](https://github.com/artnas/UnityVoxelMeshGPU).
+This branch is remake of Unity Jobs using Data Oriented Design.
+
+### ECS
+
+This branch includes the game version with multithreading implemented using Unity's Entity Component System (ECS).
 
 ### DEV
 
@@ -37,4 +41,4 @@ This branch is used for testing and experimental features.
 - Special thanks to the Unity community for their tutorials and support.
 - The System.Threading implementation is based on the tutorial series available [here](https://www.youtube.com/watch?v=h66IN1Pndd0&list=PLVsTSlfj0qsWEJ-5eMtXsYp03Y9yF1dEn).
 - The Unity.Jobs implementation is based on the tutorial series available [here](https://www.youtube.com/watch?v=HEqbT-RM4s8&list=PLgji-9GMuqkI77VmFk0Rol4AWKp-OgkGr).
-- The ECS + GPU-Instancing implementation is based on the project available [here](https://github.com/artnas/UnityVoxelMeshGPU).
+- GPU implementation is based on the project available [here](https://github.com/artnas/UnityVoxelMeshGPU).
