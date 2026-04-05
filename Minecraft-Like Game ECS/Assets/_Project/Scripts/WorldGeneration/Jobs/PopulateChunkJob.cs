@@ -6,22 +6,23 @@ using Unity.Collections;
 using Unity.Jobs;
 using Unity.Mathematics;
 
-namespace _Project.WorldGeneration
+namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance,
 		             FloatMode = FloatMode.Fast,
 		             FloatPrecision = FloatPrecision.Low)]
 	public struct PopulateChunkJob : IJob
 	{
-		public            NativeArray<ushort> BlockData;
-		[ReadOnly] public NativeArray<Block>  BlockPrototypes;
-
-		public NativeReference<bool> IsDirty;
+		public            NativeArray<ushort>   BlockData;
+		[ReadOnly] public NativeArray<Block>    BlockPrototypes;
+		public NativeCurve BiomeHeight;
+		public NativeCurve ErosionCurve;
+		public NativeCurve PeaksAndValleysCurve;
+		public            NativeReference<bool> IsDirty;
 		
 		public FastNoise Noise;
 		public int3      ChunkWorldPos;
 		public int       ChunkSize;
-		public int BiomeHeight;
 		public int       Seed;
 
 		public void Execute()
@@ -37,7 +38,7 @@ namespace _Project.WorldGeneration
 			for (var z = 0; z < ChunkSize; z++)
 			{
 				var rawNoise      = heightMap[new int2(x, z)];
-				var terrainHeight = NoiseGenerator.HeightFromNoise(rawNoise, BiomeHeight);
+				var terrainHeight = NoiseGenerator.HeightFromNoise(rawNoise, in BiomeHeight, in ErosionCurve, in PeaksAndValleysCurve);
 
 				for (var y = 0; y < ChunkSize; y++)
 				{

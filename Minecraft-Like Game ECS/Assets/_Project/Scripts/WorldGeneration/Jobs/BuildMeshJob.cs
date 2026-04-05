@@ -7,7 +7,7 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace _Project.WorldGeneration
+namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast,
 		             FloatPrecision = FloatPrecision.Low)]
@@ -185,12 +185,9 @@ namespace _Project.WorldGeneration
 			var solidIndexCount  = solidMesh.Triangles.Length;
 			var fluidIndexCount  = fluidMesh.Triangles.Length;
 			var totalVertexCount = solidVertexCount + fluidVertexCount;
-
-			// Safety: UInt16 max is 65535 — log if exceeded rather than silently corrupt
-			// This should never fire for normal terrain with CHUNK_SIZE=32
+			
 			if (totalVertexCount > 65535)
 			{
-				// Fall back to UInt32 for this chunk only
 				SetMeshDataArrayUInt32(ref meshDataArray, solidMesh, fluidMesh,
 				                       solidVertexCount, fluidVertexCount,
 				                       solidIndexCount, fluidIndexCount);
@@ -224,7 +221,6 @@ namespace _Project.WorldGeneration
 			                       }, UPDATE_FLAGS);
 		}
 
-		// Fallback for pathological chunks (caves, checkerboard terrain, etc.)
 		private void SetMeshDataArrayUInt32(ref Mesh.MeshDataArray meshDataArray,
 		                                    NativeMesh             solidMesh,        NativeMesh fluidMesh,
 		                                    int                    solidVertexCount, int        fluidVertexCount,

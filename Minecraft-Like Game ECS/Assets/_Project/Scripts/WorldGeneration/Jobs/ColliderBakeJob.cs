@@ -6,7 +6,7 @@ using Unity.Mathematics;
 using Unity.Physics;
 using UnityEngine.Rendering;
 
-namespace _Project.WorldGeneration
+namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile]
 	public struct ColliderBakeJob : IJob

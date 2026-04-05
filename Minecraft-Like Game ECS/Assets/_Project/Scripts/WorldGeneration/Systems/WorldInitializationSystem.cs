@@ -29,7 +29,9 @@ namespace _Project.WorldGeneration.Systems
 			EntityManager.AddComponentData(settingsEntity, new WorldSettingsSingleton
 			                                               {
 				                                               Seed        = settings.Seed,
-				                                               BiomeHeight = settings.MaxTerrainHeight,
+				                                               BiomeHeightCurve = settings.BiomeHeightCurve.ToNative(),
+				                                               ErosionCurve = settings.ErosionCurve.ToNative(),
+				                                               PeaksAndValleysCurve = settings.PeaksAndValleysCurve.ToNative(),
 				                                               EncodedNodeTree =
 					                                               new FixedString512Bytes(settings.EncodedNodeTree)
 			                                               });

@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using _Project.WorldGeneration.Jobs;
 using FastNoise2.Bindings;
 using Unity.Collections;
 using Unity.Entities;
@@ -97,7 +98,9 @@ namespace _Project.WorldGeneration.Systems
 					                  Noise           = noise,
 					                  ChunkWorldPos   = chunkWorldPos,
 					                  ChunkSize       = VoxelData.CHUNK_SIZE,
-					                  BiomeHeight	  = 192,
+					                  BiomeHeight	  = settings.BiomeHeightCurve,
+					                  ErosionCurve = settings.ErosionCurve,
+					                  PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
 					                  Seed            = settings.Seed,
 					                  IsDirty         = isDirty
 				                  };

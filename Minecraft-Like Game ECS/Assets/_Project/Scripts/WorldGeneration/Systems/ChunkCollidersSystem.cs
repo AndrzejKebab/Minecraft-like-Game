@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using _Project.WorldGeneration.Jobs;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
