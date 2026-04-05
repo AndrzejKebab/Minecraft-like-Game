@@ -12,7 +12,6 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateInGroup(typeof(SimulationSystemGroup))]
 	public partial class ChunkPopulateSystem : SystemBase
 	{
-		private const    int             MAX_CONCURRENT_JOBS = 1;
 		private readonly List<ActiveJob> activeJobs         = new();
 		private          bool            isNoiseInitialized;
 		private          FastNoise       noise;
@@ -29,10 +28,9 @@ namespace _Project.WorldGeneration.Systems
 				noise.Dispose();
 		}
 
-		// Used by the ChunkManagerSystem to know if a chunk is currently being written to
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			foreach (var job in activeJobs)
+			foreach (ActiveJob job in activeJobs)
 			{
 				if (job.Entity == chunkEntity) return job.Handle;
 			}
@@ -53,8 +51,9 @@ namespace _Project.WorldGeneration.Systems
 
 			ProcessJobs();
 
-			if (activeJobs.Count >= MAX_CONCURRENT_JOBS) return;
+			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
 			var           registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			
 			EntityManager em       = EntityManager;
 
 			EntityQuery query = SystemAPI.QueryBuilder()
@@ -82,7 +81,7 @@ namespace _Project.WorldGeneration.Systems
 				if (!alreadyProcessing) queue.Enqueue(e, priorities[i].Distance);
 			}
 
-			var countToSchedule = math.min(MAX_CONCURRENT_JOBS - activeJobs.Count, queue.Count);
+			var countToSchedule = math.min(GameSettings.MAX_CONCURRENT_JOBS - activeJobs.Count, queue.Count);
 
 			for (var i = 0; i < countToSchedule; i++)
 			{
@@ -90,7 +89,7 @@ namespace _Project.WorldGeneration.Systems
 
 				int3 chunkWorldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
 				var blockData = new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
-
+				var isDirty = new NativeReference<bool>(Allocator.Persistent) { Value = false };
 				var populateJob = new PopulateChunkJob
 				                  {
 					                  BlockData       = blockData,
@@ -98,15 +97,17 @@ namespace _Project.WorldGeneration.Systems
 					                  Noise           = noise,
 					                  ChunkWorldPos   = chunkWorldPos,
 					                  ChunkSize       = VoxelData.CHUNK_SIZE,
-					                  BiomeHeight     = settings.BiomeHeight,
-					                  Seed            = settings.Seed
+					                  BiomeHeight	  = 192,
+					                  Seed            = settings.Seed,
+					                  IsDirty         = isDirty
 				                  };
 
 				activeJobs.Add(new ActiveJob
 				               {
 					               Entity    = e,
+					               Handle = populateJob.ScheduleByRef(),
 					               BlockData = blockData,
-					               Handle = populateJob.ScheduleByRef()
+					               IsDirty = isDirty
 				               });
 			}
 
@@ -117,7 +118,7 @@ namespace _Project.WorldGeneration.Systems
 			if (countToSchedule > 0)
 				JobHandle.ScheduleBatchedJobs();
 		}
-
+		
 		private void ProcessJobs()
 		{
 			EntityManager em = EntityManager;
@@ -133,10 +134,17 @@ namespace _Project.WorldGeneration.Systems
 					comp.BlockData = job.BlockData;
 					em.SetComponentData(job.Entity, comp);
 					em.AddComponentData(job.Entity, new IsPopulated());
+					if (!job.IsDirty.Value)
+					{
+						em.AddComponentData(job.Entity, new IsEmpty());
+					}
+					
+					job.IsDirty.Dispose();
 				}
 				else
 				{
 					job.BlockData.Dispose();
+					job.IsDirty.Dispose();
 				}
 
 				activeJobs.RemoveAt(i);
@@ -145,9 +153,10 @@ namespace _Project.WorldGeneration.Systems
 
 		private struct ActiveJob
 		{
-			public Entity              Entity;
-			public JobHandle           Handle;
-			public NativeArray<ushort> BlockData;
+			public Entity                Entity;
+			public JobHandle             Handle;
+			public NativeArray<ushort>   BlockData;
+			public NativeReference<bool> IsDirty;
 		}
 	}
 }

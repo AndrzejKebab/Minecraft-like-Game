@@ -1,6 +1,5 @@
 using Unity.Burst;
 using Unity.Entities;
-using UnityEngine;
 
 [UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderLast = true)]
 [BurstCompile]

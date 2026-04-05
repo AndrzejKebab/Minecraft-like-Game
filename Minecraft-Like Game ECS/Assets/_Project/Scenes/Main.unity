@@ -298,7 +298,7 @@ Light:
   serializedVersion: 13
   m_Type: 1
   m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_Intensity: 1
+  m_Intensity: 2
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -506,6 +506,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 468233321, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: m_BlockingMask.m_Bits
+      value: 4294967295
+      objectReference: {fileID: 0}
     - target: {fileID: 1214976014, guid: dfb75feb680034648a142042ad4a327f, type: 3}
       propertyPath: m_AnchorMax.x
       value: 0
@@ -569,6 +573,10 @@ PrefabInstance:
     - target: {fileID: 1266171470314134899, guid: dfb75feb680034648a142042ad4a327f, type: 3}
       propertyPath: m_Name
       value: Monitor
+      objectReference: {fileID: 0}
+    - target: {fileID: 6304945718101464244, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: ToggleAction.m_Name
+      value: Toggle
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -636,6 +644,6 @@ SceneRoots:
   - {fileID: 1104936631}
   - {fileID: 1977036492}
   - {fileID: 330585546}
-  - {fileID: 410087041}
   - {fileID: 832575519}
+  - {fileID: 410087041}
   - {fileID: 640297951}

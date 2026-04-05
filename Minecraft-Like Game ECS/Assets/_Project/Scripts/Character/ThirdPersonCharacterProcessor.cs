@@ -1,9 +1,7 @@
-using System;
 using Unity.Entities;
 using Unity.CharacterController;
 using Unity.Mathematics;
 using Unity.Physics;
-using UnityEngine;
 
 public struct ThirdPersonCharacterUpdateContext
 {

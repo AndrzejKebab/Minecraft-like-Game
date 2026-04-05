@@ -1,6 +1,3 @@
-using System;
-using UnityEngine;
-
 public struct FixedInputEvent
 {
     byte m_WasEverSet;

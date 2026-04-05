@@ -16,10 +16,12 @@ namespace _Project.WorldGeneration
 		public            NativeArray<ushort> BlockData;
 		[ReadOnly] public NativeArray<Block>  BlockPrototypes;
 
+		public NativeReference<bool> IsDirty;
+		
 		public FastNoise Noise;
 		public int3      ChunkWorldPos;
 		public int       ChunkSize;
-		public int       BiomeHeight;
+		public int BiomeHeight;
 		public int       Seed;
 
 		public void Execute()
@@ -42,6 +44,10 @@ namespace _Project.WorldGeneration
 					var worldY = ChunkWorldPos.y + y;
 					var id     = NoiseGenerator.ClassifyVoxel(worldY, terrainHeight);
 					id = id < BlockPrototypes.Length ? BlockPrototypes[id].ID : (ushort)0;
+					if (id != 0)
+					{
+						IsDirty.Value = true;
+					}
 					BlockData.SetAtIndex(x,y,z, id);
 				}
 			}

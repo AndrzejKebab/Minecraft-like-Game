@@ -59,7 +59,6 @@ namespace _Project.WorldGeneration.Systems
 
 			EntityManager em = state.EntityManager;
 
-			// ── 1. Build desired coord set ─────────────────────────────────────
 			var desired = new NativeHashMap<int3, bool>(diameter * diameter * diameter, Allocator.Temp);
 
 			for (var y = -populateDist; y <= populateDist; y++)
@@ -71,7 +70,6 @@ namespace _Project.WorldGeneration.Systems
 				desired.TryAdd(c, isRender);
 			}
 
-			// ── 2. Tag chunks that left view for asynchronous destruction ──────
 			var toRemove = new NativeList<int3>(64, Allocator.Temp);
 			foreach (KVPair<int3, Entity> kvp in mapSingleton.ChunkMap)
 				if (!desired.ContainsKey(kvp.Key))
@@ -81,19 +79,14 @@ namespace _Project.WorldGeneration.Systems
 			{
 				Entity entity = mapSingleton.ChunkMap[coord];
 
-				// FIX: Only add the Marker tag. Do NOT call CompleteAllJobs() or Dispose() here!
-				// The ChunkManagerSystem will safely dispose memory in the background when the thread naturally finishes.
 				em.AddComponentData(entity, new MarkedToDestroy());
 				
-				// Remove visible tags so systems stop feeding it to new jobs
 				em.RemoveComponent<IsVisible>(entity);
 				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
 
-				// Immediately remove from the grid so it isn't used as a neighbor anymore
 				mapSingleton.ChunkMap.Remove(coord);
 			}
 
-			// ── 3. Create entities for new chunks OR upgrade existing ones ─────
 			foreach (KVPair<int3, bool> kvp in desired)
 			{
 				int3 coord    = kvp.Key;

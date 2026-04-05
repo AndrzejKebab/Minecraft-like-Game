@@ -1,85 +1,124 @@
-﻿using _Project.Tags;
+﻿using System.Collections.Generic;
+using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
+using Mesh = UnityEngine.Mesh;
 
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
-	public partial struct ChunkCollidersSystem : ISystem
+	public partial class ChunkCollidersSystem : SystemBase
 	{
 		private const int COLLIDER_RADIUS = 1;
 
-		public void OnCreate(ref SystemState state)
+		private readonly List<PendingBake> pendingBakes = new();
+
+		protected override void OnCreate() => RequireForUpdate<Player>();
+
+		protected override void OnDestroy()
 		{
-			state.RequireForUpdate<Player>();
+			foreach (PendingBake b in pendingBakes)
+			{
+				b.Handle.Complete();
+				if (!b.Collider.IsCreated) continue;
+				if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
+				b.Collider.Dispose();
+			}
 		}
 
-		public void OnUpdate(ref SystemState state)
+		protected override void OnUpdate()
 		{
-			float3 playerPos   = SystemAPI.GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
-			int3   playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
-			var    ecb         = new EntityCommandBuffer(Allocator.TempJob);
+			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
+			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
+			                            .Position;
+			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
+			var  ecb         = new EntityCommandBuffer(Allocator.Temp);
 
-			// Create Unity Physics Collider
-			foreach ((RefRO<ChunkMeshData> meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in SystemAPI
-				         .Query<RefRO<ChunkMeshData>, RefRO<ChunkPositionComponent>>()
-				         .WithAll<IsVisible, HasRenderMesh>().WithNone<HasCollider>().WithEntityAccess())
+			for (var i = pendingBakes.Count - 1; i >= 0; i--)
 			{
-				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+				PendingBake b = pendingBakes[i];
+				if (!b.Handle.IsCompleted) continue;
+				b.Handle.Complete();
+				b.MeshDataArray.Dispose();
 
-				var solidVerticesLength = meshData.ValueRO.SolidMesh.IsCreated ? meshData.ValueRO.SolidMesh.Vertices.Length : 0;
-				var transparentVerticesLenght = meshData.ValueRO.TransparentMesh.IsCreated
-					            ? meshData.ValueRO.TransparentMesh.Vertices.Length
-					            : 0;
-
-				var solidIndicesLenght = meshData.ValueRO.SolidMesh.IsCreated ? meshData.ValueRO.SolidMesh.Triangles.Length : 0;
-				var transparentIndicesLenght = meshData.ValueRO.TransparentMesh.IsCreated
-					            ? meshData.ValueRO.TransparentMesh.Triangles.Length
-					            : 0;
-
-				if (solidVerticesLength + transparentVerticesLenght <= 0) continue;
-				var vertices                                = new NativeArray<float3>(solidVerticesLength + transparentVerticesLenght, Allocator.TempJob);
-				for (var i = 0; i < solidVerticesLength; i++) vertices[i] = meshData.ValueRO.SolidMesh.Vertices[i].position;
-				for (var i = 0; i < transparentVerticesLenght; i++)
-					vertices[solidVerticesLength + i] = meshData.ValueRO.TransparentMesh.Vertices[i].position;
-
-				var triangles = new NativeArray<int3>((solidIndicesLenght + transparentIndicesLenght) / 3, Allocator.TempJob);
-				var triIndex  = 0;
-				for (var i = 0; i < solidIndicesLenght; i += 3)
-					triangles[triIndex++] = new int3(meshData.ValueRO.SolidMesh.Triangles[i],
-					                                 meshData.ValueRO.SolidMesh.Triangles[i + 1],
-					                                 meshData.ValueRO.SolidMesh.Triangles[i + 2]);
-				for (var i = 0; i < transparentIndicesLenght; i += 3)
-					triangles[triIndex++] = new int3(meshData.ValueRO.TransparentMesh.Triangles[i] + solidVerticesLength,
-					                                 meshData.ValueRO.TransparentMesh.Triangles[i + 1] + solidVerticesLength,
-					                                 meshData.ValueRO.TransparentMesh.Triangles[i + 2] + solidVerticesLength);
-
-				BlobAssetReference<Collider> collider =
-					MeshCollider.Create(vertices, triangles, CollisionFilter.Default);
-
-				ecb.AddComponent(entity, new PhysicsCollider { Value         = collider });
-				ecb.AddSharedComponent(entity, new PhysicsWorldIndex { Value = 0 });
-				ecb.AddComponent<HasCollider>(entity);
-
-				vertices.Dispose();
-				triangles.Dispose();
-			}
-
-			// Cleanup Out-of-Range Colliders
-			foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in SystemAPI.Query<RefRO<ChunkPositionComponent>>()
-				         .WithAll<HasCollider>().WithEntityAccess())
-				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS))
+				if (EntityManager.Exists(b.Entity) &&
+				    !EntityManager.HasComponent<HasCollider>(b.Entity))
 				{
-					ecb.RemoveComponent<PhysicsCollider>(entity);
-					ecb.RemoveComponent<PhysicsWorldIndex>(entity);
-					ecb.RemoveComponent<HasCollider>(entity);
+					ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
+					ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
+					ecb.AddComponent<HasCollider>(b.Entity);
+				}
+				else
+				{
+					if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
 				}
 
-			ecb.Playback(state.EntityManager);
+				b.Collider.Dispose();
+				pendingBakes.RemoveAt(i);
+			}
+
+			var scheduledThisFrame = 0;
+
+			foreach ((ChunkMeshData meshData,
+			          RefRO<ChunkPositionComponent> pos,
+			          Entity entity) in
+			         SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
+			                  .WithAll<IsVisible, HasRenderMesh>()
+			                  .WithNone<HasCollider>()
+			                  .WithEntityAccess())
+			{
+				if (scheduledThisFrame >= 1) break;
+				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;
+
+				var alreadyPending = false;
+				foreach (PendingBake b in pendingBakes)
+					if (b.Entity == entity)
+					{
+						alreadyPending = true;
+						break;
+					}
+
+				if (alreadyPending) continue;
+
+				Mesh.MeshDataArray srcArray = Mesh.AcquireReadOnlyMeshData(meshData.ChunkMesh);
+				var                collider   = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
+				
+				var job = new ColliderBakeJob
+				          {
+					          MeshDataArray = srcArray,
+					          Collider   = collider
+				          };
+
+				pendingBakes.Add(new PendingBake
+				                 {
+					                 Entity = entity,
+					                 Handle = job.Schedule(),
+					                 Collider = collider,
+					                 MeshDataArray = srcArray
+				                 });
+
+				JobHandle.ScheduleBatchedJobs();
+				scheduledThisFrame++;
+			}
+
+			foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
+			         SystemAPI.Query<RefRO<ChunkPositionComponent>>()
+			                  .WithAll<HasCollider>()
+			                  .WithEntityAccess())
+			{
+				if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+				ecb.RemoveComponent<PhysicsCollider>(entity);
+				ecb.RemoveComponent<PhysicsWorldIndex>(entity);
+				ecb.RemoveComponent<HasCollider>(entity);
+			}
+
+			ecb.Playback(EntityManager);
 			ecb.Dispose();
 		}
 
@@ -87,6 +126,14 @@ namespace _Project.WorldGeneration.Systems
 		{
 			int3 d = math.abs(a - b);
 			return d.x <= radius && d.y <= radius && d.z <= radius;
+		}
+
+		private struct PendingBake
+		{
+			public Entity                                    Entity;
+			public JobHandle                                 Handle;
+			public NativeArray<BlobAssetReference<Collider>> Collider;
+			public Mesh.MeshDataArray						MeshDataArray;
 		}
 	}
 }

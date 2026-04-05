@@ -17,7 +17,7 @@ namespace _Project.WorldGeneration
 		                                     int                        chunkSize,
 		                                     int                        seed)
 		{
-			heightMap = new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.Persistent);
+			heightMap = new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.TempJob);
 			noise.GenUniformGrid2D(heightMap, out _, chunkWorldPos.x, chunkWorldPos.z, chunkSize,
 			                       chunkSize, 1, 1, seed);
 		}
