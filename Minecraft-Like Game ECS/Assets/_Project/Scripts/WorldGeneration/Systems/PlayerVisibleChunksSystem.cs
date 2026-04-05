@@ -81,14 +81,15 @@ namespace _Project.WorldGeneration.Systems
 			{
 				Entity entity = mapSingleton.ChunkMap[coord];
 
-				// Tag for background destruction
+				// FIX: Only add the Marker tag. Do NOT call CompleteAllJobs() or Dispose() here!
+				// The ChunkManagerSystem will safely dispose memory in the background when the thread naturally finishes.
 				em.AddComponentData(entity, new MarkedToDestroy());
 				
 				// Remove visible tags so systems stop feeding it to new jobs
 				em.RemoveComponent<IsVisible>(entity);
 				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
 
-				// Immediately remove from the grid so it isn't used as a neighbor
+				// Immediately remove from the grid so it isn't used as a neighbor anymore
 				mapSingleton.ChunkMap.Remove(coord);
 			}
 
@@ -110,7 +111,7 @@ namespace _Project.WorldGeneration.Systems
 				}
 
 				Entity entity = em.CreateEntity();
-                em.SetName(entity, "Chunk");
+				em.SetName(entity, "Chunk");
 				em.AddComponentData(entity, new ChunkPositionComponent { ChunkCoord = coord });
 				em.AddComponentData(entity, new ChunkComponent { BlockData          = default });
 				em.AddComponentData(entity, new IsVisible());

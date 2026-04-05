@@ -12,7 +12,7 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateInGroup(typeof(SimulationSystemGroup))]
 	public partial class ChunkPopulateSystem : SystemBase
 	{
-		private const    int             MAX_CONCURRENT_JOBS = 16;
+		private const    int             MAX_CONCURRENT_JOBS = 1;
 		private readonly List<ActiveJob> activeJobs         = new();
 		private          bool            isNoiseInitialized;
 		private          FastNoise       noise;

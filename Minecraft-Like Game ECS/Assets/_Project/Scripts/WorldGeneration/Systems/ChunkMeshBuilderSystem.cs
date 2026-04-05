@@ -11,7 +11,7 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
-		private const int MAX_CONCURRENT_JOBS = 16;
+		private const int MAX_CONCURRENT_JOBS = 1;
 		private readonly List<ActiveJob> activeJobs = new();
 
 		protected override void OnCreate()
@@ -24,7 +24,7 @@ namespace _Project.WorldGeneration.Systems
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
 			JobHandle combined = default;
-			foreach (var job in activeJobs)
+			foreach (ActiveJob job in activeJobs)
 			{
 				if (job.Entity == chunkEntity || 
 				    job.NBack == chunkEntity || job.NFront == chunkEntity || 

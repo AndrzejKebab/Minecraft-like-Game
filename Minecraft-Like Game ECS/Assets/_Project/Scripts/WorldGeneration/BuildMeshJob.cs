@@ -78,7 +78,7 @@ namespace _Project.WorldGeneration
 			}
 		}
 
-		private static void AddFace(Vertex              v0, Vertex v1, Vertex v2, Vertex v3, ref NativeMesh mesh)
+		private static void AddFace(Vertex v0, Vertex v1, Vertex v2, Vertex v3, ref NativeMesh mesh)
 		{
 			var b = mesh.Vertices.Length;
 			mesh.Vertices.Add(v0);

@@ -53,20 +53,26 @@ namespace _Project.WorldGeneration.Systems
 			}
 
 			var ecb = new EntityCommandBuffer(Allocator.Temp);
+            
+			int uploadsThisFrame = 0;
+			const int MAX_UPLOADS_PER_FRAME = 2; 
 
 			foreach ((RefRO<ChunkMeshData> meshData, Entity entity) in SystemAPI.Query<RefRO<ChunkMeshData>>()
 				         .WithAll<NeedsMeshSync>()
 				         .WithEntityAccess())
 			{
+				if (uploadsThisFrame >= MAX_UPLOADS_PER_FRAME) break;
+
 				if (!meshes.TryGetValue(entity, out Mesh unityMesh))
 				{
-					unityMesh      = new Mesh();
+					unityMesh      = new Mesh { name = "ChunkMesh" };
 					meshes[entity] = unityMesh;
 				}
 
 				UpdateUnityMesh(unityMesh, meshData.ValueRO);
 				ecb.RemoveComponent<NeedsMeshSync>(entity);
 				ecb.AddComponent<HasRenderMesh>(entity);
+				uploadsThisFrame++;
 			}
 
 			ecb.Playback(EntityManager);
@@ -126,13 +132,13 @@ namespace _Project.WorldGeneration.Systems
 			if (fluidVCount > 0) NativeArray<Vertex>.Copy(nativeData.FluidMesh.Vertices.AsArray(), 0, allVerts, vOffset, fluidVCount);
 
 			var layout = new[]
-			             {
-				             new VertexAttributeDescriptor(VertexAttribute.Position),
-				             new VertexAttributeDescriptor(VertexAttribute.Normal),
-				             new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4),
-				             new VertexAttributeDescriptor(VertexAttribute.TexCoord0),
-				             new VertexAttributeDescriptor(VertexAttribute.TexCoord1)
-			             };
+			{
+				new VertexAttributeDescriptor(VertexAttribute.Position),
+				new VertexAttributeDescriptor(VertexAttribute.Normal),
+				new VertexAttributeDescriptor(VertexAttribute.Tangent, dimension: 4),
+				new VertexAttributeDescriptor(VertexAttribute.TexCoord0),
+				new VertexAttributeDescriptor(VertexAttribute.TexCoord1)
+			};
 
 			mesh.SetVertexBufferParams(vCount, layout);
 			mesh.SetVertexBufferData(allVerts, 0, 0, vCount);
@@ -194,7 +200,7 @@ namespace _Project.WorldGeneration.Systems
 
 		private NativeArray<int> OffsetTriangles(NativeArray<int> inds, int offset)
 		{
-			var arr                                      = new NativeArray<int>(inds.Length, Allocator.TempJob);
+			var arr = new NativeArray<int>(inds.Length, Allocator.TempJob);
 			for (var i = 0; i < inds.Length; i++) arr[i] = inds[i] + offset;
 			return arr;
 		}
@@ -203,7 +209,7 @@ namespace _Project.WorldGeneration.Systems
 		{
 			var toRemove = new List<Entity>();
 			foreach (Entity e in meshes.Keys)
-				if (!EntityManager.Exists(e))
+				if (!EntityManager.Exists(e) || EntityManager.HasComponent<MarkedToDestroy>(e))
 					toRemove.Add(e);
 			foreach (Entity e in toRemove)
 			{
