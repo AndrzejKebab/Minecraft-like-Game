@@ -83,7 +83,7 @@ namespace _Project.WorldGeneration.Jobs
 					Vertex vert2 = CreateVertex(v2 + wPos, normal, tangent, 1, 0, texBase);
 					Vertex vert3 = CreateVertex(v3 + wPos, normal, tangent, 1, 1, texBase);
 
-					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
+					if (!block.IsSolid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);
 				}
 			}

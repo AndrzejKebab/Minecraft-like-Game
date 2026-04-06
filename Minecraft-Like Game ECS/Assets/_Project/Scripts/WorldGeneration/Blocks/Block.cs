@@ -11,6 +11,7 @@ namespace _Project.WorldGeneration.Blocks
 		public ushort MeshID;
 		public bool   IsTransparent;
 		public bool   IsFluid;
+		public bool   IsSolid;
 
 		public NativeTexturesIDLayer BaseTextures;
 		public NativeTexturesIDLayer OverlayTextures;

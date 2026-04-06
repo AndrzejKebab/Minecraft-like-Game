@@ -8,6 +8,8 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
+using UnityEngine;
+using Collider = Unity.Physics.Collider;
 using Mesh = UnityEngine.Mesh;
 
 namespace _Project.WorldGeneration.Systems
@@ -39,7 +41,14 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 			var  ecb         = new EntityCommandBuffer(Allocator.Temp);
-
+			
+			var chunkLayer  = (uint)(1 << LayerMask.NameToLayer("Chunk"));
+			var chunkFilter = new CollisionFilter
+			                  {
+				                  BelongsTo    = chunkLayer,
+				                  CollidesWith = ~0u // Collide with everything
+			                  };
+			
 			for (var i = pendingBakes.Count - 1; i >= 0; i--)
 			{
 				PendingBake b = pendingBakes[i];
@@ -49,21 +58,32 @@ namespace _Project.WorldGeneration.Systems
 
 				if (EntityManager.Exists(b.Entity))
 				{
-					if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+					if (b.Collider[0].IsCreated)
 					{
-						var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-						if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
-        
-						ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
+						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+						{
+							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose(); 
+							ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
+						}
+						else
+						{
+							ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
+							ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
+							ecb.AddComponent<HasCollider>(b.Entity);
+						}
 					}
-					else
+					else 
 					{
-						ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
-						ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
-						ecb.AddComponent<HasCollider>(b.Entity);
+						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity)) 
+						{
+							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
+							ecb.RemoveComponent<PhysicsCollider>(b.Entity);
+							ecb.RemoveComponent<HasCollider>(b.Entity);
+						}
 					}
-    
-					ecb.RemoveComponent<NeedsColliderSync>(b.Entity);
+					ecb.RemoveComponent<NeedsColliderSync>(b.Entity); 
 				}
 				else
 				{
@@ -105,9 +125,10 @@ namespace _Project.WorldGeneration.Systems
 				var job = new ColliderBakeJob
 				          {
 					          MeshDataArray = srcArray,
-					          Collider   = collider
+					          Collider      = collider,
+					          Filter        = chunkFilter
 				          };
-
+				
 				pendingBakes.Add(new PendingBake
 				                 {
 					                 Entity = entity,

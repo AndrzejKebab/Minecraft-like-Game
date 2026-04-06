@@ -9,36 +9,16 @@ using Unity.Transforms;
 
 namespace _Project.WorldGeneration.Systems
 {
-    // A custom physics collector that entirely ignores the player's own colliders
-    public struct ChunkOnlyCollector : ICollector<Unity.Physics.RaycastHit>
-    {
-        public bool EarlyOutOnFirstHit => false;
-        public float MaxFraction { get; private set; }
-        public int NumHits { get; private set; }
-        public Unity.Physics.RaycastHit ClosestHit;
-
-        private ComponentLookup<ChunkComponent> m_ChunkLookup;
-
-        public ChunkOnlyCollector(ComponentLookup<ChunkComponent> chunkLookup)
-        {
-            MaxFraction = 1f;
-            NumHits = 0;
-            ClosestHit = default;
-            m_ChunkLookup = chunkLookup;
-        }
-
-        public bool AddHit(Unity.Physics.RaycastHit hit)
-        {
-            if (!m_ChunkLookup.HasComponent(hit.Entity)) return false;
-            
-            MaxFraction = hit.Fraction;
-            ClosestHit = hit;
-            NumHits = 1;
-            return true;
-        }
-    }[UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial class PlayerInteractionSystem : SystemBase
     {
+        private static readonly uint chunkLayer     = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
+        private static readonly CollisionFilter raycastFilter = new()
+                                                                {
+                                                                    BelongsTo    = ~0u,
+                                                                    CollidesWith = chunkLayer // Raycast ONLY interacts with Chunks!
+                                                                };
+        
         protected override void OnCreate()
         {
             RequireForUpdate<PhysicsWorldSingleton>();
@@ -49,51 +29,51 @@ namespace _Project.WorldGeneration.Systems
         protected override void OnUpdate()
         {
             var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-            int maxBlockID = registry.Blocks.Length - 1;
+            var maxBlockID = registry.Blocks.Length - 1;
 
             var popSystem = World.GetExistingSystemManaged<ChunkPopulateSystem>();
             var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
             
-            var ecb = new EntityCommandBuffer(Allocator.Temp);
-            var chunkLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
+            var                             ecb         = new EntityCommandBuffer(Allocator.Temp);
 
-            foreach (var (interactState, player) in SystemAPI.Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
+            foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI.Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
             {
                 if (maxBlockID >= 1)
                 {
-                    if (interactState.ValueRO.ScrollDelta > 0)
+                    switch (interactState.ValueRO.ScrollDelta)
                     {
-                        interactState.ValueRW.SelectedBlockID++;
-                        if (interactState.ValueRW.SelectedBlockID > maxBlockID) interactState.ValueRW.SelectedBlockID = 1;
-                    }
-                    else if (interactState.ValueRO.ScrollDelta < 0)
-                    {
-                        interactState.ValueRW.SelectedBlockID--;
-                        if (interactState.ValueRW.SelectedBlockID < 1) interactState.ValueRW.SelectedBlockID = (ushort)maxBlockID;
+                        case > 0:
+                        {
+                            interactState.ValueRW.SelectedBlockID++;
+                            if (interactState.ValueRW.SelectedBlockID > maxBlockID) interactState.ValueRW.SelectedBlockID = 1;
+                            break;
+                        }
+                        case < 0:
+                        {
+                            interactState.ValueRW.SelectedBlockID--;
+                            if (interactState.ValueRW.SelectedBlockID < 1) interactState.ValueRW.SelectedBlockID = (ushort)maxBlockID;
+                            break;
+                        }
                     }
                 }
 
-                if (!interactState.ValueRO.BreakPressed && !interactState.ValueRO.PlacePressed) continue;
+                if (interactState.ValueRO is { BreakPressed: false, PlacePressed: false }) continue;
 
                 if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)) continue;
-                var viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
+                Entity viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
                 if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
 
-                var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
-                var collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
-
+                var  viewLtw        = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
+                CollisionWorld  collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+                
                 var input = new RaycastInput()
                             {
                                 Start = viewLtw.Position,
                                 End = viewLtw.Position + viewLtw.Forward * 6f, // 6 block reach
-                                Filter = CollisionFilter.Default
+                                Filter = raycastFilter
                             };
 
-                var collector = new ChunkOnlyCollector(chunkLookup);
-                collisionWorld.CastRay(input, ref collector);
-
-                if (collector.NumHits <= 0) continue;
-                RaycastHit hit = collector.ClosestHit;
+                if (!collisionWorld.CastRay(input, out RaycastHit hit)) continue;
                 if (interactState.ValueRO.BreakPressed)
                 {
                     float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
@@ -113,10 +93,10 @@ namespace _Project.WorldGeneration.Systems
         private void ModifyBlock(float3 worldPos, ushort newBlockID, EntityCommandBuffer ecb, ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
         {
             int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
-            int3 worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
+            var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
             int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
 
-            var chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+            NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
             if (!chunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return;
 
             JobHandle popHandle = popSystem?.GetChunkDependency(chunkEntity) ?? default;
