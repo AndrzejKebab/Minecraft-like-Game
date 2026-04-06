@@ -28,10 +28,11 @@ namespace _Project.WorldGeneration.Systems
 			// 1. Setup Settings Singleton
 			EntityManager.AddComponentData(settingsEntity, new WorldSettingsSingleton
 			                                               {
-				                                               Seed        = settings.Seed,
+				                                               Seed             = settings.Seed,
 				                                               BiomeHeightCurve = settings.BiomeHeightCurve.ToNative(),
-				                                               ErosionCurve = settings.ErosionCurve.ToNative(),
-				                                               PeaksAndValleysCurve = settings.PeaksAndValleysCurve.ToNative(),
+				                                               ErosionCurve     = settings.ErosionCurve.ToNative(),
+				                                               PeaksAndValleysCurve =
+					                                               settings.PeaksAndValleysCurve.ToNative(),
 				                                               EncodedNodeTree =
 					                                               new FixedString512Bytes(settings.EncodedNodeTree)
 			                                               });

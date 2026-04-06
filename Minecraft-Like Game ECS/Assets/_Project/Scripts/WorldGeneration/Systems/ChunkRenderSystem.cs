@@ -1,6 +1,5 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
-using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -12,7 +11,7 @@ namespace _Project.WorldGeneration.Systems
 	{
 		private Material     material;
 		private RenderParams renderParams;
-		
+
 		protected override void OnUpdate()
 		{
 			if (material == null)
@@ -24,11 +23,11 @@ namespace _Project.WorldGeneration.Systems
 					material = matComp.Material;
 					renderParams = new RenderParams(material)
 					               {
-						               renderingLayerMask   = RenderingLayerMask.defaultRenderingLayerMask,
-						               rendererPriority     = 0,
+						               renderingLayerMask = RenderingLayerMask.defaultRenderingLayerMask,
+						               rendererPriority   = 0,
 #if !UNITY_EDITOR
 						               camera = Camera.main,
-#endif 
+#endif
 						               motionVectorMode     = MotionVectorGenerationMode.Camera,
 						               reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox,
 						               shadowCastingMode    = ShadowCastingMode.On,
@@ -37,10 +36,14 @@ namespace _Project.WorldGeneration.Systems
 						               matProps             = new MaterialPropertyBlock()
 					               };
 				}
-				else return;
+				else
+				{
+					return;
+				}
 			}
-			
-			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, _) in SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
+
+			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, _) in SystemAPI
+				         .Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
 				         .WithAll<HasMesh, IsVisible, NeedsRender>().WithEntityAccess())
 			{
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount <= 0) continue;

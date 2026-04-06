@@ -83,7 +83,7 @@ namespace _Project.WorldGeneration.Jobs
 					Vertex vert2 = CreateVertex(v2 + wPos, normal, tangent, 1, 0, texBase);
 					Vertex vert3 = CreateVertex(v3 + wPos, normal, tangent, 1, 1, texBase);
 
-					if (!block.IsSolid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
+					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);
 				}
 			}
@@ -114,7 +114,7 @@ namespace _Project.WorldGeneration.Jobs
 				       Position = new half4((half3)pos.xyz, (half)0),
 				       Normal   = new half4((half3)norm.xyz, (half)0),
 				       Tangent  = new half4(tangent),
-				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)0),
+				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)0)
 			       };
 		}
 
@@ -185,7 +185,7 @@ namespace _Project.WorldGeneration.Jobs
 			var solidIndexCount  = solidMesh.Triangles.Length;
 			var fluidIndexCount  = fluidMesh.Triangles.Length;
 			var totalVertexCount = solidVertexCount + fluidVertexCount;
-			
+
 			if (totalVertexCount > 65535)
 			{
 				SetMeshDataArrayUInt32(ref meshDataArray, solidMesh, fluidMesh,

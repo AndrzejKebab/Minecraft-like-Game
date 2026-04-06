@@ -2,5 +2,7 @@
 
 namespace _Project.Tags
 {
-	public struct Player : IComponentData {}
+	public struct Player : IComponentData
+	{
+	}
 }

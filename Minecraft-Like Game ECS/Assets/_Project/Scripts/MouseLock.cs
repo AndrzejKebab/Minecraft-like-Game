@@ -13,9 +13,7 @@ namespace _Project
 		private void Update()
 		{
 			if (Keyboard.current.escapeKey.wasPressedThisFrame)
-			{
 				Cursor.lockState = Cursor.lockState == CursorLockMode.Locked ? CursorLockMode.None : CursorLockMode.Locked;
-			}
 		}
 	}
 }

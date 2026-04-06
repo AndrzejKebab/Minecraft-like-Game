@@ -28,7 +28,7 @@ namespace _Project
             // 1. Map Meshes to Deterministic IDs
             var uniqueMeshes = new List<MeshDataSO>();
             var meshToId = new Dictionary<MeshDataSO, ushort>();
-            
+
             foreach (var so in allBlocks)
             {
                 if (so.VoxelData != null && !meshToId.ContainsKey(so.VoxelData))
@@ -104,7 +104,7 @@ namespace _Project
 
             var regEntity = em.CreateEntity();
             em.AddComponentData(regEntity, new World.WorldBlockRegistrySingleton { Blocks = protos, Meshes = nativeMeshes });
-            
+
             Unity.Entities.World.DefaultGameObjectInjectionWorld.GetExistingSystemManaged<ChunkRenderSystem>()?.SetMaterial(material);
         }
 
@@ -136,3 +136,4 @@ namespace _Project
     }
 }
 */
+

@@ -11,6 +11,7 @@ namespace _Project.WorldGeneration
 
 		[Header("FastNoise2 Settings")] public string EncodedNodeTree =
 			"E@BBZEG@BD8JFgokCMP1KD8JLgAB@BCQ0ABw@BgAACBACQc@BWRBA9Cle/GGZmZj8EA5qZGT8LAACAPxwDAABwQgQ=";
+
 		public                             AnimationCurve BiomeHeightCurve;
 		public                             AnimationCurve ErosionCurve;
 		public                             AnimationCurve PeaksAndValleysCurve;

@@ -1,6 +1,7 @@
 ﻿using System;
 using Unity.Entities;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace _Project.WorldGeneration.Components
 {
@@ -11,7 +12,7 @@ namespace _Project.WorldGeneration.Components
 		public void Dispose()
 		{
 			if (ChunkMesh == null) return;
-			UnityEngine.Object.Destroy(ChunkMesh);
+			Object.Destroy(ChunkMesh);
 			ChunkMesh = null;
 		}
 	}

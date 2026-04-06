@@ -17,11 +17,21 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
 	public partial class ChunkCollidersSystem : SystemBase
 	{
-		private const int COLLIDER_RADIUS = 1;
+		private const           int  COLLIDER_RADIUS = 1;
+		private static readonly uint chunkLayer      = (uint)(1 << LayerMask.NameToLayer("Chunk"));
+
+		private static readonly CollisionFilter chunkFilter = new()
+		                                                      {
+			                                                      BelongsTo    = chunkLayer,
+			                                                      CollidesWith = ~0u // Collide with everything
+		                                                      };
 
 		private readonly List<PendingBake> pendingBakes = new();
 
-		protected override void OnCreate() => RequireForUpdate<Player>();
+		protected override void OnCreate()
+		{
+			RequireForUpdate<Player>();
+		}
 
 		protected override void OnDestroy()
 		{
@@ -41,14 +51,7 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 			var  ecb         = new EntityCommandBuffer(Allocator.Temp);
-			
-			var chunkLayer  = (uint)(1 << LayerMask.NameToLayer("Chunk"));
-			var chunkFilter = new CollisionFilter
-			                  {
-				                  BelongsTo    = chunkLayer,
-				                  CollidesWith = ~0u // Collide with everything
-			                  };
-			
+
 			for (var i = pendingBakes.Count - 1; i >= 0; i--)
 			{
 				PendingBake b = pendingBakes[i];
@@ -63,7 +66,7 @@ namespace _Project.WorldGeneration.Systems
 						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
 						{
 							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose(); 
+							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
 							ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
 						}
 						else
@@ -73,9 +76,9 @@ namespace _Project.WorldGeneration.Systems
 							ecb.AddComponent<HasCollider>(b.Entity);
 						}
 					}
-					else 
+					else
 					{
-						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity)) 
+						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
 						{
 							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
 							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
@@ -83,7 +86,8 @@ namespace _Project.WorldGeneration.Systems
 							ecb.RemoveComponent<HasCollider>(b.Entity);
 						}
 					}
-					ecb.RemoveComponent<NeedsColliderSync>(b.Entity); 
+
+					ecb.RemoveComponent<NeedsColliderSync>(b.Entity);
 				}
 				else
 				{
@@ -101,9 +105,9 @@ namespace _Project.WorldGeneration.Systems
 			                  .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
 			                  .WithEntityAccess())
 			{
-				bool hasCollider  = SystemAPI.HasComponent<HasCollider>(entity);
-				bool needsRebuild = SystemAPI.HasComponent<NeedsColliderSync>(entity);
-				
+				var hasCollider  = SystemAPI.HasComponent<HasCollider>(entity);
+				var needsRebuild = SystemAPI.HasComponent<NeedsColliderSync>(entity);
+
 				if (hasCollider && !needsRebuild) continue;
 				if (scheduledThisFrame >= 1) break;
 				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
@@ -120,20 +124,20 @@ namespace _Project.WorldGeneration.Systems
 				if (alreadyPending) continue;
 
 				Mesh.MeshDataArray srcArray = Mesh.AcquireReadOnlyMeshData(meshData.ChunkMesh);
-				var                collider   = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
-				
+				var                collider = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
+
 				var job = new ColliderBakeJob
 				          {
 					          MeshDataArray = srcArray,
 					          Collider      = collider,
 					          Filter        = chunkFilter
 				          };
-				
+
 				pendingBakes.Add(new PendingBake
 				                 {
-					                 Entity = entity,
-					                 Handle = job.Schedule(),
-					                 Collider = collider,
+					                 Entity        = entity,
+					                 Handle        = job.Schedule(),
+					                 Collider      = collider,
 					                 MeshDataArray = srcArray
 				                 });
 
@@ -167,7 +171,7 @@ namespace _Project.WorldGeneration.Systems
 			public Entity                                    Entity;
 			public JobHandle                                 Handle;
 			public NativeArray<BlobAssetReference<Collider>> Collider;
-			public Mesh.MeshDataArray						MeshDataArray;
+			public Mesh.MeshDataArray                        MeshDataArray;
 		}
 	}
 }

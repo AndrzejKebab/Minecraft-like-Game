@@ -15,8 +15,6 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
-		private readonly List<ActiveJob> activeJobs          = new();
-
 		private static readonly NativeArray<float3> faceTangents =
 			new(6, Allocator.Persistent)
 			{
@@ -31,22 +29,24 @@ namespace _Project.WorldGeneration.Systems
 		private static readonly NativeArray<float3> faceChecks =
 			new(6, Allocator.Persistent)
 			{
-				[0] = new float3(0, 0, (-1)), // Z-
-				[1] = new float3(0, 0, 1),    // Z+
-				[2] = new float3(0, 1, 0),    // Y+
-				[3] = new float3(0, (-1), 0), // Y-
-				[4] = new float3((-1), 0, 0), // X-
-				[5] = new float3(1, 0, 0)     // X+
+				[0] = new float3(0, 0, -1), // Z-
+				[1] = new float3(0, 0, 1),  // Z+
+				[2] = new float3(0, 1, 0),  // Y+
+				[3] = new float3(0, -1, 0), // Y-
+				[4] = new float3(-1, 0, 0), // X-
+				[5] = new float3(1, 0, 0)   // X+
 			};
 
 		private static readonly NativeArray<VertexAttributeDescriptor> layout =
 			new(4, Allocator.Persistent)
 			{
-				[0] = new VertexAttributeDescriptor(VertexAttribute.Position,  VertexAttributeFormat.Float16, 4),
-				[1] = new VertexAttributeDescriptor(VertexAttribute.Normal,    VertexAttributeFormat.Float16, 4),
-				[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent,   VertexAttributeFormat.Float16, 4),
-				[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
+				[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
+				[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
+				[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float16, 4),
+				[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4)
 			};
+
+		private readonly List<ActiveJob> activeJobs = new();
 
 		protected override void OnCreate()
 		{
@@ -68,15 +68,11 @@ namespace _Project.WorldGeneration.Systems
 		{
 			JobHandle combined = default;
 			foreach (ActiveJob job in activeJobs)
-			{
 				if (job.Entity == chunkEntity ||
 				    job.NBack == chunkEntity || job.NFront == chunkEntity ||
 				    job.NTop == chunkEntity || job.NBottom == chunkEntity ||
 				    job.NLeft == chunkEntity || job.NRight == chunkEntity)
-				{
 					combined = JobHandle.CombineDependencies(combined, job.Handle);
-				}
-			}
 
 			return combined;
 		}
@@ -96,7 +92,9 @@ namespace _Project.WorldGeneration.Systems
 
 			foreach ((RefRO<ChunkComponent> _, RefRO<ChunkPositionComponent> posComp,
 			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
-				         .Query<RefRO<ChunkComponent>, RefRO<ChunkPositionComponent>, RefRO<ChunkPriorityComponent>>()
+				         .Query<RefRO<ChunkComponent>,
+					         RefRO<ChunkPositionComponent>,
+					         RefRO<ChunkPriorityComponent>>()
 				         .WithAll<IsPopulated, NeedsMeshSync>()
 				         .WithNone<MarkedToDestroy, IsEmpty>()
 				         .WithEntityAccess())
@@ -108,12 +106,12 @@ namespace _Project.WorldGeneration.Systems
 						alreadyProcessing = true;
 						break;
 					}
-				
-				bool hasMesh      = EntityManager.HasComponent<ChunkMeshData>(entity);
-				bool needsRebuild = SystemAPI.HasComponent<NeedsMeshSync>(entity);
+
+				var hasMesh      = EntityManager.HasComponent<ChunkMeshData>(entity);
+				var needsRebuild = SystemAPI.HasComponent<NeedsMeshSync>(entity);
 
 				if (hasMesh && !needsRebuild) continue;
-					
+
 				if (alreadyProcessing) continue;
 
 				int3 pos            = posComp.ValueRO.ChunkCoord;
@@ -186,8 +184,8 @@ namespace _Project.WorldGeneration.Systems
 
 		private void ProcessJobs()
 		{
-			var       ecb                = new EntityCommandBuffer(Allocator.Temp);
-			int       processedThisFrame = 0;
+			var ecb                = new EntityCommandBuffer(Allocator.Temp);
+			var processedThisFrame = 0;
 
 			for (var i = activeJobs.Count - 1; i >= 0; i--)
 			{
@@ -217,7 +215,7 @@ namespace _Project.WorldGeneration.Systems
 						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
 						ecb.AddComponent(job.Entity, chunkMeshData);
-        
+
 						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
 						ecb.AddComponent<HasMesh>(job.Entity);
 						ecb.AddComponent<NeedsColliderSync>(job.Entity);

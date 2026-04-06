@@ -25,7 +25,9 @@ namespace _Project.WorldGeneration.Systems
 			state.EntityManager.SetName(mapEntity, "ChunkMapSingleton");
 			state.EntityManager.AddComponentData(mapEntity, new ChunkMapSingleton
 			                                                {
-				                                                ChunkMap = new NativeHashMap<int3, Entity>(capacity, Allocator.Persistent)
+				                                                ChunkMap =
+					                                                new NativeHashMap<int3, Entity>(capacity,
+					                                                 Allocator.Persistent)
 			                                                });
 
 			lastPlayerChunk = new int3(int.MaxValue);
@@ -39,6 +41,7 @@ namespace _Project.WorldGeneration.Systems
 				var s = q.GetSingleton<ChunkMapSingleton>();
 				if (s.ChunkMap.IsCreated) s.ChunkMap.Dispose();
 			}
+
 			q.Dispose();
 		}
 
@@ -80,7 +83,7 @@ namespace _Project.WorldGeneration.Systems
 				Entity entity = mapSingleton.ChunkMap[coord];
 
 				em.AddComponentData(entity, new MarkedToDestroy());
-				
+
 				em.RemoveComponent<IsVisible>(entity);
 				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
 
@@ -99,9 +102,7 @@ namespace _Project.WorldGeneration.Systems
 
 					if (isRender && !em.HasComponent<NeedsRender>(existingEntity) &&
 					    !em.HasComponent<HasMesh>(existingEntity))
-					{
 						em.AddComponentData(existingEntity, new NeedsRender());
-					}
 					continue;
 				}
 

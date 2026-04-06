@@ -1,5 +1,6 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using _Project.WorldGeneration.Systems;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -7,17 +8,17 @@ using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 
-namespace _Project.WorldGeneration.Systems
+namespace _Project.Character
 {
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial class PlayerInteractionSystem : SystemBase
     {
-        private static readonly uint chunkLayer     = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
+        private static readonly uint chunkLayer = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
         private static readonly CollisionFilter raycastFilter = new()
                                                                 {
-                                                                    BelongsTo    = ~0u,
-                                                                    CollidesWith = chunkLayer // Raycast ONLY interacts with Chunks!
-                                                                };
+                                            BelongsTo    = ~0u,
+                                            CollidesWith = chunkLayer
+                                        };
         
         protected override void OnCreate()
         {
@@ -33,8 +34,7 @@ namespace _Project.WorldGeneration.Systems
 
             var popSystem = World.GetExistingSystemManaged<ChunkPopulateSystem>();
             var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-            
-            var                             ecb         = new EntityCommandBuffer(Allocator.Temp);
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI.Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
             {
@@ -57,15 +57,20 @@ namespace _Project.WorldGeneration.Systems
                     }
                 }
 
-                if (interactState.ValueRO is { BreakPressed: false, PlacePressed: false }) continue;
-
+                if (!interactState.ValueRO.BreakPressed && !interactState.ValueRO.PlacePressed) continue;
+                
                 if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)) continue;
+                if (!SystemAPI.HasComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter)) continue;
+
                 Entity viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
                 if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
 
-                var  viewLtw        = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
-                CollisionWorld  collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
-                
+                var charTransform = SystemAPI.GetComponent<LocalTransform>(player.ValueRO.ControlledCharacter);
+                var charCollider = SystemAPI.GetComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter);
+
+                var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
+                CollisionWorld collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+
                 var input = new RaycastInput()
                             {
                                 Start = viewLtw.Position,
@@ -82,7 +87,24 @@ namespace _Project.WorldGeneration.Systems
                 else if (interactState.ValueRO.PlacePressed)
                 {
                     float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
-                    ModifyBlock(blockPos, interactState.ValueRO.SelectedBlockID, ecb, popSystem, meshSystem);
+                    var    worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y), (int)math.floor(blockPos.z));
+
+                    var blockAabb = new Aabb
+                                    {
+                                        Min = worldInt + new float3(0.05f),
+                                        Max = worldInt + new float3(0.95f)
+                                    };
+
+                    Aabb charAabb = charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation, charTransform.Position));
+
+                    var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
+                                           blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
+                                           blockAabb.Max.z > charAabb.Min.z && blockAabb.Min.z < charAabb.Max.z;
+
+                    if (!intersectsPlayer)
+                    {
+                        ModifyBlock(blockPos, interactState.ValueRO.SelectedBlockID, ecb, popSystem, meshSystem);
+                    }
                 }
             }
 
@@ -108,68 +130,17 @@ namespace _Project.WorldGeneration.Systems
             if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE || localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE || localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
             chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlockID);
-
-            if (newBlockID != 0) 
-            {
-                ecb.RemoveComponent<IsEmpty>(chunkEntity);
-            }
-
+            
+            if (newBlockID != 0) ecb.RemoveComponent<IsEmpty>(chunkEntity);
             ecb.AddComponent<NeedsMeshSync>(chunkEntity);
 
-            switch (localPos.x)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
-                    break;
-            }
-            switch (localPos.y)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
-                    break;
-            }
-            switch (localPos.z)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
-                    break;
-            }
-            switch (localPos.x)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
-                    break;
-            }
-            switch (localPos.y)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
-                    break;
-            }
-            switch (localPos.z)
-            {
-                case 0:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
-                    break;
-                case VoxelData.CHUNK_SIZE - 1:
-                    TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
-                    break;
-            }
+            // Rebuild neighbors if block was adjacent to a chunk edge
+            if (localPos.x == 0) TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
+            if (localPos.x == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
+            if (localPos.y == 0) TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
+            if (localPos.y == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
+            if (localPos.z == 0) TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
+            if (localPos.z == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
         }
 
         private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)

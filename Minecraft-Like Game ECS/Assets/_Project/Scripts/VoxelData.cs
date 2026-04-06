@@ -7,7 +7,7 @@ namespace _Project
 	public static class VoxelData
 	{
 		public const byte CHUNK_SIZE = 32;
-		
+
 		public static readonly int3[] FaceTangents =
 			new int3[]
 			{
@@ -18,7 +18,7 @@ namespace _Project
 				new(0, 0, -1), // X-
 				new(0, 0, 1)   // X+
 			};
-		
+
 		public static readonly int3[] FaceChecks =
 			new int3[]
 			{

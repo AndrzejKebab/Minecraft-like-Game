@@ -13,7 +13,7 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateInGroup(typeof(SimulationSystemGroup))]
 	public partial class ChunkPopulateSystem : SystemBase
 	{
-		private readonly List<ActiveJob> activeJobs         = new();
+		private readonly List<ActiveJob> activeJobs = new();
 		private          bool            isNoiseInitialized;
 		private          FastNoise       noise;
 
@@ -32,9 +32,8 @@ namespace _Project.WorldGeneration.Systems
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
 			foreach (ActiveJob job in activeJobs)
-			{
-				if (job.Entity == chunkEntity) return job.Handle;
-			}
+				if (job.Entity == chunkEntity)
+					return job.Handle;
 			return default;
 		}
 
@@ -46,31 +45,33 @@ namespace _Project.WorldGeneration.Systems
 			if (!isNoiseInitialized)
 			{
 				var nodeTree = settings.EncodedNodeTree.ToString();
-				noise               = FastNoise.FromEncodedNodeTree(nodeTree);
+				noise              = FastNoise.FromEncodedNodeTree(nodeTree);
 				isNoiseInitialized = true;
 			}
 
 			ProcessJobs();
 
 			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
-			var           registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-			
-			EntityManager em       = EntityManager;
+			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+
+			EntityManager em = EntityManager;
 
 			EntityQuery query = SystemAPI.QueryBuilder()
-			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent, ChunkPriorityComponent>()
+			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent,
+				                             ChunkPriorityComponent>()
 			                             .WithNone<IsPopulated, MarkedToDestroy>()
 			                             .Build();
 
 			if (query.IsEmpty) return;
 			NativeArray<Entity> entities = query.ToEntityArray(Allocator.Temp);
-			NativeArray<ChunkPriorityComponent> priorities = query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
+			NativeArray<ChunkPriorityComponent> priorities =
+				query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
 
 			var queue = new NativePriorityQueue<Entity>(entities.Length, Allocator.Temp);
 
 			for (var i = 0; i < entities.Length; i++)
 			{
-				Entity e = entities[i];
+				Entity e                 = entities[i];
 				var    alreadyProcessing = false;
 				foreach (ActiveJob job in activeJobs)
 					if (job.Entity == e)
@@ -89,28 +90,29 @@ namespace _Project.WorldGeneration.Systems
 				Entity e = queue.Dequeue();
 
 				int3 chunkWorldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
-				var blockData = new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent);
+				var blockData = new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
+				                                        Allocator.Persistent);
 				var isDirty = new NativeReference<bool>(Allocator.Persistent) { Value = false };
 				var populateJob = new PopulateChunkJob
 				                  {
-					                  BlockData       = blockData,
-					                  BlockPrototypes = registry.Blocks,
-					                  Noise           = noise,
-					                  ChunkWorldPos   = chunkWorldPos,
-					                  ChunkSize       = VoxelData.CHUNK_SIZE,
-					                  BiomeHeight	  = settings.BiomeHeightCurve,
-					                  ErosionCurve = settings.ErosionCurve,
+					                  BlockData            = blockData,
+					                  BlockPrototypes      = registry.Blocks,
+					                  Noise                = noise,
+					                  ChunkWorldPos        = chunkWorldPos,
+					                  ChunkSize            = VoxelData.CHUNK_SIZE,
+					                  BiomeHeight          = settings.BiomeHeightCurve,
+					                  ErosionCurve         = settings.ErosionCurve,
 					                  PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
-					                  Seed            = settings.Seed,
-					                  IsDirty         = isDirty
+					                  Seed                 = settings.Seed,
+					                  IsDirty              = isDirty
 				                  };
 
 				activeJobs.Add(new ActiveJob
 				               {
 					               Entity    = e,
-					               Handle = populateJob.ScheduleByRef(),
+					               Handle    = populateJob.ScheduleByRef(),
 					               BlockData = blockData,
-					               IsDirty = isDirty
+					               IsDirty   = isDirty
 				               });
 			}
 
@@ -121,7 +123,7 @@ namespace _Project.WorldGeneration.Systems
 			if (countToSchedule > 0)
 				JobHandle.ScheduleBatchedJobs();
 		}
-		
+
 		private void ProcessJobs()
 		{
 			EntityManager em = EntityManager;
@@ -137,17 +139,13 @@ namespace _Project.WorldGeneration.Systems
 					comp.BlockData = job.BlockData;
 					em.SetComponentData(job.Entity, comp);
 					em.AddComponentData(job.Entity, new IsPopulated());
-    
+
 					if (!job.IsDirty.Value)
-					{
 						em.AddComponentData(job.Entity, new IsEmpty());
-					}
 					else
-					{
 						// Add NeedsMeshSync so the MeshBuilder picks it up!
 						em.AddComponentData(job.Entity, new NeedsMeshSync());
-					}
-    
+
 					job.IsDirty.Dispose();
 				}
 

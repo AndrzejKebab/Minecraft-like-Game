@@ -12,9 +12,9 @@ namespace _Project.WorldGeneration.Systems
 	{
 		protected override void OnUpdate()
 		{
-			var popSystem = World.GetExistingSystemManaged<ChunkPopulateSystem>();
+			var popSystem  = World.GetExistingSystemManaged<ChunkPopulateSystem>();
 			var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-			
+
 			var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
 			foreach ((_, Entity entity) in SystemAPI.Query<RefRO<MarkedToDestroy>>().WithEntityAccess())

@@ -23,13 +23,13 @@ namespace _Project.WorldGeneration
 		}
 
 		[BurstCompile]
-		public static int HeightFromNoise(float rawNoise, in NativeCurve biomeHeight, in NativeCurve erosionCurve, in NativeCurve peaksAndValleysCurve)
+		public static int HeightFromNoise(float          rawNoise, in NativeCurve biomeHeight, in NativeCurve erosionCurve,
+		                                  in NativeCurve peaksAndValleysCurve)
 		{
-			var baseHeight = biomeHeight.Evaluate(rawNoise);
-			var erosion    = erosionCurve.Evaluate(-1 * rawNoise);
+			var baseHeight      = biomeHeight.Evaluate(rawNoise);
+			var erosion         = erosionCurve.Evaluate(-1 * rawNoise);
 			var peaksAndValleys = peaksAndValleysCurve.Evaluate(1 - rawNoise / 3 * 2);
 			return (int)(baseHeight + erosion * peaksAndValleys);
-			
 		}
 
 		[BurstCompile]
