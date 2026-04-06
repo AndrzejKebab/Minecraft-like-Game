@@ -100,8 +100,7 @@ namespace _Project.WorldGeneration.Systems
 				{
 					em.SetComponentData(existingEntity, new ChunkPriorityComponent { Distance = dist });
 
-					if (isRender && !em.HasComponent<NeedsRender>(existingEntity) &&
-					    !em.HasComponent<HasMesh>(existingEntity))
+					if (isRender && !em.HasComponent<NeedsRender>(existingEntity))
 						em.AddComponentData(existingEntity, new NeedsRender());
 					continue;
 				}

@@ -1,4 +1,5 @@
 ﻿using _Project.Tags;
+using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using Unity.Collections;
 using Unity.Entities;
@@ -17,6 +18,9 @@ namespace _Project.WorldGeneration.Systems
 
 			var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
+			var oldCollidersToDispose = new NativeList<BlobAssetReference<Unity.Physics.Collider>>(Allocator.TempJob);
+			var oldBlocksToDispose    = new NativeList<NativeArray<BlockState>>(Allocator.TempJob);
+
 			foreach ((_, Entity entity) in SystemAPI.Query<RefRO<MarkedToDestroy>>().WithEntityAccess())
 			{
 				JobHandle popHandle  = popSystem?.GetChunkDependency(entity) ?? default;
@@ -29,7 +33,7 @@ namespace _Project.WorldGeneration.Systems
 				if (SystemAPI.HasComponent<ChunkComponent>(entity))
 				{
 					var comp = SystemAPI.GetComponent<ChunkComponent>(entity);
-					if (comp.BlockData.IsCreated) comp.BlockData.Dispose();
+					if (comp.BlockData.IsCreated) oldBlocksToDispose.Add(comp.BlockData);
 				}
 
 				if (EntityManager.HasComponent<ChunkMeshData>(entity))
@@ -41,7 +45,7 @@ namespace _Project.WorldGeneration.Systems
 				if (SystemAPI.HasComponent<PhysicsCollider>(entity))
 				{
 					var phys = SystemAPI.GetComponent<PhysicsCollider>(entity);
-					if (phys.Value.IsCreated) phys.Value.Dispose();
+					if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
 				}
 
 				ecb.DestroyEntity(entity);
@@ -49,6 +53,12 @@ namespace _Project.WorldGeneration.Systems
 
 			ecb.Playback(EntityManager);
 			ecb.Dispose();
+
+			foreach (BlobAssetReference<Collider> c in oldCollidersToDispose) c.Dispose();
+			oldCollidersToDispose.Dispose();
+
+			foreach (NativeArray<BlockState> b in oldBlocksToDispose) b.Dispose();
+			oldBlocksToDispose.Dispose();
 		}
 	}
 }

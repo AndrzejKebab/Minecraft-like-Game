@@ -91,34 +91,28 @@ namespace _Project.WorldGeneration.Jobs
 				{
 					int4 quad = meshData.Triangles[i];
 
-					// Fetch original face data
 					float3 originalNormal  = FaceChecks[i];
 					float3 originalTangent = FaceTangents[i];
 
-					// 1. ROTATE NORMAL for accurate Culling check
-					float3 rotatedNormal     = math.mul(rot, originalNormal);
-					float3 roundedForCulling = math.round(rotatedNormal);
-					var    dir               = new int3(roundedForCulling);
+					float3 rotatedNormal = math.round(math.mul(rot, originalNormal));
+					var    dir           = new int3(rotatedNormal);
 
 					if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent))
 						continue;
 
-					// 2. Texture mapping uses the original face alignment, so it stretches cleanly across the rotated model!
 					var wPos    = new float3(x, y, z);
 					var texBase = GetTextureIndex(originalNormal, block.BaseTextures);
 
-					// 3. ROTATE VERTICES (around the block's 0.5, 0.5, 0.5 center)
 					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f;
 					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f;
 					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f;
 					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f;
 
-					// 4. ROTATE TANGENT
-					float3 rotatedTangent    = math.mul(rot, originalTangent);
+					float3 rotatedTangent    = math.round(math.mul(rot, originalTangent));
 					float3 originalBitangent = math.cross(originalNormal, originalTangent);
-					float3 rotatedBitangent  = math.mul(rot, originalBitangent);
+					float3 rotatedBitangent  = math.round(math.mul(rot, originalBitangent));
 					float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
-					float  tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
+					var    tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
 
 					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 0,
 					                            texBase);
@@ -245,32 +239,24 @@ namespace _Project.WorldGeneration.Jobs
 			meshData.SetIndexBufferParams(solidIndexCount + fluidIndexCount, IndexFormat.UInt16);
 
 			NativeArray<Vertex> vertexData = meshData.GetVertexData<Vertex>();
-			for (var i = 0; i < solidVertexCount; i++)
-				vertexData[i] = solidMesh.Vertices[i];
-			for (var i = 0; i < fluidVertexCount; i++)
-				vertexData[solidVertexCount + i] = fluidMesh.Vertices[i];
+			for (var i = 0; i < solidVertexCount; i++) vertexData[i] = solidMesh.Vertices[i];
+			for (var i = 0; i < fluidVertexCount; i++) vertexData[solidVertexCount + i] = fluidMesh.Vertices[i];
 
-			NativeArray<ushort> indexData = meshData.GetIndexData<ushort>();
-			for (var i = 0; i < solidIndexCount; i++)
-				indexData[i] = (ushort)solidMesh.Triangles[i];
+			NativeArray<ushort> indexData                          = meshData.GetIndexData<ushort>();
+			for (var i = 0; i < solidIndexCount; i++) indexData[i] = (ushort)solidMesh.Triangles[i];
 			for (var i = 0; i < fluidIndexCount; i++)
 				indexData[solidIndexCount + i] = (ushort)(fluidMesh.Triangles[i] + solidVertexCount);
 
 			meshData.SetSubMesh(0, new SubMeshDescriptor(0, solidIndexCount)
-			                       {
-				                       firstVertex = 0, vertexCount = solidVertexCount, baseVertex = 0
-			                       }, UPDATE_FLAGS);
-
+			                       { firstVertex = 0, vertexCount = solidVertexCount, baseVertex = 0 }, UPDATE_FLAGS);
 			meshData.SetSubMesh(1, new SubMeshDescriptor(solidIndexCount, fluidIndexCount)
-			                       {
-				                       firstVertex = solidVertexCount, vertexCount = fluidVertexCount, baseVertex = 0
-			                       }, UPDATE_FLAGS);
+			                       { firstVertex = solidVertexCount, vertexCount = fluidVertexCount, baseVertex = 0 },
+			                    UPDATE_FLAGS);
 		}
 
-		private void SetMeshDataArrayUInt32(ref Mesh.MeshDataArray meshDataArray,
-		                                    NativeMesh             solidMesh,        NativeMesh fluidMesh,
-		                                    int                    solidVertexCount, int        fluidVertexCount,
-		                                    int                    solidIndexCount,  int        fluidIndexCount)
+		private void SetMeshDataArrayUInt32(ref Mesh.MeshDataArray meshDataArray, NativeMesh solidMesh,
+		                                    NativeMesh fluidMesh, int solidVertexCount, int fluidVertexCount,
+		                                    int solidIndexCount, int fluidIndexCount)
 		{
 			Mesh.MeshData meshData = meshDataArray[0];
 			meshData.subMeshCount = 2;
@@ -278,25 +264,19 @@ namespace _Project.WorldGeneration.Jobs
 			meshData.SetIndexBufferParams(solidIndexCount + fluidIndexCount, IndexFormat.UInt32);
 
 			NativeArray<Vertex> vertexData = meshData.GetVertexData<Vertex>();
-			for (var i = 0; i < solidVertexCount; i++)
-				vertexData[i] = solidMesh.Vertices[i];
-			for (var i = 0; i < fluidVertexCount; i++)
-				vertexData[solidVertexCount + i] = fluidMesh.Vertices[i];
+			for (var i = 0; i < solidVertexCount; i++) vertexData[i] = solidMesh.Vertices[i];
+			for (var i = 0; i < fluidVertexCount; i++) vertexData[solidVertexCount + i] = fluidMesh.Vertices[i];
 
-			NativeArray<int> indexData = meshData.GetIndexData<int>();
-			for (var i = 0; i < solidIndexCount; i++)
-				indexData[i] = solidMesh.Triangles[i];
+			NativeArray<int> indexData                             = meshData.GetIndexData<int>();
+			for (var i = 0; i < solidIndexCount; i++) indexData[i] = solidMesh.Triangles[i];
 			for (var i = 0; i < fluidIndexCount; i++)
 				indexData[solidIndexCount + i] = fluidMesh.Triangles[i] + solidVertexCount;
 
 			meshData.SetSubMesh(0, new SubMeshDescriptor(0, solidIndexCount)
-			                       {
-				                       firstVertex = 0, vertexCount = solidVertexCount, baseVertex = 0
-			                       }, UPDATE_FLAGS);
+			                       { firstVertex = 0, vertexCount = solidVertexCount, baseVertex = 0 }, UPDATE_FLAGS);
 			meshData.SetSubMesh(1, new SubMeshDescriptor(solidIndexCount, fluidIndexCount)
-			                       {
-				                       firstVertex = solidVertexCount, vertexCount = fluidVertexCount, baseVertex = 0
-			                       }, UPDATE_FLAGS);
+			                       { firstVertex = solidVertexCount, vertexCount = fluidVertexCount, baseVertex = 0 },
+			                    UPDATE_FLAGS);
 		}
 	}
 }

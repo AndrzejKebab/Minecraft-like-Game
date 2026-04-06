@@ -11,15 +11,13 @@ using UnityEngine.Rendering;
 
 namespace _Project.WorldGeneration.Systems
 {
-	[UpdateInGroup(typeof(SimulationSystemGroup))]
-	[UpdateAfter(typeof(ChunkPopulateSystem))]
+	[UpdateInGroup(typeof(SimulationSystemGroup))][UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
 		private static readonly NativeArray<float3> faceTangents =
 			new(6, Allocator.Persistent)
 			{
-				[0] = new float3(1, 0, 0),  // Z-
-				[1] = new float3(-1, 0, 0), // Z+
+				[0] = new float3(1, 0, 0),  // Z-[1] = new float3(-1, 0, 0), // Z+
 				[2] = new float3(1, 0, 0),  // Y+
 				[3] = new float3(-1, 0, 0), // Y-
 				[4] = new float3(0, 0, -1), // X-
@@ -88,8 +86,8 @@ namespace _Project.WorldGeneration.Systems
 			ComponentLookup<IsPopulated>    populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
 			ComponentLookup<ChunkComponent> blockDataLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
 
-			var queue = new NativePriorityQueue<Entity>(128, Allocator.Temp);
-
+			var queue           = new NativePriorityQueue<Entity>(128, Allocator.Temp);
+			var toStripMeshSync = new NativeList<Entity>(Allocator.Temp);
 			foreach ((RefRO<ChunkComponent> _, RefRO<ChunkPositionComponent> posComp,
 			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
 				         .Query<RefRO<ChunkComponent>,
@@ -106,11 +104,6 @@ namespace _Project.WorldGeneration.Systems
 						alreadyProcessing = true;
 						break;
 					}
-
-				var hasMesh      = EntityManager.HasComponent<ChunkMeshData>(entity);
-				var needsRebuild = SystemAPI.HasComponent<NeedsMeshSync>(entity);
-
-				if (hasMesh && !needsRebuild) continue;
 
 				if (alreadyProcessing) continue;
 
@@ -173,8 +166,13 @@ namespace _Project.WorldGeneration.Systems
 						               Handle        = job.ScheduleByRef(),
 						               MeshDataArray = meshData
 					               });
+					toStripMeshSync.Add(entity);
 				}
-
+				
+				foreach (Entity e in toStripMeshSync)
+					EntityManager.RemoveComponent<NeedsMeshSync>(e);
+				toStripMeshSync.Dispose();
+				
 				if (countToSchedule > 0)
 					JobHandle.ScheduleBatchedJobs();
 			}
@@ -199,26 +197,20 @@ namespace _Project.WorldGeneration.Systems
 				{
 					if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
 					{
-						// Rebuild path
 						var chunkMeshData = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
 						chunkMeshData.ChunkMesh.bounds =
 							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
-
-						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
 						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
 							ecb.AddComponent<NeedsColliderSync>(job.Entity);
 					}
 					else
 					{
-						// Initial build path
 						var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
 						chunkMeshData.ChunkMesh.bounds =
 							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
-
 						ecb.AddComponent(job.Entity, chunkMeshData);
-						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
 						if (!EntityManager.HasComponent<HasMesh>(job.Entity))
 							ecb.AddComponent<HasMesh>(job.Entity);
 						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))

@@ -13,8 +13,7 @@ using Collider = Unity.Physics.Collider;
 using Mesh = UnityEngine.Mesh;
 
 namespace _Project.WorldGeneration.Systems
-{
-	[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
+{[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
 	public partial class ChunkCollidersSystem : SystemBase
 	{
 		private const           int  COLLIDER_RADIUS = 1;
@@ -23,7 +22,7 @@ namespace _Project.WorldGeneration.Systems
 		private static readonly CollisionFilter chunkFilter = new()
 		                                                      {
 			                                                      BelongsTo    = chunkLayer,
-			                                                      CollidesWith = ~0u // Collide with everything
+			                                                      CollidesWith = ~0u
 		                                                      };
 
 		private readonly List<PendingBake> pendingBakes = new();
@@ -51,6 +50,8 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 			var  ecb         = new EntityCommandBuffer(Allocator.Temp);
+			
+			var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
 
 			for (var i = pendingBakes.Count - 1; i >= 0; i--)
 			{
@@ -66,7 +67,7 @@ namespace _Project.WorldGeneration.Systems
 						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
 						{
 							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
+							if (oldCollider.Value.IsCreated) oldCollidersToDispose.Add(oldCollider.Value);
 							ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
 						}
 						else
@@ -81,13 +82,11 @@ namespace _Project.WorldGeneration.Systems
 						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
 						{
 							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-							if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
+							if (oldCollider.Value.IsCreated) oldCollidersToDispose.Add(oldCollider.Value);
 							ecb.RemoveComponent<PhysicsCollider>(b.Entity);
 							ecb.RemoveComponent<HasCollider>(b.Entity);
 						}
 					}
-
-					ecb.RemoveComponent<NeedsColliderSync>(b.Entity);
 				}
 				else
 				{
@@ -98,14 +97,12 @@ namespace _Project.WorldGeneration.Systems
 				pendingBakes.RemoveAt(i);
 			}
 
-			var scheduledThisFrame = 0;
-
 			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
 			         SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
 			                  .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
 			                  .WithEntityAccess())
 			{
-				if (scheduledThisFrame >= 1) break;
+				if (pendingBakes.Count >= GameSettings.MAX_CONCURRENT_JOBS) break;
 				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;
 
@@ -136,17 +133,22 @@ namespace _Project.WorldGeneration.Systems
 					                 Collider      = collider,
 					                 MeshDataArray = srcArray
 				                 });
-
-				JobHandle.ScheduleBatchedJobs();
-				scheduledThisFrame++;
+				                 
+				ecb.RemoveComponent<NeedsColliderSync>(entity);
 			}
 
 			foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
-			         SystemAPI.Query<RefRO<ChunkPositionComponent>>()
-			                  .WithAll<HasCollider>()
-			                  .WithEntityAccess())
+			SystemAPI.Query<RefRO<ChunkPositionComponent>>()
+			         .WithAll<HasCollider>().WithEntityAccess())
 			{
 				if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+
+				if (EntityManager.HasComponent<PhysicsCollider>(entity))
+				{
+					var phys = EntityManager.GetComponentData<PhysicsCollider>(entity);
+					if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
+				}
+
 				ecb.RemoveComponent<PhysicsCollider>(entity);
 				ecb.RemoveComponent<PhysicsWorldIndex>(entity);
 				ecb.RemoveComponent<HasCollider>(entity);
@@ -154,6 +156,12 @@ namespace _Project.WorldGeneration.Systems
 
 			ecb.Playback(EntityManager);
 			ecb.Dispose();
+			
+			foreach (var oldCollider in oldCollidersToDispose)
+			{
+				oldCollider.Dispose();
+			}
+			oldCollidersToDispose.Dispose();
 		}
 
 		private static bool IsChebyshevNear(int3 a, int3 b, int radius)
