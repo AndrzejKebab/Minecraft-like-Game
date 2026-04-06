@@ -137,16 +137,17 @@ namespace _Project.WorldGeneration.Systems
 					comp.BlockData = job.BlockData;
 					em.SetComponentData(job.Entity, comp);
 					em.AddComponentData(job.Entity, new IsPopulated());
+    
 					if (!job.IsDirty.Value)
 					{
 						em.AddComponentData(job.Entity, new IsEmpty());
 					}
-					
-					job.IsDirty.Dispose();
-				}
-				else
-				{
-					job.BlockData.Dispose();
+					else
+					{
+						// Add NeedsMeshSync so the MeshBuilder picks it up!
+						em.AddComponentData(job.Entity, new NeedsMeshSync());
+					}
+    
 					job.IsDirty.Dispose();
 				}
 

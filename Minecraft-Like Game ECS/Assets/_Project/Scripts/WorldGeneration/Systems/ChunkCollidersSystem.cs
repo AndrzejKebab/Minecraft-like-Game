@@ -63,7 +63,7 @@ namespace _Project.WorldGeneration.Systems
 						ecb.AddComponent<HasCollider>(b.Entity);
 					}
     
-					ecb.RemoveComponent<NeedsColliderRebuild>(b.Entity);
+					ecb.RemoveComponent<NeedsColliderSync>(b.Entity);
 				}
 				else
 				{
@@ -78,11 +78,11 @@ namespace _Project.WorldGeneration.Systems
 
 			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
 			         SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
-			                  .WithAll<IsVisible, HasRenderMesh>()
+			                  .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
 			                  .WithEntityAccess())
 			{
 				bool hasCollider  = SystemAPI.HasComponent<HasCollider>(entity);
-				bool needsRebuild = SystemAPI.HasComponent<NeedsColliderRebuild>(entity);
+				bool needsRebuild = SystemAPI.HasComponent<NeedsColliderSync>(entity);
 				
 				if (hasCollider && !needsRebuild) continue;
 				if (scheduledThisFrame >= 1) break;

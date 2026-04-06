@@ -82,29 +82,27 @@ namespace _Project.WorldGeneration.Systems
                 var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
                 var collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
 
-                RaycastInput input = new RaycastInput()
-                {
-                    Start = viewLtw.Position,
-                    End = viewLtw.Position + viewLtw.Forward * 6f, // 6 block reach
-                    Filter = CollisionFilter.Default
-                };
+                var input = new RaycastInput()
+                            {
+                                Start = viewLtw.Position,
+                                End = viewLtw.Position + viewLtw.Forward * 6f, // 6 block reach
+                                Filter = CollisionFilter.Default
+                            };
 
                 var collector = new ChunkOnlyCollector(chunkLookup);
                 collisionWorld.CastRay(input, ref collector);
 
-                if (collector.NumHits > 0)
+                if (collector.NumHits <= 0) continue;
+                RaycastHit hit = collector.ClosestHit;
+                if (interactState.ValueRO.BreakPressed)
                 {
-                    var hit = collector.ClosestHit;
-                    if (interactState.ValueRO.BreakPressed)
-                    {
-                        float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
-                        ModifyBlock(blockPos, 0, ecb, popSystem, meshSystem);
-                    }
-                    else if (interactState.ValueRO.PlacePressed)
-                    {
-                        float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
-                        ModifyBlock(blockPos, interactState.ValueRO.SelectedBlockID, ecb, popSystem, meshSystem);
-                    }
+                    float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
+                    ModifyBlock(blockPos, 0, ecb, popSystem, meshSystem);
+                }
+                else if (interactState.ValueRO.PlacePressed)
+                {
+                    float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
+                    ModifyBlock(blockPos, interactState.ValueRO.SelectedBlockID, ecb, popSystem, meshSystem);
                 }
             }
 
@@ -130,22 +128,75 @@ namespace _Project.WorldGeneration.Systems
             if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE || localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE || localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
             chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlockID);
-            ecb.AddComponent<NeedsRebuild>(chunkEntity);
 
-            // Rebuild neighbors if block was adjacent to a chunk edge
-            if (localPos.x == 0) TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
-            if (localPos.x == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
-            if (localPos.y == 0) TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
-            if (localPos.y == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
-            if (localPos.z == 0) TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
-            if (localPos.z == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
+            if (newBlockID != 0) 
+            {
+                ecb.RemoveComponent<IsEmpty>(chunkEntity);
+            }
+
+            ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+
+            switch (localPos.x)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
+                    break;
+            }
+            switch (localPos.y)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
+                    break;
+            }
+            switch (localPos.z)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
+                    break;
+            }
+            switch (localPos.x)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
+                    break;
+            }
+            switch (localPos.y)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
+                    break;
+            }
+            switch (localPos.z)
+            {
+                case 0:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
+                    break;
+                case VoxelData.CHUNK_SIZE - 1:
+                    TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
+                    break;
+            }
         }
 
         private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)
         {
             if (SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity))
             {
-                ecb.AddComponent<NeedsRebuild>(chunkEntity);
+                ecb.AddComponent<NeedsMeshSync>(chunkEntity);
             }
         }
     }

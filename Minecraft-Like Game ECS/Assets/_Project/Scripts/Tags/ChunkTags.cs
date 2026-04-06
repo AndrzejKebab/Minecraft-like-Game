@@ -2,30 +2,21 @@
 
 namespace _Project.Tags
 {
-	public struct IsVisible : IComponentData
-	{
-	}
-
-	public struct IsPopulated : IComponentData
-	{
-	}
-
-	public struct HasCollider : IComponentData
-	{
-	}
-
-	public struct HasRenderMesh : IComponentData
-	{
-	}
-	
-	public struct IsEmpty : IComponentData{}
-	
-	/// <summary>
-	/// Tag – this chunk is in the render ring and should get a GPU mesh.
-	/// Absent on outer-ring chunks that exist only to provide neighbour voxel data.
-	/// </summary>
+	public struct IsVisible : IComponentData { }
+	public struct IsPopulated : IComponentData { }
+	public struct HasCollider : IComponentData { }
+	public struct HasMesh : IComponentData { }
+	public struct IsEmpty : IComponentData { }
 	public struct NeedsRender : IComponentData { }
-
+    
+	// Replaces our previous "NeedsRebuild" logic
+	public struct NeedsMeshSync : IComponentData { }
+	
+	// Tells the collider system the mesh was updated
+	public struct NeedsColliderSync : IComponentData { } 
+    
+	public struct MarkedToDestroy : IComponentData { }
+	
 	/// <summary>
 	/// Float distance-to-player stored on the entity so ChunkPopulateSystem can
 	/// process closer chunks first.

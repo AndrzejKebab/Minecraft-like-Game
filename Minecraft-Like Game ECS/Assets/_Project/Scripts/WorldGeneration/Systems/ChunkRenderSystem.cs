@@ -39,26 +39,9 @@ namespace _Project.WorldGeneration.Systems
 				}
 				else return;
 			}
-
-			var ecb = new EntityCommandBuffer(Allocator.Temp);
-			var uploadsThisFrame = 0;
-
-			foreach ((_, Entity entity) in SystemAPI.Query<ChunkMeshData>()
-			                                                      .WithAll<NeedsMeshSync>()
-			                                                      .WithEntityAccess())
-			{
-				if (uploadsThisFrame >= GameSettings.MAX_CONCURRENT_JOBS) break;
-
-				ecb.RemoveComponent<NeedsMeshSync>(entity);
-				ecb.AddComponent<HasRenderMesh>(entity);
-				uploadsThisFrame++;
-			}
-
-			ecb.Playback(EntityManager);
-			ecb.Dispose();
-
+			
 			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, _) in SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
-				         .WithAll<HasRenderMesh, IsVisible, NeedsRender>().WithEntityAccess())
+				         .WithAll<HasMesh, IsVisible, NeedsRender>().WithEntityAccess())
 			{
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount <= 0) continue;
 				Matrix4x4 matrix = Matrix4x4.Translate(new Vector3(pos.ValueRO.WorldPosition.x,

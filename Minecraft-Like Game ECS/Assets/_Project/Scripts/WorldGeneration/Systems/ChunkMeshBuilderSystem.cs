@@ -97,7 +97,7 @@ namespace _Project.WorldGeneration.Systems
 			foreach ((RefRO<ChunkComponent> _, RefRO<ChunkPositionComponent> posComp,
 			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
 				         .Query<RefRO<ChunkComponent>, RefRO<ChunkPositionComponent>, RefRO<ChunkPriorityComponent>>()
-				         .WithAll<IsPopulated, NeedsRender>()
+				         .WithAll<IsPopulated, NeedsMeshSync>()
 				         .WithNone<MarkedToDestroy, IsEmpty>()
 				         .WithEntityAccess())
 			{
@@ -110,7 +110,7 @@ namespace _Project.WorldGeneration.Systems
 					}
 				
 				bool hasMesh      = EntityManager.HasComponent<ChunkMeshData>(entity);
-				bool needsRebuild = SystemAPI.HasComponent<NeedsRebuild>(entity);
+				bool needsRebuild = SystemAPI.HasComponent<NeedsMeshSync>(entity);
 
 				if (hasMesh && !needsRebuild) continue;
 					
@@ -201,23 +201,26 @@ namespace _Project.WorldGeneration.Systems
 				{
 					if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
 					{
-						// Smooth rebuild: Apply the new data directly to the existing active Mesh
+						// Rebuild: Update the existing Mesh seamlessly
 						var chunkMeshData = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
 						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
-						ecb.RemoveComponent<NeedsRebuild>(job.Entity);
-						ecb.AddComponent<NeedsColliderRebuild>(job.Entity); // Trigger seamless collider update
+						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
+						ecb.AddComponent<NeedsColliderSync>(job.Entity);
 					}
 					else
 					{
-						// Standard initial build
+						// Initial Build
 						var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
 						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
 						ecb.AddComponent(job.Entity, chunkMeshData);
-						ecb.AddComponent<NeedsMeshSync>(job.Entity);
+        
+						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
+						ecb.AddComponent<HasMesh>(job.Entity);
+						ecb.AddComponent<NeedsColliderSync>(job.Entity);
 					}
 				}
 				else
