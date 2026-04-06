@@ -11,7 +11,8 @@ using UnityEngine.Rendering;
 
 namespace _Project.WorldGeneration.Systems
 {
-	[UpdateInGroup(typeof(SimulationSystemGroup))][UpdateAfter(typeof(ChunkPopulateSystem))]
+	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
 		private static readonly NativeArray<float3> faceTangents =

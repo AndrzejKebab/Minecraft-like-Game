@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 
 namespace _Project.WorldGeneration.Systems
 {
-	[UpdateInGroup(typeof(PresentationSystemGroup))]
+	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class ChunkRenderSystem : SystemBase
 	{
 		private Material     material;

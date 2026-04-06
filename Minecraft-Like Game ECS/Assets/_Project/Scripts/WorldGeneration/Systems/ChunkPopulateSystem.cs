@@ -12,6 +12,7 @@ using Unity.Mathematics;
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
 	public partial class ChunkPopulateSystem : SystemBase
 	{
 		private readonly List<ActiveJob> activeJobs = new();

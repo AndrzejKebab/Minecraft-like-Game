@@ -1,4 +1,5 @@
-﻿using _Project.Tags;
+﻿using System;
+using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Systems;
@@ -12,6 +13,9 @@ using Unity.Transforms;
 namespace _Project.Character
 {
 	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
+	[UpdateAfter(typeof(ChunkPopulateSystem))]
+	[UpdateBefore(typeof(ChunkMeshBuilderSystem))]
 	public partial class PlayerInteractionSystem : SystemBase
 	{
 		private static readonly uint chunkLayer = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
@@ -100,7 +104,7 @@ namespace _Project.Character
 				if (interactState.ValueRO.BreakPressed)
 				{
 					float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
-					ModifyBlock(blockPos, new BlockState(){ID = 0}, ecb, popSystem, meshSystem);
+					ModifyBlock(blockPos, new BlockState() { ID = 0 }, ecb, popSystem, meshSystem);
 				}
 				else if (interactState.ValueRO.PlacePressed)
 				{
@@ -116,41 +120,60 @@ namespace _Project.Character
 
 					Aabb charAabb =
 						charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation,
-						                                        charTransform.Position));
+							                                        charTransform.Position));
 
 					var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
 					                       blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
 					                       blockAabb.Max.z > charAabb.Min.z && blockAabb.Min.z < charAabb.Max.z;
 
-					if (!intersectsPlayer)
-					{
-						Block blockProto  = registry.Blocks[interactState.ValueRO.SelectedBlockID];
-						byte  orientation = 0;
+					if (intersectsPlayer) continue;
+					Block blockProto  = registry.Blocks[interactState.ValueRO.SelectedBlockID];
+					byte  orientation = 0;
 
-						if (blockProto.DirectionType == BlockDirectionType.YAxis)
+					switch (blockProto.DirectionType)
+					{
+						case BlockDirectionType.YAxis:
 						{
-							// Furnaces face the player horizontally based on look direction
 							float3 forward = viewLtw.Forward;
 							if (math.abs(forward.x) > math.abs(forward.z))
-								orientation = forward.x > 0 ? (byte)5 : (byte)4; // East look -> face West (X-)
+								orientation = forward.x > 0 ? (byte)5 : (byte)4;
 							else
-								orientation = forward.z > 0 ? (byte)3 : (byte)2; // North look -> face South (Z-)
+								orientation = forward.z > 0 ? (byte)3 : (byte)2;
+							break;
 						}
-						else if (blockProto.DirectionType == BlockDirectionType.AllAxes)
+						case BlockDirectionType.AllAxes:
 						{
-							// Logs align their "Top" to the normal of the surface they are attached to
 							float3 n = hit.SurfaceNormal;
-							if (n.y > 0.5f) orientation       = 0;
-							else if (n.y < -0.5f) orientation = 1;
-							else if (n.z > 0.5f) orientation  = 2;
-							else if (n.z < -0.5f) orientation = 3;
-							else if (n.x > 0.5f) orientation  = 4;
-							else if (n.x < -0.5f) orientation = 5;
+							orientation = n.y switch
+							              {
+								              > 0.5f  => 0,
+								              < -0.5f => 1,
+								              _ => n.z switch
+								                   {
+									                   > 0.5f  => 2,
+									                   < -0.5f => 3,
+									                   _ => n.x switch
+									                        {
+										                        > 0.5f  => 4,
+										                        < -0.5f => 5,
+										                        _       => orientation
+									                        }
+								                   }
+							              };
+							break;
 						}
-
-						BlockState placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
-						ModifyBlock(blockPos, placedState, ecb, popSystem, meshSystem);
+						case BlockDirectionType.None:
+							break;
+						default:
+							throw new ArgumentOutOfRangeException();
 					}
+
+					var placedState = new BlockState
+					                  {
+						                  ID          = interactState.ValueRO.SelectedBlockID,
+						                  Orientation = orientation
+					                  };
+					ModifyBlock(blockPos, placedState, ecb, popSystem, meshSystem);
 				}
 			}
 
@@ -158,7 +181,7 @@ namespace _Project.Character
 			ecb.Dispose();
 		}
 
-		private void ModifyBlock(float3              worldPos,  BlockState newBlockID, EntityCommandBuffer ecb,
+		private void ModifyBlock(float3              worldPos,  BlockState newBlock, EntityCommandBuffer ecb,
 		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
@@ -175,14 +198,20 @@ namespace _Project.Character
 
 			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 
-			if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE || localPos.y < 0 ||
-			    localPos.y >= VoxelData.CHUNK_SIZE || localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
+			if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE ||
+			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
+			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
-			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlockID);
+			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
 
-			if (newBlockID.ID != 0) ecb.RemoveComponent<IsEmpty>(chunkEntity);
+			if (newBlock.ID != 0 && EntityManager.HasComponent<IsEmpty>(chunkEntity))
+				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			if (!EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
+				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+
+			if (!EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
+				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
 
 			switch (localPos.x)
 			{
@@ -217,10 +246,14 @@ namespace _Project.Character
 
 		private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)
 		{
-			if (SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity))
-			{
+			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap
+			              .TryGetValue(neighborCoord, out Entity chunkEntity))
+				return;
+
+			if (!EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
 				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
-			}
+			if (!EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
+				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
 		}
 	}
 }

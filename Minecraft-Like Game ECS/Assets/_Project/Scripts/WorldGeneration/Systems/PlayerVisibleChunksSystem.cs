@@ -1,4 +1,5 @@
-﻿using _Project.Tags;
+﻿using _Project.Character;
+using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using Unity.Collections;
 using Unity.Entities;
@@ -10,6 +11,7 @@ namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
 	[UpdateBefore(typeof(ChunkPopulateSystem))]
+	[UpdateBefore(typeof(PlayerInteractionSystem))]
 	public partial struct PlayerVisibleChunksSystem : ISystem
 	{
 		private int3 lastPlayerChunk;
