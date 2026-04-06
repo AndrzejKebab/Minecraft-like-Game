@@ -77,7 +77,7 @@ namespace _Project.WorldGeneration.Jobs
 			for (ushort y = 0; y < ChunkSize; y++)
 			for (ushort z = 0; z < ChunkSize; z++)
 			{
-				var index      = x | (y << 5) | (z << 10);
+				var        index      = x | (y << 5) | (z << 10);
 				BlockState blockState = Blocks[index];
 				if (blockState.IsEmpty) continue;
 
@@ -96,8 +96,9 @@ namespace _Project.WorldGeneration.Jobs
 					float3 originalTangent = FaceTangents[i];
 
 					// 1. ROTATE NORMAL for accurate Culling check
-					float3 rotatedNormal = math.round(math.mul(rot, originalNormal));
-					var   dir           = new int3(rotatedNormal);
+					float3 rotatedNormal     = math.mul(rot, originalNormal);
+					float3 roundedForCulling = math.round(rotatedNormal);
+					var    dir               = new int3(roundedForCulling);
 
 					if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent))
 						continue;
@@ -113,12 +114,20 @@ namespace _Project.WorldGeneration.Jobs
 					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f;
 
 					// 4. ROTATE TANGENT
-					float3 rotatedTangent = math.mul(rot, originalTangent);
+					float3 rotatedTangent    = math.mul(rot, originalTangent);
+					float3 originalBitangent = math.cross(originalNormal, originalTangent);
+					float3 rotatedBitangent  = math.mul(rot, originalBitangent);
+					float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
+					float  tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
 
-					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 0, 0, texBase);
-					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 0, 1, texBase);
-					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 1, 0, texBase);
-					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 1, 1, texBase);
+					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 0,
+					                            texBase);
+					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 1,
+					                            texBase);
+					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 0,
+					                            texBase);
+					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 1,
+					                            texBase);
 
 					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);

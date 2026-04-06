@@ -105,10 +105,6 @@ namespace _Project.WorldGeneration.Systems
 			                  .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
 			                  .WithEntityAccess())
 			{
-				var hasCollider  = SystemAPI.HasComponent<HasCollider>(entity);
-				var needsRebuild = SystemAPI.HasComponent<NeedsColliderSync>(entity);
-
-				if (hasCollider && !needsRebuild) continue;
 				if (scheduledThisFrame >= 1) break;
 				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;

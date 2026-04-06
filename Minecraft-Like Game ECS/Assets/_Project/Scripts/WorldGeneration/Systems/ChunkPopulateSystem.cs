@@ -91,8 +91,9 @@ namespace _Project.WorldGeneration.Systems
 				Entity e = queue.Dequeue();
 
 				int3 chunkWorldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
-				var blockData = new NativeArray<BlockState>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
-				                                        Allocator.Persistent);
+				var blockData =
+					new NativeArray<BlockState>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
+					                            Allocator.Persistent);
 				var isDirty = new NativeReference<bool>(Allocator.Persistent) { Value = false };
 				var populateJob = new PopulateChunkJob
 				                  {
@@ -141,12 +142,14 @@ namespace _Project.WorldGeneration.Systems
 					em.SetComponentData(job.Entity, comp);
 					em.AddComponentData(job.Entity, new IsPopulated());
 
-					if (!job.IsDirty.Value)
-						em.AddComponentData(job.Entity, new IsEmpty());
-					else
-						// Add NeedsMeshSync so the MeshBuilder picks it up!
-						em.AddComponentData(job.Entity, new NeedsMeshSync());
+					if (!job.IsDirty.Value) em.AddComponentData(job.Entity, new IsEmpty());
+					else em.AddComponentData(job.Entity, new NeedsMeshSync());
 
+					job.IsDirty.Dispose();
+				}
+				else
+				{
+					job.BlockData.Dispose();
 					job.IsDirty.Dispose();
 				}
 
@@ -156,10 +159,10 @@ namespace _Project.WorldGeneration.Systems
 
 		private struct ActiveJob
 		{
-			public Entity                Entity;
-			public JobHandle             Handle;
-			public NativeArray<BlockState>   BlockData;
-			public NativeReference<bool> IsDirty;
+			public Entity                  Entity;
+			public JobHandle               Handle;
+			public NativeArray<BlockState> BlockData;
+			public NativeReference<bool>   IsDirty;
 		}
 	}
 }

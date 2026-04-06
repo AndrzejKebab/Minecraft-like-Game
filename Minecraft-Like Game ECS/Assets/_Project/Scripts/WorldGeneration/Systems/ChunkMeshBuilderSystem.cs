@@ -199,26 +199,30 @@ namespace _Project.WorldGeneration.Systems
 				{
 					if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
 					{
-						// Rebuild: Update the existing Mesh seamlessly
+						// Rebuild path
 						var chunkMeshData = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
-						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
+						chunkMeshData.ChunkMesh.bounds =
+							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
 						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
-						ecb.AddComponent<NeedsColliderSync>(job.Entity);
+						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
+							ecb.AddComponent<NeedsColliderSync>(job.Entity);
 					}
 					else
 					{
-						// Initial Build
+						// Initial build path
 						var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
 						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
-						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
+						chunkMeshData.ChunkMesh.bounds =
+							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
 						ecb.AddComponent(job.Entity, chunkMeshData);
-
 						ecb.RemoveComponent<NeedsMeshSync>(job.Entity);
-						ecb.AddComponent<HasMesh>(job.Entity);
-						ecb.AddComponent<NeedsColliderSync>(job.Entity);
+						if (!EntityManager.HasComponent<HasMesh>(job.Entity))
+							ecb.AddComponent<HasMesh>(job.Entity);
+						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
+							ecb.AddComponent<NeedsColliderSync>(job.Entity);
 					}
 				}
 				else
