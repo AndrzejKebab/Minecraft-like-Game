@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xs:schema xmlns:tns="Unity.Timeline.Foundation.View" elementFormDefault="qualified" targetNamespace="Unity.Timeline.Foundation.View" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:import schemaLocation="UnityEngine.UIElements.xsd" namespace="UnityEngine.UIElements" />
+  <xs:complexType name="SequenceViewType">
+    <xs:complexContent mixed="false">
+      <xs:extension base="tns:SequenceTreeViewType">
+        <xs:choice />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:complexType name="SequenceTreeViewType">
+    <xs:complexContent mixed="false">
+      <xs:extension xmlns:q1="UnityEngine.UIElements" base="q1:VisualElementType">
+        <xs:choice />
+        <xs:attribute name="show-playhead" type="xs:boolean" />
+        <xs:attribute name="show-controls" type="xs:boolean" />
+        <xs:attribute name="controls-width" type="xs:float" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="SequenceTreeView" xmlns:q2="UnityEngine.UIElements" substitutionGroup="q2:VisualElement" type="tns:SequenceTreeViewType" />
+  <xs:element name="SequenceView" substitutionGroup="tns:SequenceTreeView" type="tns:SequenceViewType" />
+  <xs:complexType name="ClipConnectorsOverlayType">
+    <xs:complexContent mixed="false">
+      <xs:extension xmlns:q3="UnityEngine.UIElements" base="q3:VisualElementType">
+        <xs:choice />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="ClipConnectorsOverlay" xmlns:q4="UnityEngine.UIElements" substitutionGroup="q4:VisualElement" type="tns:ClipConnectorsOverlayType" />
+  <xs:complexType name="TransitionElementType">
+    <xs:complexContent mixed="false">
+      <xs:extension xmlns:q5="UnityEngine.UIElements" base="q5:VisualElementType">
+        <xs:choice />
+        <xs:attribute name="blend-type" type="tns:TransitionElement_TypeType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:simpleType name="TransitionElement_TypeType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="In" />
+      <xs:enumeration value="Out" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="TransitionElement" xmlns:q6="UnityEngine.UIElements" substitutionGroup="q6:VisualElement" type="tns:TransitionElementType" />
+  <xs:complexType name="TreeViewHeaderType">
+    <xs:complexContent mixed="false">
+      <xs:extension xmlns:q7="UnityEngine.UIElements" base="q7:VisualElementType">
+        <xs:choice />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="TreeViewHeader" xmlns:q8="UnityEngine.UIElements" substitutionGroup="q8:VisualElement" type="tns:TreeViewHeaderType" />
+  <xs:complexType name="EdgeHandleType">
+    <xs:complexContent mixed="false">
+      <xs:extension xmlns:q9="UnityEngine.UIElements" base="q9:VisualElementType">
+        <xs:choice />
+        <xs:attribute default="Left" name="location" type="tns:EdgeHandle_LocationType" />
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:simpleType name="EdgeHandle_LocationType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="Left" />
+      <xs:enumeration value="Right" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="EdgeHandle" xmlns:q10="UnityEngine.UIElements" substitutionGroup="q10:VisualElement" type="tns:EdgeHandleType" />
+</xs:schema>
