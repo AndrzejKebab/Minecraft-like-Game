@@ -1,10 +1,9 @@
+using _Project.WorldGeneration.Components;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-#if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
-#endif
 using Unity.CharacterController;
 
 [UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
@@ -14,21 +13,20 @@ public partial class FirstPersonPlayerInputsSystem : SystemBase
     protected override void OnCreate()
     {
         RequireForUpdate<FixedTickSystem.Singleton>();
-        RequireForUpdate(SystemAPI.QueryBuilder().WithAll<FirstPersonPlayer, FirstPersonPlayerInputs>().Build());
+        RequireForUpdate(SystemAPI.QueryBuilder().WithAll<FirstPersonPlayer, FirstPersonPlayerInputs, PlayerInteractionState>().Build());
     }
 
     protected override void OnUpdate()
     {
         var tick = SystemAPI.GetSingleton<FixedTickSystem.Singleton>().Tick;
 
-#if ENABLE_INPUT_SYSTEM
-        foreach ((RefRW<FirstPersonPlayerInputs> playerInputs, RefRO<FirstPersonPlayer> player) in SystemAPI.Query<RefRW<FirstPersonPlayerInputs>, RefRO<FirstPersonPlayer>>())
+        foreach ((RefRW<FirstPersonPlayerInputs> playerInputs, RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI.Query<RefRW<FirstPersonPlayerInputs>, RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
         {
             playerInputs.ValueRW.MoveInput = new float2
-            {
-                x = (Keyboard.current.dKey.isPressed ? 1f : 0f) + (Keyboard.current.aKey.isPressed ? -1f : 0f),
-                y = (Keyboard.current.wKey.isPressed ? 1f : 0f) + (Keyboard.current.sKey.isPressed ? -1f : 0f),
-            };
+                                             {
+                                                 x = (Keyboard.current.dKey.isPressed ? 1f : 0f) + (Keyboard.current.aKey.isPressed ? -1f : 0f),
+                                                 y = (Keyboard.current.wKey.isPressed ? 1f : 0f) + (Keyboard.current.sKey.isPressed ? -1f : 0f),
+                                             };
 
             playerInputs.ValueRW.LookInput = Mouse.current.delta.ReadValue() * player.ValueRO.LookInputSensitivity;
 
@@ -36,8 +34,11 @@ public partial class FirstPersonPlayerInputsSystem : SystemBase
             {
                 playerInputs.ValueRW.JumpPressed.Set(tick);
             }
+
+            interactState.ValueRW.BreakPressed = Mouse.current.leftButton.wasPressedThisFrame;
+            interactState.ValueRW.PlacePressed = Mouse.current.rightButton.wasPressedThisFrame;
+            interactState.ValueRW.ScrollDelta  = Mouse.current.scroll.ReadValue().y;
         }
-#endif
     }
 }
 

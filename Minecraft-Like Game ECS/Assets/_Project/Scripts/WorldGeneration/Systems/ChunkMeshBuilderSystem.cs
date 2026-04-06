@@ -98,7 +98,7 @@ namespace _Project.WorldGeneration.Systems
 			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
 				         .Query<RefRO<ChunkComponent>, RefRO<ChunkPositionComponent>, RefRO<ChunkPriorityComponent>>()
 				         .WithAll<IsPopulated, NeedsRender>()
-				         .WithNone<ChunkMeshData, MarkedToDestroy, IsEmpty>()
+				         .WithNone<MarkedToDestroy, IsEmpty>()
 				         .WithEntityAccess())
 			{
 				var alreadyProcessing = false;
@@ -108,7 +108,12 @@ namespace _Project.WorldGeneration.Systems
 						alreadyProcessing = true;
 						break;
 					}
+				
+				bool hasMesh      = EntityManager.HasComponent<ChunkMeshData>(entity);
+				bool needsRebuild = SystemAPI.HasComponent<NeedsRebuild>(entity);
 
+				if (hasMesh && !needsRebuild) continue;
+					
 				if (alreadyProcessing) continue;
 
 				int3 pos            = posComp.ValueRO.ChunkCoord;
@@ -194,13 +199,26 @@ namespace _Project.WorldGeneration.Systems
 
 				if (EntityManager.Exists(job.Entity))
 				{
-					var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
-					Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
-					chunkMeshData.ChunkMesh.bounds = new Bounds(
-					                                            new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
+					if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
+					{
+						// Smooth rebuild: Apply the new data directly to the existing active Mesh
+						var chunkMeshData = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
+						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
+						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
 
-					ecb.AddComponent(job.Entity, chunkMeshData);
-					ecb.AddComponent<NeedsMeshSync>(job.Entity);
+						ecb.RemoveComponent<NeedsRebuild>(job.Entity);
+						ecb.AddComponent<NeedsColliderRebuild>(job.Entity); // Trigger seamless collider update
+					}
+					else
+					{
+						// Standard initial build
+						var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
+						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
+						chunkMeshData.ChunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
+
+						ecb.AddComponent(job.Entity, chunkMeshData);
+						ecb.AddComponent<NeedsMeshSync>(job.Entity);
+					}
 				}
 				else
 				{

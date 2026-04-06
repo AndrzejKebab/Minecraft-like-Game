@@ -13,11 +13,13 @@ public class FirstPersonPlayerAuthoring : MonoBehaviour
         {
             Entity entity = GetEntity(TransformUsageFlags.None);
             AddComponent(entity, new FirstPersonPlayer
-            {
-                ControlledCharacter = GetEntity(authoring.ControlledCharacter, TransformUsageFlags.Dynamic),
-                LookInputSensitivity = authoring.LookInputSensitivity,
-            });
+                                 {
+                                     ControlledCharacter = GetEntity(authoring.ControlledCharacter, TransformUsageFlags.Dynamic),
+                                     LookInputSensitivity = authoring.LookInputSensitivity,
+                                 });
             AddComponent<FirstPersonPlayerInputs>(entity);
+    
+            AddComponent(entity, new _Project.WorldGeneration.Components.PlayerInteractionState { SelectedBlockID = 1 });
         }
     }
 }

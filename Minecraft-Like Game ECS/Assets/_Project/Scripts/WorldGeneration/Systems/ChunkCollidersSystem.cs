@@ -47,12 +47,23 @@ namespace _Project.WorldGeneration.Systems
 				b.Handle.Complete();
 				b.MeshDataArray.Dispose();
 
-				if (EntityManager.Exists(b.Entity) &&
-				    !EntityManager.HasComponent<HasCollider>(b.Entity))
+				if (EntityManager.Exists(b.Entity))
 				{
-					ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
-					ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
-					ecb.AddComponent<HasCollider>(b.Entity);
+					if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+					{
+						var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+						if (oldCollider.Value.IsCreated) oldCollider.Value.Dispose();
+        
+						ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
+					}
+					else
+					{
+						ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
+						ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
+						ecb.AddComponent<HasCollider>(b.Entity);
+					}
+    
+					ecb.RemoveComponent<NeedsColliderRebuild>(b.Entity);
 				}
 				else
 				{
@@ -65,14 +76,15 @@ namespace _Project.WorldGeneration.Systems
 
 			var scheduledThisFrame = 0;
 
-			foreach ((ChunkMeshData meshData,
-			          RefRO<ChunkPositionComponent> pos,
-			          Entity entity) in
+			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
 			         SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
 			                  .WithAll<IsVisible, HasRenderMesh>()
-			                  .WithNone<HasCollider>()
 			                  .WithEntityAccess())
 			{
+				bool hasCollider  = SystemAPI.HasComponent<HasCollider>(entity);
+				bool needsRebuild = SystemAPI.HasComponent<NeedsColliderRebuild>(entity);
+				
+				if (hasCollider && !needsRebuild) continue;
 				if (scheduledThisFrame >= 1) break;
 				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;
