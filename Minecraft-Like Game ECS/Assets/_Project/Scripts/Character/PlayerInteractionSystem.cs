@@ -1,4 +1,5 @@
 ﻿using _Project.Tags;
+using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Systems;
 using Unity.Collections;
@@ -10,145 +11,216 @@ using Unity.Transforms;
 
 namespace _Project.Character
 {
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public partial class PlayerInteractionSystem : SystemBase
-    {
-        private static readonly uint chunkLayer = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
-        private static readonly CollisionFilter raycastFilter = new()
-                                                                {
-                                            BelongsTo    = ~0u,
-                                            CollidesWith = chunkLayer
-                                        };
-        
-        protected override void OnCreate()
-        {
-            RequireForUpdate<PhysicsWorldSingleton>();
-            RequireForUpdate<WorldBlockRegistrySingleton>();
-            RequireForUpdate<ChunkMapSingleton>();
-        }
+	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	public partial class PlayerInteractionSystem : SystemBase
+	{
+		private static readonly uint chunkLayer = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
 
-        protected override void OnUpdate()
-        {
-            var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-            var maxBlockID = registry.Blocks.Length - 1;
+		private static readonly CollisionFilter raycastFilter = new()
+		                                                        {
+			                                                        BelongsTo    = ~0u,
+			                                                        CollidesWith = chunkLayer
+		                                                        };
 
-            var popSystem = World.GetExistingSystemManaged<ChunkPopulateSystem>();
-            var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-            var ecb = new EntityCommandBuffer(Allocator.Temp);
+		protected override void OnCreate()
+		{
+			RequireForUpdate<PhysicsWorldSingleton>();
+			RequireForUpdate<WorldBlockRegistrySingleton>();
+			RequireForUpdate<ChunkMapSingleton>();
+		}
 
-            foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI.Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
-            {
-                if (maxBlockID >= 1)
-                {
-                    switch (interactState.ValueRO.ScrollDelta)
-                    {
-                        case > 0:
-                        {
-                            interactState.ValueRW.SelectedBlockID++;
-                            if (interactState.ValueRW.SelectedBlockID > maxBlockID) interactState.ValueRW.SelectedBlockID = 1;
-                            break;
-                        }
-                        case < 0:
-                        {
-                            interactState.ValueRW.SelectedBlockID--;
-                            if (interactState.ValueRW.SelectedBlockID < 1) interactState.ValueRW.SelectedBlockID = (ushort)maxBlockID;
-                            break;
-                        }
-                    }
-                }
+		protected override void OnUpdate()
+		{
+			var registry   = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			var maxBlockID = registry.Blocks.Length - 1;
 
-                if (!interactState.ValueRO.BreakPressed && !interactState.ValueRO.PlacePressed) continue;
-                
-                if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)) continue;
-                if (!SystemAPI.HasComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter)) continue;
+			var popSystem  = World.GetExistingSystemManaged<ChunkPopulateSystem>();
+			var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
+			var ecb        = new EntityCommandBuffer(Allocator.Temp);
 
-                Entity viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
-                if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
+			foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI
+				         .Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
+			{
+				if (maxBlockID >= 1)
+				{
+					var scroll = interactState.ValueRO.ScrollDelta;
+					if (math.abs(scroll) > 0.01f)
+					{
+						var newID = interactState.ValueRO.SelectedBlockID;
 
-                var charTransform = SystemAPI.GetComponent<LocalTransform>(player.ValueRO.ControlledCharacter);
-                var charCollider = SystemAPI.GetComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter);
+						for (var i = 0; i < maxBlockID; i++)
+						{
+							if (scroll > 0)
+							{
+								newID++;
+								if (newID > maxBlockID) newID = 1;
+							}
+							else
+							{
+								newID--;
+								if (newID < 1) newID = (ushort)maxBlockID;
+							}
 
-                var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
-                CollisionWorld collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+							if (!registry.Blocks[newID].Name.IsEmpty)
+							{
+								break;
+							}
+						}
 
-                var input = new RaycastInput()
-                            {
-                                Start = viewLtw.Position,
-                                End = viewLtw.Position + viewLtw.Forward * 6f, // 6 block reach
-                                Filter = raycastFilter
-                            };
+						interactState.ValueRW.SelectedBlockID = newID;
+					}
+				}
 
-                if (!collisionWorld.CastRay(input, out RaycastHit hit)) continue;
-                if (interactState.ValueRO.BreakPressed)
-                {
-                    float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
-                    ModifyBlock(blockPos, 0, ecb, popSystem, meshSystem);
-                }
-                else if (interactState.ValueRO.PlacePressed)
-                {
-                    float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
-                    var    worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y), (int)math.floor(blockPos.z));
+				if (interactState.ValueRO is { BreakPressed: false, PlacePressed: false }) continue;
 
-                    var blockAabb = new Aabb
-                                    {
-                                        Min = worldInt + new float3(0.05f),
-                                        Max = worldInt + new float3(0.95f)
-                                    };
+				if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter))
+					continue;
+				if (!SystemAPI.HasComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter)) continue;
 
-                    Aabb charAabb = charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation, charTransform.Position));
+				Entity viewEntity = SystemAPI
+				                    .GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)
+				                    .ViewEntity;
+				if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
 
-                    var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
-                                           blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
-                                           blockAabb.Max.z > charAabb.Min.z && blockAabb.Min.z < charAabb.Max.z;
+				var charTransform = SystemAPI.GetComponent<LocalTransform>(player.ValueRO.ControlledCharacter);
+				var charCollider  = SystemAPI.GetComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter);
 
-                    if (!intersectsPlayer)
-                    {
-                        ModifyBlock(blockPos, interactState.ValueRO.SelectedBlockID, ecb, popSystem, meshSystem);
-                    }
-                }
-            }
+				var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
+				CollisionWorld collisionWorld =
+					SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
 
-            ecb.Playback(EntityManager);
-            ecb.Dispose();
-        }
+				var input = new RaycastInput()
+				            {
+					            Start  = viewLtw.Position,
+					            End    = viewLtw.Position + viewLtw.Forward * 6f, // 6 block reach
+					            Filter = raycastFilter
+				            };
 
-        private void ModifyBlock(float3 worldPos, ushort newBlockID, EntityCommandBuffer ecb, ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
-        {
-            int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
-            var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
-            int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
+				if (!collisionWorld.CastRay(input, out RaycastHit hit)) continue;
+				if (interactState.ValueRO.BreakPressed)
+				{
+					float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
+					ModifyBlock(blockPos, new BlockState(){ID = 0}, ecb, popSystem, meshSystem);
+				}
+				else if (interactState.ValueRO.PlacePressed)
+				{
+					float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
+					var worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y),
+					                        (int)math.floor(blockPos.z));
 
-            NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
-            if (!chunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return;
+					var blockAabb = new Aabb
+					                {
+						                Min = worldInt + new float3(0.05f),
+						                Max = worldInt + new float3(0.95f)
+					                };
 
-            JobHandle popHandle = popSystem?.GetChunkDependency(chunkEntity) ?? default;
-            JobHandle meshHandle = meshSystem?.GetChunkDependency(chunkEntity) ?? default;
-            JobHandle.CombineDependencies(popHandle, meshHandle).Complete();
+					Aabb charAabb =
+						charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation,
+						                                        charTransform.Position));
 
-            var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
+					var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
+					                       blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
+					                       blockAabb.Max.z > charAabb.Min.z && blockAabb.Min.z < charAabb.Max.z;
 
-            if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE || localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE || localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
+					if (!intersectsPlayer)
+					{
+						Block blockProto  = registry.Blocks[interactState.ValueRO.SelectedBlockID];
+						byte  orientation = 0;
 
-            chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlockID);
-            
-            if (newBlockID != 0) ecb.RemoveComponent<IsEmpty>(chunkEntity);
-            ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+						if (blockProto.DirectionType == BlockDirectionType.YAxis)
+						{
+							// Furnaces face the player horizontally based on look direction
+							float3 forward = viewLtw.Forward;
+							if (math.abs(forward.x) > math.abs(forward.z))
+								orientation = forward.x > 0 ? (byte)5 : (byte)4; // East look -> face West (X-)
+							else
+								orientation = forward.z > 0 ? (byte)3 : (byte)2; // North look -> face South (Z-)
+						}
+						else if (blockProto.DirectionType == BlockDirectionType.AllAxes)
+						{
+							// Logs align their "Top" to the normal of the surface they are attached to
+							float3 n = hit.SurfaceNormal;
+							if (n.y > 0.5f) orientation       = 0;
+							else if (n.y < -0.5f) orientation = 1;
+							else if (n.z > 0.5f) orientation  = 2;
+							else if (n.z < -0.5f) orientation = 3;
+							else if (n.x > 0.5f) orientation  = 4;
+							else if (n.x < -0.5f) orientation = 5;
+						}
 
-            // Rebuild neighbors if block was adjacent to a chunk edge
-            if (localPos.x == 0) TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
-            if (localPos.x == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
-            if (localPos.y == 0) TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
-            if (localPos.y == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
-            if (localPos.z == 0) TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
-            if (localPos.z == VoxelData.CHUNK_SIZE - 1) TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
-        }
+						BlockState placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
+						ModifyBlock(blockPos, placedState, ecb, popSystem, meshSystem);
+					}
+				}
+			}
 
-        private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)
-        {
-            if (SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity))
-            {
-                ecb.AddComponent<NeedsMeshSync>(chunkEntity);
-            }
-        }
-    }
+			ecb.Playback(EntityManager);
+			ecb.Dispose();
+		}
+
+		private void ModifyBlock(float3              worldPos,  BlockState newBlockID, EntityCommandBuffer ecb,
+		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
+		{
+			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
+			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y),
+			                        (int)math.floor(worldPos.z));
+			int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
+
+			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+			if (!chunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return;
+
+			JobHandle popHandle  = popSystem?.GetChunkDependency(chunkEntity) ?? default;
+			JobHandle meshHandle = meshSystem?.GetChunkDependency(chunkEntity) ?? default;
+			JobHandle.CombineDependencies(popHandle, meshHandle).Complete();
+
+			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
+
+			if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE || localPos.y < 0 ||
+			    localPos.y >= VoxelData.CHUNK_SIZE || localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
+
+			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlockID);
+
+			if (newBlockID.ID != 0) ecb.RemoveComponent<IsEmpty>(chunkEntity);
+
+			ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+
+			switch (localPos.x)
+			{
+				case 0:
+					TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb);
+					break;
+				case VoxelData.CHUNK_SIZE - 1:
+					TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb);
+					break;
+			}
+
+			switch (localPos.y)
+			{
+				case 0:
+					TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb);
+					break;
+				case VoxelData.CHUNK_SIZE - 1:
+					TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb);
+					break;
+			}
+
+			switch (localPos.z)
+			{
+				case 0:
+					TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb);
+					break;
+				case VoxelData.CHUNK_SIZE - 1:
+					TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
+					break;
+			}
+		}
+
+		private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)
+		{
+			if (SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity))
+			{
+				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			}
+		}
+	}
 }

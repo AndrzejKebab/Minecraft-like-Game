@@ -19,18 +19,18 @@ namespace _Project.WorldGeneration.Jobs
 		                                             MeshUpdateFlags.DontResetBoneBounds |
 		                                             MeshUpdateFlags.DontValidateLodRanges;
 
-		[ReadOnly] public NativeArray<ushort> Blocks;
-		[ReadOnly] public NativeArray<Block>  BlockPrototypes;
+		[ReadOnly] public NativeArray<BlockState> Blocks;
+		[ReadOnly] public NativeArray<Block>      BlockPrototypes;
 
 		[NativeDisableContainerSafetyRestriction] [ReadOnly]
 		public NativeArray<NativeVoxelMeshData> Meshes;
 
-		[ReadOnly] public NativeArray<ushort> NeighborZNeg;
-		[ReadOnly] public NativeArray<ushort> NeighborZPos;
-		[ReadOnly] public NativeArray<ushort> NeighborYNeg;
-		[ReadOnly] public NativeArray<ushort> NeighborYPos;
-		[ReadOnly] public NativeArray<ushort> NeighborXNeg;
-		[ReadOnly] public NativeArray<ushort> NeighborXPos;
+		[ReadOnly] public NativeArray<BlockState> NeighborZNeg;
+		[ReadOnly] public NativeArray<BlockState> NeighborZPos;
+		[ReadOnly] public NativeArray<BlockState> NeighborYNeg;
+		[ReadOnly] public NativeArray<BlockState> NeighborYPos;
+		[ReadOnly] public NativeArray<BlockState> NeighborXNeg;
+		[ReadOnly] public NativeArray<BlockState> NeighborXPos;
 
 		public            int                                    ChunkSize;
 		[ReadOnly] public NativeArray<VertexAttributeDescriptor> Layout;
@@ -38,6 +38,33 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<float3>                    FaceTangents;
 
 		public Mesh.MeshDataArray MeshDataArray;
+
+		private static quaternion GetRotation(BlockDirectionType type, byte orientation)
+		{
+			return type switch
+			       {
+				       BlockDirectionType.None => quaternion.identity,
+				       BlockDirectionType.YAxis => orientation switch
+				                                   {
+					                                   2 => quaternion.identity,                   // Face North
+					                                   4 => quaternion.Euler(0, math.PI / 2f, 0),  // Face East
+					                                   3 => quaternion.Euler(0, math.PI, 0),       // Face South
+					                                   5 => quaternion.Euler(0, -math.PI / 2f, 0), // Face West
+					                                   _ => quaternion.identity
+				                                   },
+				       BlockDirectionType.AllAxes => orientation switch
+				                                     {
+					                                     0 => quaternion.identity,                   // Top
+					                                     1 => quaternion.Euler(math.PI, 0, 0),       // Bottom
+					                                     2 => quaternion.Euler(math.PI / 2f, 0, 0),  // North
+					                                     3 => quaternion.Euler(-math.PI / 2f, 0, 0), // South
+					                                     4 => quaternion.Euler(0, 0, -math.PI / 2f), // East
+					                                     5 => quaternion.Euler(0, 0, math.PI / 2f),  // West
+					                                     _ => quaternion.identity
+				                                     },
+				       _ => quaternion.identity
+			       };
+		}
 
 		public void Execute()
 		{
@@ -50,38 +77,48 @@ namespace _Project.WorldGeneration.Jobs
 			for (ushort y = 0; y < ChunkSize; y++)
 			for (ushort z = 0; z < ChunkSize; z++)
 			{
-				var index   = x | (y << 5) | (z << 10);
-				var blockId = Blocks[index];
-				if (blockId == 0) continue;
+				var index      = x | (y << 5) | (z << 10);
+				BlockState blockState = Blocks[index];
+				if (blockState.IsEmpty) continue;
 
-				Block block = BlockPrototypes[blockId];
+				Block block = BlockPrototypes[blockState.ID];
 				if (block.MeshID >= Meshes.Length) continue;
 
 				NativeVoxelMeshData meshData = Meshes[block.MeshID];
+				quaternion          rot      = GetRotation(block.DirectionType, blockState.Orientation);
 
 				for (var i = 0; i < meshData.Triangles.Length; i++)
 				{
-					int4   quad = meshData.Triangles[i];
-					float3 v0   = meshData.Vertices[quad.x];
-					float3 v1   = meshData.Vertices[quad.y];
-					float3 v2   = meshData.Vertices[quad.z];
-					float3 v3   = meshData.Vertices[quad.w];
+					int4 quad = meshData.Triangles[i];
 
+					// Fetch original face data
+					float3 originalNormal  = FaceChecks[i];
+					float3 originalTangent = FaceTangents[i];
 
-					float3 normal  = FaceChecks[i];
-					int3   dir     = new(normal);
-					float4 tangent = new(FaceTangents[i], 1);
+					// 1. ROTATE NORMAL for accurate Culling check
+					float3 rotatedNormal = math.round(math.mul(rot, originalNormal));
+					var   dir           = new int3(rotatedNormal);
 
 					if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent))
 						continue;
 
+					// 2. Texture mapping uses the original face alignment, so it stretches cleanly across the rotated model!
 					var wPos    = new float3(x, y, z);
-					var texBase = GetTextureIndex(normal, block.BaseTextures);
+					var texBase = GetTextureIndex(originalNormal, block.BaseTextures);
 
-					Vertex vert0 = CreateVertex(v0 + wPos, normal, tangent, 0, 0, texBase);
-					Vertex vert1 = CreateVertex(v1 + wPos, normal, tangent, 0, 1, texBase);
-					Vertex vert2 = CreateVertex(v2 + wPos, normal, tangent, 1, 0, texBase);
-					Vertex vert3 = CreateVertex(v3 + wPos, normal, tangent, 1, 1, texBase);
+					// 3. ROTATE VERTICES (around the block's 0.5, 0.5, 0.5 center)
+					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f;
+					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f;
+					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f;
+					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f;
+
+					// 4. ROTATE TANGENT
+					float3 rotatedTangent = math.mul(rot, originalTangent);
+
+					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 0, 0, texBase);
+					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 0, 1, texBase);
+					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 1, 0, texBase);
+					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, 1), 1, 1, texBase);
 
 					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);
@@ -89,6 +126,44 @@ namespace _Project.WorldGeneration.Jobs
 			}
 
 			SetMeshDataArray(ref MeshDataArray, solidMesh, fluidMesh);
+		}
+
+		private bool NeighbourHidesFace(int x, int y, int z, int3 dir, bool isTransparent)
+		{
+			int    nx   = x + dir.x, ny = y + dir.y, nz = z + dir.z;
+			ushort nbId = 0;
+
+			if (nx < 0)
+			{
+				if (NeighborXNeg.IsCreated) nbId = NeighborXNeg[(ChunkSize - 1) | (ny << 5) | (nz << 10)].ID;
+			}
+			else if (nx >= ChunkSize)
+			{
+				if (NeighborXPos.IsCreated) nbId = NeighborXPos[0 | (ny << 5) | (nz << 10)].ID;
+			}
+			else if (ny < 0)
+			{
+				if (NeighborYNeg.IsCreated) nbId = NeighborYNeg[nx | ((ChunkSize - 1) << 5) | (nz << 10)].ID;
+			}
+			else if (ny >= ChunkSize)
+			{
+				if (NeighborYPos.IsCreated) nbId = NeighborYPos[nx | 0 | (nz << 10)].ID;
+			}
+			else if (nz < 0)
+			{
+				if (NeighborZNeg.IsCreated) nbId = NeighborZNeg[nx | (ny << 5) | ((ChunkSize - 1) << 10)].ID;
+			}
+			else if (nz >= ChunkSize)
+			{
+				if (NeighborZPos.IsCreated) nbId = NeighborZPos[nx | (ny << 5) | 0].ID;
+			}
+			else
+			{
+				nbId = Blocks[nx | (ny << 5) | (nz << 10)].ID;
+			}
+
+			if (nbId == 0) return false;
+			return !(BlockPrototypes[nbId].IsTransparent && !isTransparent);
 		}
 
 		private static void AddFace(Vertex v0, Vertex v1, Vertex v2, Vertex v3, ref NativeMesh mesh)
@@ -116,44 +191,6 @@ namespace _Project.WorldGeneration.Jobs
 				       Tangent  = new half4(tangent),
 				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)0)
 			       };
-		}
-
-		private bool NeighbourHidesFace(int x, int y, int z, int3 dir, bool isTransparent)
-		{
-			int    nx   = x + dir.x, ny = y + dir.y, nz = z + dir.z;
-			ushort nbId = 0;
-
-			if (nx < 0)
-			{
-				if (NeighborXNeg.IsCreated) nbId = NeighborXNeg[(ChunkSize - 1) | (ny << 5) | (nz << 10)];
-			}
-			else if (nx >= ChunkSize)
-			{
-				if (NeighborXPos.IsCreated) nbId = NeighborXPos[0 | (ny << 5) | (nz << 10)];
-			}
-			else if (ny < 0)
-			{
-				if (NeighborYNeg.IsCreated) nbId = NeighborYNeg[nx | ((ChunkSize - 1) << 5) | (nz << 10)];
-			}
-			else if (ny >= ChunkSize)
-			{
-				if (NeighborYPos.IsCreated) nbId = NeighborYPos[nx | 0 | (nz << 10)];
-			}
-			else if (nz < 0)
-			{
-				if (NeighborZNeg.IsCreated) nbId = NeighborZNeg[nx | (ny << 5) | ((ChunkSize - 1) << 10)];
-			}
-			else if (nz >= ChunkSize)
-			{
-				if (NeighborZPos.IsCreated) nbId = NeighborZPos[nx | (ny << 5) | 0];
-			}
-			else
-			{
-				nbId = Blocks[nx | (ny << 5) | (nz << 10)];
-			}
-
-			if (nbId == 0) return false;
-			return !(BlockPrototypes[nbId].IsTransparent && !isTransparent);
 		}
 
 		private static ushort GetTextureIndex(float3 normal, in NativeTexturesIDLayer layer)

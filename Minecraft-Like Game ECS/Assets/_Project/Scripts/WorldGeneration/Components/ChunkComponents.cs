@@ -1,3 +1,4 @@
+using _Project.WorldGeneration.Blocks;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -6,7 +7,8 @@ namespace _Project.WorldGeneration.Components
 {
 	public struct ChunkComponent : IComponentData
 	{
-		public NativeArray<ushort> BlockData;
+		// CHANGED from NativeArray<ushort>
+		public NativeArray<BlockState> BlockData;
 	}
 
 	/// <summary>

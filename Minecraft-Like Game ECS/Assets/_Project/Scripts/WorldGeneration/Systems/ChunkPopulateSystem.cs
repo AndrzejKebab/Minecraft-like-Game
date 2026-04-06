@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using _Project.Tags;
+using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
 using FastNoise2.Bindings;
@@ -90,7 +91,7 @@ namespace _Project.WorldGeneration.Systems
 				Entity e = queue.Dequeue();
 
 				int3 chunkWorldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
-				var blockData = new NativeArray<ushort>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
+				var blockData = new NativeArray<BlockState>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
 				                                        Allocator.Persistent);
 				var isDirty = new NativeReference<bool>(Allocator.Persistent) { Value = false };
 				var populateJob = new PopulateChunkJob
@@ -157,7 +158,7 @@ namespace _Project.WorldGeneration.Systems
 		{
 			public Entity                Entity;
 			public JobHandle             Handle;
-			public NativeArray<ushort>   BlockData;
+			public NativeArray<BlockState>   BlockData;
 			public NativeReference<bool> IsDirty;
 		}
 	}

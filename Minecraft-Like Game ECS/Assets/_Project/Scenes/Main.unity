@@ -637,6 +637,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1645583231}
   - component: {fileID: 1645583230}
+  - component: {fileID: 1645583232}
   m_Layer: 0
   m_Name: MainUI
   m_TagString: Untagged
@@ -717,6 +718,18 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1645583232
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1645583229}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05c85d9d936a4c75ad16799a3ae69262, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.Character.PlayerUIController
 --- !u!1 &1977036490
 GameObject:
   m_ObjectHideFlags: 0
@@ -902,12 +915,18 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  AutoCollectBlocks: 1
   BlockDataSos:
   - {fileID: 11400000, guid: 9c3500e8a18f57148b03c24daf061445, type: 2}
   - {fileID: 11400000, guid: 988e110222234b546850e4e9ce77560c, type: 2}
   - {fileID: 11400000, guid: 53db6c842d955854e965defebaa8efa3, type: 2}
   - {fileID: 11400000, guid: f557bd3ba39cdb34395a3ac158e89a6e, type: 2}
   - {fileID: 11400000, guid: d1d93e213cefa7140a4719a094ec8a8b, type: 2}
+  - {fileID: 11400000, guid: c0210f56fbd018741a686b2c6daacb71, type: 2}
+  - {fileID: 11400000, guid: b2e08e0040714cd468c0fe7b47da4ecf, type: 2}
+  - {fileID: 11400000, guid: daddc667afb85274bb640fd626e8ab78, type: 2}
+  - {fileID: 11400000, guid: 841d294a870a23e48830f902330fe3bf, type: 2}
+  - {fileID: 11400000, guid: 384aaf93e6b05b84d9ab581fa1f9a6f4, type: 2}
   ChunkMaterial: {fileID: -876546973899608171, guid: a6237922fe38d3a48a85288af6204ad0, type: 3}
 --- !u!4 &1977036492
 Transform:

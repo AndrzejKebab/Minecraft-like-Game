@@ -13,12 +13,12 @@ namespace _Project.WorldGeneration.Jobs
 		             FloatPrecision = FloatPrecision.Low)]
 	public struct PopulateChunkJob : IJob
 	{
-		public            NativeArray<ushort>   BlockData;
-		[ReadOnly] public NativeArray<Block>    BlockPrototypes;
-		public            NativeCurve           BiomeHeight;
-		public            NativeCurve           ErosionCurve;
-		public            NativeCurve           PeaksAndValleysCurve;
-		public            NativeReference<bool> IsDirty;
+		public            NativeArray<BlockState> BlockData;
+		[ReadOnly] public NativeArray<Block>      BlockPrototypes;
+		public            NativeCurve             BiomeHeight;
+		public            NativeCurve             ErosionCurve;
+		public            NativeCurve             PeaksAndValleysCurve;
+		public            NativeReference<bool>   IsDirty;
 
 		public FastNoise Noise;
 		public int3      ChunkWorldPos;
@@ -46,8 +46,12 @@ namespace _Project.WorldGeneration.Jobs
 					var worldY = ChunkWorldPos.y + y;
 					var id     = NoiseGenerator.ClassifyVoxel(worldY, terrainHeight);
 					id = id < BlockPrototypes.Length ? BlockPrototypes[id].ID : (ushort)0;
-					if (id != 0) IsDirty.Value = true;
-					BlockData.SetAtIndex(x, y, z, id);
+					if (id != 0)
+					{
+						IsDirty.Value = true;
+					}
+    
+					BlockData.SetAtIndex(x,y,z, new BlockState { ID = id, Orientation = 0 }); 
 				}
 			}
 

@@ -10,14 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c4c0348593424ed4821cb84cb4245bb3, type: 3}
-  m_Name: Air
-  m_EditorClassIdentifier: Assembly-CSharp::_Project.World.BlockDataSo
-  BlockName: Air
+  m_Name: WoodLog
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.WorldGeneration.Blocks.BlockDataSo
+  BlockName: WoodLog
   Block:
-    ID: 0
+    ID: 7
     MeshID: 0
-    IsTransparent: 1
+    IsTransparent: 0
     IsFluid: 0
+    DirectionType: 2
     Name:
       utf8LengthInBytes: 0
       bytes:
@@ -53,12 +54,12 @@ MonoBehaviour:
         byte0028: 0
         byte0029: 0
     BaseTextures:
-      Front: 0
-      Back: 0
-      Top: 0
-      Bottom: 0
-      Left: 0
-      Right: 0
+      Front: 5
+      Back: 5
+      Top: 6
+      Bottom: 6
+      Left: 5
+      Right: 5
     OverlayTextures:
       Front: 0
       Back: 0
@@ -66,5 +67,5 @@ MonoBehaviour:
       Bottom: 0
       Left: 0
       Right: 0
-  VoxelData: {fileID: 0}
+  VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
   TexturesLayer: []
