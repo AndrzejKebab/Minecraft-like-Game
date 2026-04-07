@@ -2,6 +2,7 @@
 using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
+using _Project.WorldGeneration.Jobs;
 using _Project.WorldGeneration.Systems;
 using Unity.Collections;
 using Unity.Entities;
@@ -9,6 +10,9 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
+using UnityEngine;
+using Collider = Unity.Physics.Collider;
+using RaycastHit = Unity.Physics.RaycastHit;
 
 namespace _Project.Character
 {
@@ -18,7 +22,7 @@ namespace _Project.Character
 	[UpdateBefore(typeof(ChunkMeshBuilderSystem))]
 	public partial class PlayerInteractionSystem : SystemBase
 	{
-		private static readonly uint chunkLayer = (uint)(1 << UnityEngine.LayerMask.NameToLayer("Chunk"));
+		private static readonly uint chunkLayer = (uint)(1 << LayerMask.NameToLayer("Chunk"));
 
 		private static readonly CollisionFilter raycastFilter = new()
 		                                                        {
@@ -185,33 +189,102 @@ namespace _Project.Character
 		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
-			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y),
+			var worldInt = new int3((int)math.floor(worldPos.x),
+			                        (int)math.floor(worldPos.y),
 			                        (int)math.floor(worldPos.z));
 			int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
 
 			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 			if (!chunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return;
 
-			JobHandle popHandle  = popSystem?.GetChunkDependency(chunkEntity) ?? default;
-			JobHandle meshHandle = meshSystem?.GetChunkDependency(chunkEntity) ?? default;
-			JobHandle.CombineDependencies(popHandle, meshHandle).Complete();
-
-			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
-
 			if (localPos.x < 0 || localPos.x >= VoxelData.CHUNK_SIZE ||
 			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
 			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
+			JobHandle popHandle  = popSystem?.GetChunkDependency(chunkEntity) ?? default;
+			JobHandle meshHandle = meshSystem?.GetChunkDependency(chunkEntity) ?? default;
+			JobHandle.CombineDependencies(popHandle, meshHandle).Complete();
+
+			meshSystem?.CancelJobFor(chunkEntity);
+
+			var colSystem = World.GetExistingSystemManaged<ChunkCollidersSystem>();
+			colSystem?.CancelPendingBakeFor(chunkEntity);
+
+			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
 
 			if (newBlock.ID != 0 && EntityManager.HasComponent<IsEmpty>(chunkEntity))
 				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			if (!EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
-				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			var                             registry        = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			ComponentLookup<ChunkComponent> blockDataLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
 
-			if (!EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
-				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
+			Mesh.MeshDataArray meshDataArray = Mesh.AllocateWritableMeshData(1);
+			var buildJob = new BuildMeshJob
+			               {
+				               Blocks          = chunkComp.BlockData,
+				               BlockPrototypes = registry.Blocks,
+				               Meshes          = registry.Meshes,
+				               ChunkSize       = VoxelData.CHUNK_SIZE,
+				               NeighborZNeg    = GetNeighborBlocks(new int3(0, 0, -1)),
+				               NeighborZPos    = GetNeighborBlocks(new int3(0, 0, 1)),
+				               NeighborYNeg    = GetNeighborBlocks(new int3(0, -1, 0)),
+				               NeighborYPos    = GetNeighborBlocks(new int3(0, 1, 0)),
+				               NeighborXNeg    = GetNeighborBlocks(new int3(-1, 0, 0)),
+				               NeighborXPos    = GetNeighborBlocks(new int3(1, 0, 0)),
+				               Layout          = ChunkMeshBuilderSystem.Layout,
+				               FaceChecks      = ChunkMeshBuilderSystem.FaceChecks,
+				               FaceTangents    = ChunkMeshBuilderSystem.FaceTangents,
+				               MeshDataArray   = meshDataArray
+			               };
+			buildJob.RunByRef();
+
+			Mesh chunkMesh;
+			if (EntityManager.HasComponent<ChunkMeshData>(chunkEntity))
+			{
+				chunkMesh = EntityManager.GetComponentData<ChunkMeshData>(chunkEntity).ChunkMesh;
+			}
+			else
+			{
+				chunkMesh = new Mesh();
+				EntityManager.AddComponentData(chunkEntity, new ChunkMeshData { ChunkMesh = chunkMesh });
+				EntityManager.AddComponentData(chunkEntity, new HasMesh());
+			}
+
+			Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, chunkMesh);
+			chunkMesh.bounds = new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
+
+			if (chunkMesh.vertexCount > 0)
+			{
+				Mesh.MeshDataArray srcArray    = Mesh.AcquireReadOnlyMeshData(chunkMesh);
+				var                colliderArr = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.TempJob);
+				var bakeJob = new ColliderBakeJob
+				              {
+					              MeshDataArray = srcArray,
+					              Collider      = colliderArr,
+					              Filter        = ChunkCollidersSystem.ChunkFilter
+				              };
+				bakeJob.Run();
+				srcArray.Dispose();
+
+				if (colliderArr[0].IsCreated)
+				{
+					if (EntityManager.HasComponent<PhysicsCollider>(chunkEntity))
+					{
+						var old = EntityManager.GetComponentData<PhysicsCollider>(chunkEntity);
+						if (old.Value.IsCreated) old.Value.Dispose();
+						EntityManager.SetComponentData(chunkEntity, new PhysicsCollider { Value = colliderArr[0] });
+					}
+					else
+					{
+						EntityManager.AddComponentData(chunkEntity, new PhysicsCollider { Value = colliderArr[0] });
+						EntityManager.AddSharedComponentManaged(chunkEntity, new PhysicsWorldIndex { Value = 0 });
+						EntityManager.AddComponentData(chunkEntity, new HasCollider());
+					}
+				}
+
+				colliderArr.Dispose();
+			}
 
 			switch (localPos.x)
 			{
@@ -241,6 +314,16 @@ namespace _Project.Character
 				case VoxelData.CHUNK_SIZE - 1:
 					TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb);
 					break;
+			}
+
+			return;
+
+			NativeArray<BlockState> GetNeighborBlocks(int3 offset)
+			{
+				if (chunkMap.TryGetValue(chunkCoord + offset, out Entity nb) &&
+				    blockDataLookup.HasComponent(nb))
+					return blockDataLookup[nb].BlockData;
+				return default;
 			}
 		}
 

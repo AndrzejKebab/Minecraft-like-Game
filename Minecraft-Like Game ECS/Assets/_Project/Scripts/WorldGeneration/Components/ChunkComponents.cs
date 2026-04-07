@@ -7,7 +7,6 @@ namespace _Project.WorldGeneration.Components
 {
 	public struct ChunkComponent : IComponentData
 	{
-		// CHANGED from NativeArray<ushort>
 		public NativeArray<BlockState> BlockData;
 	}
 

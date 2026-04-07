@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
@@ -15,28 +16,29 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
-		private static readonly NativeArray<float3> faceTangents =
+		public static readonly NativeArray<float3> FaceTangents =
 			new(6, Allocator.Persistent)
 			{
-				[0] = new float3(1, 0, 0),  // Z-[1] = new float3(-1, 0, 0), // Z+
-				[2] = new float3(1, 0, 0),  // Y+
-				[3] = new float3(-1, 0, 0), // Y-
-				[4] = new float3(0, 0, -1), // X-
-				[5] = new float3(0, 0, 1)   // X+
+				[0] = new float3(1, 0, 0),
+				[1] = new float3(-1, 0, 0),
+				[2] = new float3(1, 0, 0),
+				[3] = new float3(-1, 0, 0),
+				[4] = new float3(0, 0, -1),
+				[5] = new float3(0, 0, 1)
 			};
 
-		private static readonly NativeArray<float3> faceChecks =
+		public static readonly NativeArray<float3> FaceChecks =
 			new(6, Allocator.Persistent)
 			{
-				[0] = new float3(0, 0, -1), // Z-
-				[1] = new float3(0, 0, 1),  // Z+
-				[2] = new float3(0, 1, 0),  // Y+
-				[3] = new float3(0, -1, 0), // Y-
-				[4] = new float3(-1, 0, 0), // X-
-				[5] = new float3(1, 0, 0)   // X+
+				[0] = new float3(0, 0, -1),
+				[1] = new float3(0, 0, 1),
+				[2] = new float3(0, 1, 0),
+				[3] = new float3(0, -1, 0),
+				[4] = new float3(-1, 0, 0),
+				[5] = new float3(1, 0, 0)
 			};
 
-		private static readonly NativeArray<VertexAttributeDescriptor> layout =
+		public static readonly NativeArray<VertexAttributeDescriptor> Layout =
 			new(4, Allocator.Persistent)
 			{
 				[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
@@ -55,25 +57,33 @@ namespace _Project.WorldGeneration.Systems
 
 		protected override void OnDestroy()
 		{
-			foreach (ActiveJob job in activeJobs)
-				job.Handle.Complete();
+			foreach (ActiveJob job in activeJobs) job.Handle.Complete();
+			FaceChecks.Dispose();
+			FaceTangents.Dispose();
+			Layout.Dispose();
+		}
 
-			faceChecks.Dispose();
-			faceTangents.Dispose();
-			layout.Dispose();
+		public void CancelJobFor(Entity entity)
+		{
+			for (var i = activeJobs.Count - 1; i >= 0; i--)
+			{
+				if (activeJobs[i].Entity != entity) continue;
+				ActiveJob job = activeJobs[i];
+				job.Handle.Complete();
+				job.MeshDataArray.Dispose();
+				activeJobs.RemoveAt(i);
+			}
 		}
 
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			JobHandle combined = default;
-			foreach (ActiveJob job in activeJobs)
-				if (job.Entity == chunkEntity ||
-				    job.NBack == chunkEntity || job.NFront == chunkEntity ||
-				    job.NTop == chunkEntity || job.NBottom == chunkEntity ||
-				    job.NLeft == chunkEntity || job.NRight == chunkEntity)
-					combined = JobHandle.CombineDependencies(combined, job.Handle);
-
-			return combined;
+			return activeJobs
+			       .Where(job => job.Entity == chunkEntity || job.NBack == chunkEntity || job.NFront == chunkEntity ||
+			                     job.NTop == chunkEntity || job.NBottom == chunkEntity || job.NLeft == chunkEntity ||
+			                     job.NRight == chunkEntity)
+			       .Aggregate<ActiveJob, JobHandle>(default,
+			                                        (current, job) =>
+				                                        JobHandle.CombineDependencies(current, job.Handle));
 		}
 
 		protected override void OnUpdate()
@@ -98,13 +108,7 @@ namespace _Project.WorldGeneration.Systems
 				         .WithNone<MarkedToDestroy, IsEmpty>()
 				         .WithEntityAccess())
 			{
-				var alreadyProcessing = false;
-				foreach (ActiveJob j in activeJobs)
-					if (j.Entity == entity)
-					{
-						alreadyProcessing = true;
-						break;
-					}
+				var alreadyProcessing = activeJobs.Any(j => j.Entity == entity);
 
 				if (alreadyProcessing) continue;
 
@@ -112,7 +116,7 @@ namespace _Project.WorldGeneration.Systems
 				var  neighborsReady = true;
 				for (var i = 0; i < 6; i++)
 				{
-					int3 nPos = pos + new int3(faceChecks[i]);
+					int3 nPos = pos + new int3(FaceChecks[i]);
 					if (chunkMap.TryGetValue(nPos, out Entity nEntity) && populatedLookup.HasComponent(nEntity) &&
 					    blockDataLookup.HasComponent(nEntity) && blockDataLookup[nEntity].BlockData.IsCreated) continue;
 					neighborsReady = false;
@@ -152,9 +156,9 @@ namespace _Project.WorldGeneration.Systems
 						          NeighborYPos  = blockDataLookup[neighborYPos].BlockData,
 						          NeighborXNeg  = blockDataLookup[neighborXNeg].BlockData,
 						          NeighborXPos  = blockDataLookup[neighborXPos].BlockData,
-						          Layout        = layout,
-						          FaceChecks    = faceChecks,
-						          FaceTangents  = faceTangents,
+						          Layout        = Layout,
+						          FaceChecks    = FaceChecks,
+						          FaceTangents  = FaceTangents,
 						          MeshDataArray = meshData
 					          };
 
@@ -169,11 +173,11 @@ namespace _Project.WorldGeneration.Systems
 					               });
 					toStripMeshSync.Add(entity);
 				}
-				
+
 				foreach (Entity e in toStripMeshSync)
 					EntityManager.RemoveComponent<NeedsMeshSync>(e);
 				toStripMeshSync.Dispose();
-				
+
 				if (countToSchedule > 0)
 					JobHandle.ScheduleBatchedJobs();
 			}

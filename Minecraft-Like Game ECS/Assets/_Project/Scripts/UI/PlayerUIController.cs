@@ -6,17 +6,15 @@ namespace _Project.UI
     [RequireComponent(typeof(PanelRenderer))]
     public class PlayerUIController : MonoBehaviour
     {
-        public static PlayerUIController Instance { get; set; }
+        public static PlayerUIController Instance { get; private set; }
         
         private PanelRenderer panelRenderer;
         private Label selectedBlockLabel;
         
-        // Cache the name so if the UI reloads mid-game, it restores the correct text
         private string currentBlockName = "None"; 
 
         private void Awake()
         {
-            // Simple singleton for our ECS system to access easily
             if (Instance == null) Instance = this;
             else Destroy(gameObject);
 
@@ -25,7 +23,6 @@ namespace _Project.UI
 
         private void OnEnable()
         {
-            // Unity 6 Standard: Register the reload callback
             panelRenderer.RegisterUIReloadCallback(OnUIReload);
         }
 
@@ -34,10 +31,8 @@ namespace _Project.UI
             panelRenderer.UnregisterUIReloadCallback(OnUIReload);
         }
 
-        // Called automatically when the PanelRenderer fully builds the UI tree
         private void OnUIReload(PanelRenderer renderer, VisualElement rootElement)
         {
-            // Query the UI tree for our specific label
             selectedBlockLabel = rootElement.Q<Label>("SelectedBlock");
             
             if (selectedBlockLabel == null)
@@ -46,7 +41,6 @@ namespace _Project.UI
             }
             else
             {
-                // Ensure the label displays the correct text upon loading
                 selectedBlockLabel.text = $"Selected Block: {currentBlockName}";
             }
         }
@@ -55,7 +49,6 @@ namespace _Project.UI
         {
             currentBlockName = blockName;
 
-            // Only update the label if the UI has actually finished loading
             if (selectedBlockLabel != null)
             {
                 selectedBlockLabel.text = $"Selected Block: {currentBlockName}";

@@ -26,12 +26,10 @@ namespace _Project.Tags
 	{
 	}
 
-// Replaces our previous "NeedsRebuild" logic
 	public struct NeedsMeshSync : IComponentData
 	{
 	}
 
-// Tells the collider system the mesh was updated
 	public struct NeedsColliderSync : IComponentData
 	{
 	}

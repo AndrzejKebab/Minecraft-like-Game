@@ -77,8 +77,9 @@ namespace _Project.WorldGeneration.Systems
 
 			var toRemove = new NativeList<int3>(64, Allocator.Temp);
 			foreach (KVPair<int3, Entity> kvp in mapSingleton.ChunkMap)
-				if (!desired.ContainsKey(kvp.Key))
-					toRemove.Add(kvp.Key);
+			{
+				if (!desired.ContainsKey(kvp.Key)) toRemove.Add(kvp.Key);
+			}
 
 			foreach (int3 coord in toRemove)
 			{

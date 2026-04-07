@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
@@ -33,9 +34,8 @@ namespace _Project.WorldGeneration.Systems
 
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			foreach (ActiveJob job in activeJobs)
-				if (job.Entity == chunkEntity)
-					return job.Handle;
+			foreach (ActiveJob job in activeJobs.Where(job => job.Entity == chunkEntity))
+				return job.Handle;
 			return default;
 		}
 
@@ -74,13 +74,7 @@ namespace _Project.WorldGeneration.Systems
 			for (var i = 0; i < entities.Length; i++)
 			{
 				Entity e                 = entities[i];
-				var    alreadyProcessing = false;
-				foreach (ActiveJob job in activeJobs)
-					if (job.Entity == e)
-					{
-						alreadyProcessing = true;
-						break;
-					}
+				var    alreadyProcessing = activeJobs.Any(job => job.Entity == e);
 
 				if (!alreadyProcessing) queue.Enqueue(e, priorities[i].Distance);
 			}

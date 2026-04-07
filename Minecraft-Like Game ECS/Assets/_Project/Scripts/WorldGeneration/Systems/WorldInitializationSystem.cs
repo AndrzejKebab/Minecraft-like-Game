@@ -12,10 +12,8 @@ namespace _Project.WorldGeneration.Systems
 	{
 		protected override void OnUpdate()
 		{
-			// Wait until the MonoBehaviour is ready in the scene
 			if (WorldSettings.Instance == null) return;
 
-			// Only run this setup once
 			if (SystemAPI.HasSingleton<WorldSettingsSingleton>())
 			{
 				Enabled = false;
@@ -25,7 +23,6 @@ namespace _Project.WorldGeneration.Systems
 			var    settings       = WorldSettings.Instance;
 			Entity settingsEntity = EntityManager.CreateEntity();
 
-			// 1. Setup Settings Singleton
 			EntityManager.AddComponentData(settingsEntity, new WorldSettingsSingleton
 			                                               {
 				                                               Seed             = settings.Seed,
@@ -37,13 +34,11 @@ namespace _Project.WorldGeneration.Systems
 					                                               new FixedString512Bytes(settings.EncodedNodeTree)
 			                                               });
 
-			// 2. Setup Material Component
 			EntityManager.AddComponentObject(settingsEntity, new ChunkMaterialComponent
 			                                                 {
 				                                                 Material = settings.ChunkMaterial
 			                                                 });
 
-			// 3. Setup Block Registry natively
 			var maxId = 0;
 			foreach (BlockDataSo so in settings.BlockDataSos)
 				if (so.Block.ID > maxId)
