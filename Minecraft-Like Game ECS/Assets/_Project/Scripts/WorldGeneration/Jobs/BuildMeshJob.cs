@@ -100,8 +100,9 @@ namespace _Project.WorldGeneration.Jobs
 					if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent))
 						continue;
 
-					var wPos    = new float3(x, y, z);
-					var texBase = GetTextureIndex(originalNormal, block.BaseTextures);
+					var wPos       = new float3(x, y, z);
+					var texBase    = GetTextureIndex(originalNormal, block.BaseTextures);
+					var texOverlay = GetTextureIndex(originalNormal, block.OverlayTextures);
 
 					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f;
 					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f;
@@ -114,14 +115,10 @@ namespace _Project.WorldGeneration.Jobs
 					float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
 					var    tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
 
-					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 0,
-					                            texBase);
-					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 1,
-					                            texBase);
-					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 0,
-					                            texBase);
-					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 1,
-					                            texBase);
+					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 0, texBase, texOverlay, block.TintColor);
+					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 1, texBase, texOverlay, block.TintColor);
+					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 0, texBase, texOverlay, block.TintColor);
+					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 1, texBase, texOverlay, block.TintColor);
 
 					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);
@@ -185,14 +182,15 @@ namespace _Project.WorldGeneration.Jobs
 			mesh.Triangles.Add(b + 2);
 		}
 
-		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, float u, float v, float tBase)
+		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, float u, float v, float tBase, float tOverlay, half4 color)
 		{
 			return new Vertex
 			       {
 				       Position = new half4((half3)pos.xyz, (half)0),
 				       Normal   = new half4((half3)norm.xyz, (half)0),
 				       Tangent  = new half4(tangent),
-				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)0)
+				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)tOverlay),
+				       Color    = color
 			       };
 		}
 

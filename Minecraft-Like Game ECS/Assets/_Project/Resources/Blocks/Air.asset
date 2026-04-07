@@ -18,6 +18,16 @@ MonoBehaviour:
     MeshID: 0
     IsTransparent: 1
     IsFluid: 0
+    TintColor:
+      x:
+        value: 0
+      y:
+        value: 0
+      z:
+        value: 0
+      w:
+        value: 0
+    DirectionType: 0
     Name:
       utf8LengthInBytes: 0
       bytes:
@@ -59,6 +69,20 @@ MonoBehaviour:
       Bottom: 0
       Left: 0
       Right: 0
+    NormalTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    SpecularTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
     OverlayTextures:
       Front: 0
       Back: 0
@@ -66,5 +90,6 @@ MonoBehaviour:
       Bottom: 0
       Left: 0
       Right: 0
+  TintColor: {r: 1, g: 1, b: 1, a: 1}
   VoxelData: {fileID: 0}
   TexturesLayer: []

@@ -11,6 +11,7 @@ namespace _Project.WorldGeneration.Blocks
 	{
 		public string               BlockName;
 		public Block                Block;
+		public Color                TintColor = Color.white;
 		public MeshDataSO           VoxelData;
 		public BlockTexturesLayer[] TexturesLayer;
 

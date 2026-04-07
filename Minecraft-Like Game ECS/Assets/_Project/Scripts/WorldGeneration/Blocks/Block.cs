@@ -1,18 +1,19 @@
 ﻿using System;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Blocks
 {
-	[BurstCompile]
 	[Serializable]
+	[BurstCompile]
 	public struct Block
 	{
-		public ushort ID;
-		public ushort MeshID;
-		public bool   IsTransparent;
-		public bool   IsFluid;
-
+		public ushort             ID;
+		public ushort             MeshID;
+		public bool               IsTransparent;
+		public bool               IsFluid;
+		public half4              TintColor;
 		public BlockDirectionType DirectionType;
 
 		public FixedString32Bytes    Name;

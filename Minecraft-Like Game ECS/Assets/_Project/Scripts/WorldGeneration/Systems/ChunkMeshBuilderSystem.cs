@@ -39,12 +39,13 @@ namespace _Project.WorldGeneration.Systems
 			};
 
 		public static readonly NativeArray<VertexAttributeDescriptor> Layout =
-			new(4, Allocator.Persistent)
+			new(5, Allocator.Persistent)
 			{
 				[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
 				[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
 				[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float16, 4),
-				[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4)
+				[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
+				[4] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 4)
 			};
 
 		private readonly List<ActiveJob> activeJobs = new();
