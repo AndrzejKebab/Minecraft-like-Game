@@ -74,10 +74,8 @@ namespace _Project.WorldGeneration.Systems
 			{
 				Block b = so.Block;
 				b.MeshID = so.VoxelData != null ? meshToId[so.VoxelData] : (ushort)0;
-				b.Name = new FixedString32Bytes(so.BlockName); 
-
-				// Because we aren't using the TextureArrayGenerator, the values for BaseTextures/NormalTextures 
-				// in the SO Inspector are exactly what gets copied here.
+				b.Name   = new FixedString32Bytes(so.BlockName);
+				// When not using TextureArrayGenerator the IDs in the SO inspector are used directly
 				blockRegistry.Blocks[b.ID] = b;
 			}
 

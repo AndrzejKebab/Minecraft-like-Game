@@ -60,6 +60,20 @@ MonoBehaviour:
       Bottom: 1
       Left: 1
       Right: 1
+    NormalTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    SpecularTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
     OverlayTextures:
       Front: 0
       Back: 0
@@ -70,9 +84,23 @@ MonoBehaviour:
   VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
   TexturesLayer:
   - TextureType: 0
-    FrontTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
-    BackTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
-    TopTexture: {fileID: 2800000, guid: d37eff794db3d9148bcb23ffaae6afbe, type: 3}
-    BottomTexture: {fileID: 2800000, guid: d37eff794db3d9148bcb23ffaae6afbe, type: 3}
-    RightTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
-    LeftTexture: {fileID: 2800000, guid: 48ba1bf70e477b14dac3231079f15e97, type: 3}
+    FrontTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+    BackTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+    TopTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+    BottomTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+    RightTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 897a13e85f0c1a442865686287831882, type: 3}
+  - TextureType: 1
+    FrontTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+    BackTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+    TopTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+    BottomTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+    RightTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+    LeftTexture: {fileID: 2800000, guid: d02430ade9e7e714bbd842407d7d7955, type: 3}
+  - TextureType: 2
+    FrontTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}
+    BackTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}
+    TopTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}
+    BottomTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}
+    RightTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}
+    LeftTexture: {fileID: 2800000, guid: be215e4d4342cdc4b8563857f5242b9e, type: 3}

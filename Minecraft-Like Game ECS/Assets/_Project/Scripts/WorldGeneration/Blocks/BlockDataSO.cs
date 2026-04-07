@@ -81,7 +81,7 @@ namespace _Project.WorldGeneration.Blocks
 	{
 		Base,
 		Normal,
-		AO,
+		Specular,
 		Overlay
 	}
 }

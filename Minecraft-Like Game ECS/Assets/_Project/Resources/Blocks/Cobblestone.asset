@@ -60,6 +60,20 @@ MonoBehaviour:
       Bottom: 8
       Left: 8
       Right: 8
+    NormalTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    SpecularTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
     OverlayTextures:
       Front: 0
       Back: 0
@@ -68,4 +82,25 @@ MonoBehaviour:
       Left: 0
       Right: 0
   VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
-  TexturesLayer: []
+  TexturesLayer:
+  - TextureType: 0
+    FrontTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+    BackTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+    TopTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+    BottomTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+    RightTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 73057bb2443611e4ba3f6d38aba0e80c, type: 3}
+  - TextureType: 1
+    FrontTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+    BackTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+    TopTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+    BottomTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+    RightTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 182488ff3781215439239dd379c28fe1, type: 3}
+  - TextureType: 2
+    FrontTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}
+    BackTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}
+    TopTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}
+    BottomTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}
+    RightTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 8b0d18bac3cf4b8458812633c8345387, type: 3}

@@ -12,11 +12,13 @@ namespace _Project.WorldGeneration.Blocks
 		public ushort MeshID;
 		public bool   IsTransparent;
 		public bool   IsFluid;
-		
-		public BlockDirectionType    DirectionType;
-		
+
+		public BlockDirectionType DirectionType;
+
 		public FixedString32Bytes    Name;
 		public NativeTexturesIDLayer BaseTextures;
+		public NativeTexturesIDLayer NormalTextures;
+		public NativeTexturesIDLayer SpecularTextures;
 		public NativeTexturesIDLayer OverlayTextures;
 	}
 }
