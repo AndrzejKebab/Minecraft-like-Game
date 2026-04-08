@@ -1,4 +1,5 @@
 ﻿using System;
+using Unity.Collections;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -19,6 +20,9 @@ namespace _Project.WorldGeneration.Blocks
 		private void OnValidate()
 		{
 			EditorApplication.delayCall += AssignUniqueIdIfNeeded;
+			
+			Block.TintColor = TintColor;
+			Block.Name	  = new FixedString32Bytes(BlockName);
 		}
 
 		private void AssignUniqueIdIfNeeded()
@@ -38,7 +42,7 @@ namespace _Project.WorldGeneration.Blocks
 				usedIds.Add(so.Block.ID);
 					
 				// If another asset already claims this ID, we have a duplication conflict!
-				if (so.Block.ID == this.Block.ID && this.Block.ID != 0)
+				if (so.Block.ID == Block.ID && Block.ID != 0)
 				{
 					idConflict = true; 
 				}

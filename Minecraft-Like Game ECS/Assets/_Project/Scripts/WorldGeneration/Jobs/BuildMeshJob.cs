@@ -1,4 +1,5 @@
 ﻿using _Project.WorldGeneration.Blocks;
+using NativeTexture.Formats;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -184,15 +185,15 @@ namespace _Project.WorldGeneration.Jobs
 			mesh.Triangles.Add(b + 2);
 		}
 
-		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, Color32 color, float u, float v, int tBase, int tOverlay, int tNormal, int tSpecular)
+		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, Color32 color, float u, float v, ushort tBase, ushort tOverlay, ushort tNormal, ushort tSpecular)
 		{
 			return new Vertex
 			       {
-				       Position = new half4((half3)pos.xyz, (half)0),
-				       Normal   = new half4((half3)norm.xyz, (half)0),
-				       Tangent  = new half4(tangent),
-				       Color    = color,
-				       UVs      = new half4((half)u, (half)v, (half)0, (half)0),
+				       Position    = new half4((half3)pos.xyz, (half)0),
+				       Normal      = new half4((half3)norm.xyz, (half)0),
+				       Tangent     = new half4(tangent),
+				       Color       = color,
+				       UVs         = new half2((half)u, (half)v),
 				       TexturesIDs = new half4((half)tBase, (half)tOverlay, (half)tNormal, (half)tSpecular)
 			       };
 		}

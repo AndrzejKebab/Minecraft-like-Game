@@ -23,12 +23,12 @@ MonoBehaviour:
       rgba: 0
     DirectionType: 0
     Name:
-      utf8LengthInBytes: 0
+      utf8LengthInBytes: 3
       bytes:
         offset0000:
-          byte0000: 0
-          byte0001: 0
-          byte0002: 0
+          byte0000: 65
+          byte0001: 105
+          byte0002: 114
           byte0003: 0
           byte0004: 0
           byte0005: 0
@@ -86,6 +86,6 @@ MonoBehaviour:
       Right: 0
   TintColor:
     serializedVersion: 2
-    rgba: 16777215
+    rgba: 0
   VoxelData: {fileID: 0}
   TexturesLayer: []

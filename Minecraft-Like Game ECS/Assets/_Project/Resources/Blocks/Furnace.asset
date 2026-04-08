@@ -23,16 +23,16 @@ MonoBehaviour:
       rgba: 0
     DirectionType: 1
     Name:
-      utf8LengthInBytes: 0
+      utf8LengthInBytes: 7
       bytes:
         offset0000:
-          byte0000: 0
-          byte0001: 0
-          byte0002: 0
-          byte0003: 0
-          byte0004: 0
-          byte0005: 0
-          byte0006: 0
+          byte0000: 70
+          byte0001: 117
+          byte0002: 114
+          byte0003: 110
+          byte0004: 97
+          byte0005: 99
+          byte0006: 101
           byte0007: 0
           byte0008: 0
           byte0009: 0
@@ -57,26 +57,26 @@ MonoBehaviour:
         byte0028: 0
         byte0029: 0
     BaseTextures:
-      Front: 26
-      Back: 29
-      Top: 27
-      Bottom: 27
-      Left: 29
-      Right: 29
+      Front: 12
+      Back: 13
+      Top: 14
+      Bottom: 14
+      Left: 13
+      Right: 13
     NormalTextures:
-      Front: 0
-      Back: 0
-      Top: 0
-      Bottom: 0
-      Left: 0
-      Right: 0
+      Front: 11
+      Back: 12
+      Top: 13
+      Bottom: 13
+      Left: 12
+      Right: 12
     SpecularTextures:
-      Front: 0
-      Back: 0
-      Top: 0
-      Bottom: 0
-      Left: 0
-      Right: 0
+      Front: 10
+      Back: 11
+      Top: 12
+      Bottom: 12
+      Left: 11
+      Right: 11
     OverlayTextures:
       Front: 0
       Back: 0
@@ -86,7 +86,7 @@ MonoBehaviour:
       Right: 0
   TintColor:
     serializedVersion: 2
-    rgba: 16777215
+    rgba: 0
   VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
   TexturesLayer:
   - TextureType: 0
