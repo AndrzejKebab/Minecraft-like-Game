@@ -64,8 +64,7 @@ namespace _Project
 				Block b = so.Block;
 				b.MeshID = so.VoxelData != null ? meshToId[so.VoxelData] : (ushort)0;
 				b.Name   = new FixedString32Bytes(so.BlockName);
-				b.TintColor = new half4((half)so.TintColor.r, (half)so.TintColor.g, (half)so.TintColor.b,
-				                        (half)so.TintColor.a);
+				b.TintColor = so.TintColor;
 
 				if (textureMappings.TryGetValue(so, out TextureArrayGenerator.TextureMapping mapping))
 				{

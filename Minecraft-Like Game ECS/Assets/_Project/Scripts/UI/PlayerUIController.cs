@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Text;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace _Project.UI
@@ -41,7 +42,8 @@ namespace _Project.UI
             }
             else
             {
-                selectedBlockLabel.text = $"Selected Block: {currentBlockName}";
+                selectedBlockLabel.text =
+                    new StringBuilder().Append("Selected Block: ").Append(currentBlockName).ToString();
             }
         }
 
@@ -51,7 +53,8 @@ namespace _Project.UI
 
             if (selectedBlockLabel != null)
             {
-                selectedBlockLabel.text = $"Selected Block: {currentBlockName}";
+                selectedBlockLabel.text =
+                    new StringBuilder().Append("Selected Block: ").Append(currentBlockName).ToString();
             }
         }
     }

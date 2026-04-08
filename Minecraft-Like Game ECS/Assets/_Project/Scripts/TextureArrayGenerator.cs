@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using _Project.WorldGeneration.Blocks;
 using UnityEngine;
 
@@ -56,8 +57,8 @@ namespace _Project
 
             foreach (BlockDataSo so in allBlocks)
             {
-                mappings[so] = new TextureMapping
-                {
+                mappings[so] = new TextureMapping()
+                               {
                     Base     = BuildLayer(so, TextureType.Base, baseTex, baseDict),
                     Normal   = BuildLayer(so, TextureType.Normal, normalTex, normalDict),
                     Specular = BuildLayer(so, TextureType.Specular, specularTex, specularDict),
@@ -70,13 +71,11 @@ namespace _Project
             Texture2DArray specularArray = BuildArray(specularTex, texSize, texFormat, generateMipMaps, "BlockSpecular");
             Texture2DArray overlayArray = BuildArray(overlayTex, texSize, texFormat, generateMipMaps, "BlockOverlay");
 
-            if (chunkMaterial != null)
-            {
-                chunkMaterial.SetTexture(baseMapArray, baseArray);
-                chunkMaterial.SetTexture(normalMapArray, normalArray);
-                chunkMaterial.SetTexture(specularMapArray, specularArray);
-                chunkMaterial.SetTexture(overlayMapArray, overlayArray);
-            }
+            if (chunkMaterial == null) return mappings;
+            chunkMaterial.SetTexture(baseMapArray, baseArray);
+            chunkMaterial.SetTexture(normalMapArray, normalArray);
+            chunkMaterial.SetTexture(specularMapArray, specularArray);
+            chunkMaterial.SetTexture(overlayMapArray, overlayArray);
 
             return mappings;
         }
@@ -88,13 +87,47 @@ namespace _Project
             foreach (BlockTexturesLayer l in so.TexturesLayer)
             {
                 if (l.TextureType != type) continue;
-                return new NativeTexturesIDLayer(
-                                                 front: Register(l.FrontTexture, pool, dict),
-                                                 back: Register(l.BackTexture, pool, dict),
-                                                 top: Register(l.TopTexture, pool, dict),
-                                                 bottom: Register(l.BottomTexture, pool, dict),
-                                                 left: Register(l.LeftTexture, pool, dict),
-                                                 right: Register(l.RightTexture, pool, dict));
+                switch (l.TextureType)
+                {
+                    case TextureType.Base:
+                        so.Block.BaseTextures = new NativeTexturesIDLayer(
+                                              front: Register(l.FrontTexture, pool, dict),
+                                              back: Register(l.BackTexture, pool, dict),
+                                              top: Register(l.TopTexture, pool, dict),
+                                              bottom: Register(l.BottomTexture, pool, dict),
+                                              left: Register(l.LeftTexture, pool, dict),
+                                              right: Register(l.RightTexture, pool, dict));
+                        return so.Block.BaseTextures;
+                    case TextureType.Normal:
+                        so.Block.NormalTextures = new NativeTexturesIDLayer(
+                                                                           front: Register(l.FrontTexture, pool, dict),
+                                                                           back: Register(l.BackTexture, pool, dict),
+                                                                           top: Register(l.TopTexture, pool, dict),
+                                                                           bottom: Register(l.BottomTexture, pool, dict),
+                                                                           left: Register(l.LeftTexture, pool, dict),
+                                                                           right: Register(l.RightTexture, pool, dict));
+                        return so.Block.NormalTextures;
+                    case TextureType.Specular:
+                        so.Block.SpecularTextures = new NativeTexturesIDLayer(
+                                                                              front: Register(l.FrontTexture, pool, dict),
+                                                                              back: Register(l.BackTexture, pool, dict),
+                                                                              top: Register(l.TopTexture, pool, dict),
+                                                                              bottom: Register(l.BottomTexture, pool, dict),
+                                                                              left: Register(l.LeftTexture, pool, dict),
+                                                                              right: Register(l.RightTexture, pool, dict));
+                        return so.Block.SpecularTextures;
+                    case TextureType.Overlay:
+                        so.Block.OverlayTextures = new NativeTexturesIDLayer(
+                                                                              front: Register(l.FrontTexture, pool, dict),
+                                                                              back: Register(l.BackTexture, pool, dict),
+                                                                              top: Register(l.TopTexture, pool, dict),
+                                                                              bottom: Register(l.BottomTexture, pool, dict),
+                                                                              left: Register(l.LeftTexture, pool, dict),
+                                                                              right: Register(l.RightTexture, pool, dict));
+                        return so.Block.OverlayTextures;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
             }
             return default; 
         }

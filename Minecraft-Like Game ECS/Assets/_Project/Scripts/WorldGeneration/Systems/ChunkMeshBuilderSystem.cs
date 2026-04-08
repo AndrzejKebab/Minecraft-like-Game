@@ -39,13 +39,14 @@ namespace _Project.WorldGeneration.Systems
 			};
 
 		public static readonly NativeArray<VertexAttributeDescriptor> Layout =
-			new(5, Allocator.Persistent)
+			new(6, Allocator.Persistent)
 			{
 				[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
 				[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
 				[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float16, 4),
-				[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
-				[4] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float16, 4)
+				[3] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UInt8, 4),
+				[4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 4),
+				[5] = new VertexAttributeDescriptor(VertexAttribute.TexCoord7, VertexAttributeFormat.Float16, 4)
 			};
 
 		private readonly List<ActiveJob> activeJobs = new();
@@ -78,13 +79,15 @@ namespace _Project.WorldGeneration.Systems
 
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			return activeJobs
-			       .Where(job => job.Entity == chunkEntity || job.NBack == chunkEntity || job.NFront == chunkEntity ||
-			                     job.NTop == chunkEntity || job.NBottom == chunkEntity || job.NLeft == chunkEntity ||
-			                     job.NRight == chunkEntity)
-			       .Aggregate<ActiveJob, JobHandle>(default,
-			                                        (current, job) =>
-				                                        JobHandle.CombineDependencies(current, job.Handle));
+			JobHandle result = default;
+			foreach (ActiveJob job in activeJobs)
+			{
+				if (job.Entity == chunkEntity || job.NBack == chunkEntity || job.NFront == chunkEntity ||
+				    job.NTop == chunkEntity || job.NBottom == chunkEntity || job.NLeft == chunkEntity ||
+				    job.NRight == chunkEntity) result = JobHandle.CombineDependencies(result, job.Handle);
+			}
+
+			return result;
 		}
 
 		protected override void OnUpdate()
@@ -109,7 +112,13 @@ namespace _Project.WorldGeneration.Systems
 				         .WithNone<MarkedToDestroy, IsEmpty>()
 				         .WithEntityAccess())
 			{
-				var alreadyProcessing = activeJobs.Any(j => j.Entity == entity);
+				var alreadyProcessing = false;
+				foreach (ActiveJob j in activeJobs)
+				{
+					if (j.Entity != entity) continue;
+					alreadyProcessing = true;
+					break;
+				}
 
 				if (alreadyProcessing) continue;
 

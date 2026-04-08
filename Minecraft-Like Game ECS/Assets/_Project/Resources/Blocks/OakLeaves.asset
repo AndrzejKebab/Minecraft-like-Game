@@ -19,14 +19,8 @@ MonoBehaviour:
     IsTransparent: 1
     IsFluid: 0
     TintColor:
-      x:
-        value: 0
-      y:
-        value: 0
-      z:
-        value: 0
-      w:
-        value: 0
+      serializedVersion: 2
+      rgba: 0
     DirectionType: 0
     Name:
       utf8LengthInBytes: 0
@@ -90,7 +84,9 @@ MonoBehaviour:
       Bottom: 0
       Left: 0
       Right: 0
-  TintColor: {r: 1, g: 1, b: 1, a: 1}
+  TintColor:
+    serializedVersion: 2
+    rgba: 16777215
   VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
   TexturesLayer:
   - TextureType: 0

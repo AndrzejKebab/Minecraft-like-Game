@@ -34,8 +34,11 @@ namespace _Project.WorldGeneration.Systems
 
 		public JobHandle GetChunkDependency(Entity chunkEntity)
 		{
-			foreach (ActiveJob job in activeJobs.Where(job => job.Entity == chunkEntity))
-				return job.Handle;
+			foreach (ActiveJob job in activeJobs)
+			{
+				if (job.Entity == chunkEntity) return job.Handle;
+			}
+
 			return default;
 		}
 
@@ -74,7 +77,13 @@ namespace _Project.WorldGeneration.Systems
 			for (var i = 0; i < entities.Length; i++)
 			{
 				Entity e                 = entities[i];
-				var    alreadyProcessing = activeJobs.Any(job => job.Entity == e);
+				var    alreadyProcessing = false;
+				foreach (ActiveJob job in activeJobs)
+				{
+					if (job.Entity != e) continue;
+					alreadyProcessing = true;
+					break;
+				}
 
 				if (!alreadyProcessing) queue.Enqueue(e, priorities[i].Distance);
 			}

@@ -103,7 +103,9 @@ namespace _Project.WorldGeneration.Jobs
 					var wPos       = new float3(x, y, z);
 					var texBase    = GetTextureIndex(originalNormal, block.BaseTextures);
 					var texOverlay = GetTextureIndex(originalNormal, block.OverlayTextures);
-
+					var texNormal   = GetTextureIndex(originalNormal, block.NormalTextures);
+					var texSpecular = GetTextureIndex(originalNormal, block.SpecularTextures);
+					
 					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f;
 					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f;
 					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f;
@@ -115,10 +117,10 @@ namespace _Project.WorldGeneration.Jobs
 					float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
 					var    tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
 
-					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 0, texBase, texOverlay, block.TintColor);
-					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 0, 1, texBase, texOverlay, block.TintColor);
-					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 0, texBase, texOverlay, block.TintColor);
-					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), 1, 1, texBase, texOverlay, block.TintColor);
+					Vertex vert0 = CreateVertex(v0 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), block.TintColor, 0, 0, texBase, texOverlay, texNormal, texSpecular);
+					Vertex vert1 = CreateVertex(v1 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), block.TintColor, 0, 1, texBase, texOverlay, texNormal, texSpecular);
+					Vertex vert2 = CreateVertex(v2 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), block.TintColor, 1, 0, texBase, texOverlay, texNormal, texSpecular);
+					Vertex vert3 = CreateVertex(v3 + wPos, rotatedNormal, new float4(rotatedTangent, tangentW), block.TintColor, 1, 1, texBase, texOverlay, texNormal, texSpecular);
 
 					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref fluidMesh);
 					else AddFace(vert0, vert1, vert2, vert3, ref solidMesh);
@@ -182,15 +184,16 @@ namespace _Project.WorldGeneration.Jobs
 			mesh.Triangles.Add(b + 2);
 		}
 
-		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, float u, float v, float tBase, float tOverlay, half4 color)
+		private static Vertex CreateVertex(float3 pos, float3 norm, float4 tangent, Color32 color, float u, float v, int tBase, int tOverlay, int tNormal, int tSpecular)
 		{
 			return new Vertex
 			       {
 				       Position = new half4((half3)pos.xyz, (half)0),
 				       Normal   = new half4((half3)norm.xyz, (half)0),
 				       Tangent  = new half4(tangent),
-				       UVs      = new half4((half)u, (half)v, (half)tBase, (half)tOverlay),
-				       Color    = color
+				       Color    = color,
+				       UVs      = new half4((half)u, (half)v, (half)0, (half)0),
+				       TexturesIDs = new half4((half)tBase, (half)tOverlay, (half)tNormal, (half)tSpecular)
 			       };
 		}
 

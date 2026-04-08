@@ -2,6 +2,7 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
+using UnityEngine;
 
 namespace _Project.WorldGeneration.Blocks
 {
@@ -13,7 +14,7 @@ namespace _Project.WorldGeneration.Blocks
 		public ushort             MeshID;
 		public bool               IsTransparent;
 		public bool               IsFluid;
-		public half4              TintColor;
+		public Color32            TintColor;
 		public BlockDirectionType DirectionType;
 
 		public FixedString32Bytes    Name;

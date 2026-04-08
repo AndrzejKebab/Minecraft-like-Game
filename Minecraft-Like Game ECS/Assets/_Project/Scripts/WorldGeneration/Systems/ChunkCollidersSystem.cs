@@ -119,7 +119,13 @@ namespace _Project.WorldGeneration.Systems
 				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;
 
-				var alreadyPending = pendingBakes.Any(b => b.Entity == entity);
+				var alreadyPending = false;
+				foreach (PendingBake b in pendingBakes)
+				{
+					if (b.Entity != entity) continue;
+					alreadyPending = true;
+					break;
+				}
 
 				if (alreadyPending) continue;
 
