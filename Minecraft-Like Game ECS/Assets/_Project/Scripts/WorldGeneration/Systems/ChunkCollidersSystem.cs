@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using _Project.Tags;
+﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
 using Unity.Collections;
@@ -12,24 +11,27 @@ using UnityEngine;
 using Collider = Unity.Physics.Collider;
 
 namespace _Project.WorldGeneration.Systems
-{
-    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
-    public partial class ChunkCollidersSystem : SystemBase
+{[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
+    public partial struct ChunkCollidersSystem : ISystem
     {
         private const           int  COLLIDER_RADIUS = 1;
-        private static readonly uint chunkLayer      = (uint)(1 << LayerMask.NameToLayer("Chunk"));
 
-        private static readonly CollisionFilter chunkFilter = new()
-                                                              {
-                                                                  BelongsTo    = chunkLayer,
-                                                                  CollidesWith = ~0u
-                                                              };
+        private CollisionFilter chunkFilter;
+        private NativeList<PendingBake> pendingBakes;
+        
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<Player>();
+            pendingBakes = new NativeList<PendingBake>(Allocator.Persistent);
+            var chunkLayer = (uint)(1 << LayerMask.NameToLayer("Chunk"));
+            chunkFilter = new CollisionFilter
+                          {
+                              BelongsTo    = chunkLayer,
+                              CollidesWith = ~0u
+                          };
+        }
 
-        private readonly List<PendingBake> pendingBakes = new();
-
-        protected override void OnCreate() => RequireForUpdate<Player>();
-
-        protected override void OnDestroy()
+        public void OnDestroy(ref SystemState state)
         {
             foreach (PendingBake b in pendingBakes)
             {
@@ -37,6 +39,11 @@ namespace _Project.WorldGeneration.Systems
                 if (!b.Collider.IsCreated) continue;
                 if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
                 b.Collider.Dispose();
+            }
+
+            if (pendingBakes.IsCreated)
+            {
+                pendingBakes.Dispose();
             }
         }
 
@@ -53,7 +60,7 @@ namespace _Project.WorldGeneration.Systems
             }
         }
 
-        protected override void OnUpdate()
+        public void OnUpdate(ref SystemState state)
         {
             float3 playerPos = SystemAPI
                 .GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>())
@@ -69,13 +76,13 @@ namespace _Project.WorldGeneration.Systems
                 if (!b.Handle.IsCompleted) continue;
                 b.Handle.Complete();
 
-                if (EntityManager.Exists(b.Entity))
+                if (state.EntityManager.Exists(b.Entity))
                 {
                     if (b.Collider[0].IsCreated)
                     {
-                        if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+                        if (state.EntityManager.HasComponent<PhysicsCollider>(b.Entity))
                         {
-                            var old = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+                            var old = state.EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
                             if (old.Value.IsCreated) oldCollidersToDispose.Add(old.Value);
                             ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
                         }
@@ -86,9 +93,9 @@ namespace _Project.WorldGeneration.Systems
                             ecb.AddComponent<HasCollider>(b.Entity);
                         }
                     }
-                    else if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+                    else if (state.EntityManager.HasComponent<PhysicsCollider>(b.Entity))
                     {
-                        var old = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+                        var old = state.EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
                         if (old.Value.IsCreated) oldCollidersToDispose.Add(old.Value);
                         ecb.RemoveComponent<PhysicsCollider>(b.Entity);
                         ecb.RemoveComponent<HasCollider>(b.Entity);
@@ -145,9 +152,9 @@ namespace _Project.WorldGeneration.Systems
             {
                 if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 
-                if (EntityManager.HasComponent<PhysicsCollider>(entity))
+                if (state.EntityManager.HasComponent<PhysicsCollider>(entity))
                 {
-                    var phys = EntityManager.GetComponentData<PhysicsCollider>(entity);
+                    var phys = state.EntityManager.GetComponentData<PhysicsCollider>(entity);
                     if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
                 }
 
@@ -155,18 +162,18 @@ namespace _Project.WorldGeneration.Systems
                 ecb.RemoveComponent<PhysicsWorldIndex>(entity);
                 ecb.RemoveComponent<HasCollider>(entity);
 
-                if (!EntityManager.HasComponent<NeedsColliderSync>(entity))
+                if (!state.EntityManager.HasComponent<NeedsColliderSync>(entity))
                     ecb.AddComponent<NeedsColliderSync>(entity);
             }
 
-            ecb.Playback(EntityManager);
+            ecb.Playback(state.EntityManager);
             ecb.Dispose();
 
             foreach (BlobAssetReference<Collider> c in oldCollidersToDispose) c.Dispose();
             oldCollidersToDispose.Dispose();
         }
 
-        private static bool IsChebyshevNear(int3 a, int3 b, int radius)
+        private static bool IsChebyshevNear(in int3 a, in int3 b, int radius)
         {
             int3 d = math.abs(a - b);
             return d.x <= radius && d.y <= radius && d.z <= radius;

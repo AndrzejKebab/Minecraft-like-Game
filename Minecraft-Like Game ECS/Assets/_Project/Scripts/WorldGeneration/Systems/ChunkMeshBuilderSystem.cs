@@ -10,42 +10,41 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace _Project.WorldGeneration.Systems
-{
-	[UpdateInGroup(typeof(SimulationSystemGroup))]
+{[UpdateInGroup(typeof(SimulationSystemGroup))]
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
-	public partial class ChunkMeshBuilderSystem : SystemBase
+	public partial struct ChunkMeshBuilderSystem : ISystem
 	{
-		private static readonly NativeArray<float3> faceChecks =
-			new(6, Allocator.Persistent)
-			{
-				[0] = new float3(0, 0, -1),
-				[1] = new float3(0, 0, 1),
-				[2] = new float3(0, 1, 0),
-				[3] = new float3(0, -1, 0),
-				[4] = new float3(-1, 0, 0),
-				[5] = new float3(1, 0, 0)
-			};
-
-		private static readonly NativeArray<float3> faceTangents =
-			new(6, Allocator.Persistent)
-			{
-				[0] = new float3(1, 0, 0),
-				[1] = new float3(-1, 0, 0),
-				[2] = new float3(1, 0, 0),
-				[3] = new float3(-1, 0, 0),
-				[4] = new float3(0, 0, -1),
-				[5] = new float3(0, 0, 1)
-			};
-
-		private readonly List<ActiveJob> activeJobs = new();
-
-		protected override void OnCreate()
+		private NativeArray<float3> faceChecks;
+		private NativeArray<float3> faceTangents;
+		private NativeList<ActiveJob> activeJobs;
+		
+		public void OnCreate(ref SystemState state)
 		{
-			RequireForUpdate<WorldBlockRegistrySingleton>();
-			RequireForUpdate<ChunkMapSingleton>();
+			state.RequireForUpdate<WorldBlockRegistrySingleton>();
+			state.RequireForUpdate<ChunkMapSingleton>();
+			
+			activeJobs = new NativeList<ActiveJob>(Allocator.Persistent);
+			faceChecks =
+				new NativeArray<float3>(6, Allocator.Persistent)
+				{
+					[0] = new float3(0, 0, -1),
+					[1] = new float3(0, 0, 1),
+					[2] = new float3(0, 1, 0),
+					[3] = new float3(0, -1, 0),
+					[4] = new float3(-1, 0, 0),
+					[5] = new float3(1, 0, 0)
+				};
+			faceTangents =
+				new NativeArray<float3>(6, Allocator.Persistent)
+				{[0] = new float3(1, 0, 0),
+					[1] = new float3(-1, 0, 0),
+					[2] = new float3(1, 0, 0),
+					[3] = new float3(-1, 0, 0),[4] = new float3(0, 0, -1),
+					[5] = new float3(0, 0, 1)
+				};
 		}
 
-		protected override void OnDestroy()
+		public void OnDestroy(ref SystemState state)
 		{
 			foreach (ActiveJob job in activeJobs)
 			{
@@ -53,7 +52,8 @@ namespace _Project.WorldGeneration.Systems
 				job.SolidMesh.Dispose();
 				job.FluidMesh.Dispose();
 			}
-
+			
+			activeJobs.Dispose();
 			faceChecks.Dispose();
 			faceTangents.Dispose();
 		}
@@ -83,10 +83,10 @@ namespace _Project.WorldGeneration.Systems
 			return result;
 		}
 
-		protected override void OnUpdate()
+		public void OnUpdate(ref SystemState state)
 		{
-			ProcessJobs();
-			ProcessUrgentJobs();
+			ProcessJobs(ref state);
+			ProcessUrgentJobs(ref state);
 			
 			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
 			
@@ -184,7 +184,7 @@ namespace _Project.WorldGeneration.Systems
 				}
 
 				foreach (Entity e in toStripMeshSync)
-					EntityManager.RemoveComponent<NeedsMeshSync>(e);
+					state.EntityManager.RemoveComponent<NeedsMeshSync>(e);
 				toStripMeshSync.Dispose();
 
 				if (countToSchedule > 0) JobHandle.ScheduleBatchedJobs();
@@ -193,7 +193,7 @@ namespace _Project.WorldGeneration.Systems
 			queue.Dispose();
 		}
 
-		private void ProcessJobs()
+		private void ProcessJobs(ref SystemState state)
 		{
 			for (var i = activeJobs.Count - 1; i >= 0; i--)
 			{
@@ -201,7 +201,7 @@ namespace _Project.WorldGeneration.Systems
 				if (!job.Handle.IsCompleted) continue;
 				job.Handle.Complete();
 
-				if (!EntityManager.Exists(job.Entity))
+				if (!state.EntityManager.Exists(job.Entity))
 				{
 					job.SolidMesh.Dispose();
 					job.FluidMesh.Dispose();
@@ -217,15 +217,15 @@ namespace _Project.WorldGeneration.Systems
 				var totalI  = siCount + fiCount;
 
 				ChunkGfxBuffers gfx;
-				if (EntityManager.HasComponent<ChunkGfxBuffers>(job.Entity))
+				if (state.EntityManager.HasComponent<ChunkGfxBuffers>(job.Entity))
 				{
-					gfx = EntityManager.GetComponentObject<ChunkGfxBuffers>(job.Entity);
+					gfx = state.EntityManager.GetComponentObject<ChunkGfxBuffers>(job.Entity);
 					gfx.Dispose();
 				}
 				else
 				{
 					gfx = new ChunkGfxBuffers();
-					EntityManager.AddComponentObject(job.Entity, gfx);
+					state.EntityManager.AddComponentObject(job.Entity, gfx);
 				}
 
 				if (totalV > 0)
@@ -272,43 +272,44 @@ namespace _Project.WorldGeneration.Systems
 					gfx.FluidIndexCount = fiCount;
 				}
 				
-				if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
+				if (state.EntityManager.HasComponent<ChunkMeshData>(job.Entity))
 				{
-					var colSystem = World.GetExistingSystemManaged<ChunkCollidersSystem>();
-					colSystem?.CancelPendingBakeFor(job.Entity);
+					SystemHandle colSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkCollidersSystem>();
+					ref ChunkCollidersSystem colSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkCollidersSystem>(colSystemHandle);
+					colSystem.CancelPendingBakeFor(job.Entity);
 					
-					var old = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
+					var old = state.EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 					old.Dispose();
-					EntityManager.SetComponentData(job.Entity, new ChunkMeshData
-					                                           {
-						                                           SolidMesh = job.SolidMesh,
-						                                           FluidMesh = job.FluidMesh
-					                                           });
+					state.EntityManager.SetComponentData(job.Entity, new ChunkMeshData
+					                                                 {
+						                                                 SolidMesh = job.SolidMesh,
+						                                                 FluidMesh = job.FluidMesh
+					                                                 });
 				}
 				else
 				{
-					EntityManager.AddComponentData(job.Entity, new ChunkMeshData
-					                                           {
-						                                           SolidMesh = job.SolidMesh,
-						                                           FluidMesh = job.FluidMesh
-					                                           });
+					state.EntityManager.AddComponentData(job.Entity, new ChunkMeshData
+					                                                 {
+						                                                 SolidMesh = job.SolidMesh,
+						                                                 FluidMesh = job.FluidMesh
+					                                                 });
 				}
 
-				if (!EntityManager.HasComponent<HasMesh>(job.Entity))
-					EntityManager.AddComponent<HasMesh>(job.Entity);
-				if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
-					EntityManager.AddComponent<NeedsColliderSync>(job.Entity);
+				if (!state.EntityManager.HasComponent<HasMesh>(job.Entity))
+					state.EntityManager.AddComponent<HasMesh>(job.Entity);
+				if (!state.EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
+					state.EntityManager.AddComponent<NeedsColliderSync>(job.Entity);
 
 				activeJobs.RemoveAt(i);
 			}
 		}
 		
-		  private void ProcessUrgentJobs()
+		private void ProcessUrgentJobs(ref SystemState state)
         {
             EntityQuery urgentQuery = SystemAPI.QueryBuilder()
-                                               .WithAll<UrgentMeshSync, IsPopulated, ChunkPositionComponent>()
-                                               .WithNone<MarkedToDestroy, IsEmpty>()
-                                               .Build();
+                                             .WithAll<UrgentMeshSync, IsPopulated, ChunkPositionComponent>()
+                                             .WithNone<MarkedToDestroy, IsEmpty>()
+                                             .Build();
 
             if (urgentQuery.IsEmpty) return;
 
@@ -368,10 +369,10 @@ namespace _Project.WorldGeneration.Systems
                 ecb.RemoveComponent<NeedsMeshSync>(entity);
             }
 
-            ecb.Playback(EntityManager);
+            ecb.Playback(state.EntityManager);
             ecb.Dispose();
 
-            ProcessJobs(); 
+            ProcessJobs(ref state); 
         }
 
 		private struct ActiveJob

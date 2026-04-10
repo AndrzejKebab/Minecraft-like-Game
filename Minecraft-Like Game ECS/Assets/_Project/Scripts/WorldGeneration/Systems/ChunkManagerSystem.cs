@@ -7,31 +7,32 @@ using Unity.Jobs;
 using Unity.Physics;
 
 namespace _Project.WorldGeneration.Systems
-{
-	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
-	public partial class ChunkManagerSystem : SystemBase
+{[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
+	public partial struct ChunkManagerSystem : ISystem
 	{
-		protected override void OnUpdate()
+		public void OnUpdate(ref SystemState state)
 		{
-			var popSystem  = World.GetExistingSystemManaged<ChunkPopulateSystem>();
-			var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-			var colSystem  = World.GetExistingSystemManaged<ChunkCollidersSystem>(); // <-- ADDED
-
-			var ecb = new EntityCommandBuffer(Allocator.Temp);
+			SystemHandle          popSystemHandle       = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkPopulateSystem>();
+			ref ChunkPopulateSystem popSystem				   = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkPopulateSystem>(popSystemHandle);
+			SystemHandle          meshSystemHandle      = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkMeshBuilderSystem>();
+			ref ChunkMeshBuilderSystem meshSystem				   = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkMeshBuilderSystem>(meshSystemHandle);
+			SystemHandle colSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkCollidersSystem>();
+			ref ChunkCollidersSystem      colSystem       = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkCollidersSystem>(colSystemHandle);
+			var          ecb             = new EntityCommandBuffer(Allocator.Temp);
 
 			var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
 			var oldBlocksToDispose    = new NativeList<NativeArray<BlockState>>(Allocator.Temp);
 
 			foreach ((_, Entity entity) in SystemAPI.Query<RefRO<MarkedToDestroy>>().WithEntityAccess())
 			{
-				JobHandle popHandle  = popSystem?.GetChunkDependency(entity) ?? default;
-				JobHandle meshHandle = meshSystem?.GetChunkDependency(entity) ?? default;
+				JobHandle popHandle  = popSystem.GetChunkDependency(entity);
+				JobHandle meshHandle = meshSystem.GetChunkDependency(entity);
 				JobHandle combined   = JobHandle.CombineDependencies(popHandle, meshHandle);
 
 				if (!combined.IsCompleted) continue;
 				combined.Complete();
 
-				colSystem?.CancelPendingBakeFor(entity); 
+				colSystem.CancelPendingBakeFor(entity); 
 
 				if (SystemAPI.HasComponent<ChunkComponent>(entity))
 				{
@@ -51,16 +52,16 @@ namespace _Project.WorldGeneration.Systems
 					if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
 				}
 				
-				if (EntityManager.HasComponent<ChunkGfxBuffers>(entity))
+				if (state.EntityManager.HasComponent<ChunkGfxBuffers>(entity))
 				{
-					var gfx = EntityManager.GetComponentObject<ChunkGfxBuffers>(entity);
+					var gfx = state.EntityManager.GetComponentObject<ChunkGfxBuffers>(entity);
 					gfx.Dispose();
 				}
 
 				ecb.DestroyEntity(entity);
 			}
 
-			ecb.Playback(EntityManager);
+			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 
 			foreach (BlobAssetReference<Collider> c in oldCollidersToDispose) c.Dispose();

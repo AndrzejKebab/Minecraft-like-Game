@@ -30,6 +30,10 @@ namespace _Project.Tags
 	{
 	}
 
+	public struct UrgentMeshSync : IComponentData
+	{
+	}
+
 	public struct NeedsColliderSync : IComponentData
 	{
 	}

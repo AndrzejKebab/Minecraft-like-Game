@@ -1,5 +1,6 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
@@ -8,6 +9,7 @@ using UnityEngine.Rendering;
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
+	[BurstCompile]
 	public partial class ChunkRenderSystem : SystemBase
 	{
 		private Material solidMaterial;
@@ -25,7 +27,8 @@ namespace _Project.WorldGeneration.Systems
 		{
 			mpb = new MaterialPropertyBlock();
 		}
-
+		
+		[BurstCompile]
 		protected override void OnUpdate()
 		{
 			if (solidMaterial == null && fluidMaterial == null)

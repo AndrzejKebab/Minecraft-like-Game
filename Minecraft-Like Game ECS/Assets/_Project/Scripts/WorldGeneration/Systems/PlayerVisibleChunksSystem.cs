@@ -15,7 +15,7 @@ namespace _Project.WorldGeneration.Systems
 	public partial struct PlayerVisibleChunksSystem : ISystem
 	{
 		private int3 lastPlayerChunk;
-
+		
 		public void OnCreate(ref SystemState state)
 		{
 			state.RequireForUpdate<Player>();
@@ -128,7 +128,7 @@ namespace _Project.WorldGeneration.Systems
 			toRemove.Dispose();
 			desired.Dispose();
 		}
-
+		
 		public static int3 WorldToChunkCoord(float3 worldPos)
 		{
 			return new int3(

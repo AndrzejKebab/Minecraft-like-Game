@@ -1,8 +1,9 @@
 ﻿using System;
-using _Project.Tags; // Keep this
+using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Systems;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -11,47 +12,47 @@ using Unity.Transforms;
 using UnityEngine;
 using RaycastHit = Unity.Physics.RaycastHit;
 
-// ADD THIS COMPONENT DEFINITION HERE:
-namespace _Project.Tags
-{
-	public struct UrgentMeshSync : IComponentData { }
-}
-
 namespace _Project.Character
-{[UpdateInGroup(typeof(SimulationSystemGroup))]
-	[UpdateAfter(typeof(PlayerVisibleChunksSystem))][UpdateAfter(typeof(ChunkPopulateSystem))]
+{
+	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
+	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	[UpdateBefore(typeof(ChunkMeshBuilderSystem))]
-	public partial class PlayerInteractionSystem : SystemBase
+	[BurstCompile]
+	public partial struct PlayerInteractionSystem : ISystem
 	{
-		private static readonly uint chunkLayer = (uint)(1 << LayerMask.NameToLayer("Chunk"));
-
-		private static readonly CollisionFilter raycastFilter = new()
-		                                                        {
-			                                                        BelongsTo    = ~0u,
-			                                                        CollidesWith = chunkLayer
-		                                                        };
-
-		protected override void OnCreate()
+		private CollisionFilter raycastFilter;
+		
+		[BurstDiscard]
+		public void OnCreate(ref SystemState state)
 		{
-			RequireForUpdate<PhysicsWorldSingleton>();
-			RequireForUpdate<WorldBlockRegistrySingleton>();
-			RequireForUpdate<ChunkMapSingleton>();
-		}
+			state.RequireForUpdate<PhysicsWorldSingleton>();
+			state.RequireForUpdate<WorldBlockRegistrySingleton>();
+			state.RequireForUpdate<ChunkMapSingleton>();
 
-		protected override void OnUpdate()
+			var chunkLayer = (uint)(1 << LayerMask.NameToLayer("Chunk"));
+			raycastFilter = new CollisionFilter
+			                {
+				                BelongsTo    = ~0u,
+				                CollidesWith = chunkLayer
+			                };
+		}
+		
+		[BurstCompile]
+		public void OnUpdate(ref SystemState state)
 		{
 			var registry   = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 			var maxBlockID = registry.Blocks.Length - 1;
 
-			var popSystem  = World.GetExistingSystemManaged<ChunkPopulateSystem>();
-			var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
-			var ecb        = new EntityCommandBuffer(Allocator.Temp);
+			SystemHandle     popSystemHandle  = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkPopulateSystem>();
+			ref ChunkPopulateSystem popSystem        = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkPopulateSystem>(popSystemHandle);
+			SystemHandle     meshSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkMeshBuilderSystem>();
+			ref ChunkMeshBuilderSystem meshSystem		= ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkMeshBuilderSystem>(meshSystemHandle);
+			var     ecb              = new EntityCommandBuffer(Allocator.Temp);
 
 			foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI
 				         .Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
 			{
-                // ... (Keep all your existing scroll and raycast input logic here)
-                // ... (Omitted for brevity, do not change your raycast logic)
 				if (maxBlockID >= 1)
 				{
 					var scroll = interactState.ValueRO.ScrollDelta;
@@ -103,7 +104,7 @@ namespace _Project.Character
 				if (interactState.ValueRO.BreakPressed)
 				{
 					float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
-					ModifyBlock(blockPos, new BlockState() { ID = 0 }, ecb, popSystem, meshSystem);
+					ModifyBlock(ref state, blockPos, new BlockState() { ID = 0 }, ecb, popSystem, meshSystem);
 				}
 				else if (interactState.ValueRO.PlacePressed)
 				{
@@ -137,15 +138,16 @@ namespace _Project.Character
 					}
 
 					var placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
-					ModifyBlock(blockPos, placedState, ecb, popSystem, meshSystem);
+					ModifyBlock(ref state, blockPos, placedState, ecb, popSystem, meshSystem);
 				}
 			}
 
-			ecb.Playback(EntityManager);
+			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 		}
-
-		private void ModifyBlock(float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb,
+		
+		[BurstCompile]
+		private void ModifyBlock(ref SystemState state, float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb,
 		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
@@ -159,52 +161,52 @@ namespace _Project.Character
 			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
 			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
-			popSystem?.GetChunkDependency(chunkEntity).Complete();
-			meshSystem?.GetChunkDependency(chunkEntity).Complete();
+			popSystem.GetChunkDependency(chunkEntity).Complete();
+			meshSystem.GetChunkDependency(chunkEntity).Complete();
 
-			meshSystem?.CancelJobFor(chunkEntity);
-			var colSystem = World.GetExistingSystemManaged<ChunkCollidersSystem>();
-			colSystem?.CancelPendingBakeFor(chunkEntity);
+			meshSystem.CancelJobFor(chunkEntity);
+			SystemHandle colSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkCollidersSystem>();
+			ref ChunkCollidersSystem colSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkCollidersSystem>(colSystemHandle);
+			colSystem.CancelPendingBakeFor(chunkEntity);
 
 			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
 
-			if (newBlock.ID != 0 && EntityManager.HasComponent<IsEmpty>(chunkEntity))
+			if (newBlock.ID != 0 && state.EntityManager.HasComponent<IsEmpty>(chunkEntity))
 				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			// TAG WITH URGENT MESH SYNC
-			if (!EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
 				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
 
 			switch (localPos.x)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(-1, 0, 0), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(1, 0, 0), ecb, meshSystem, colSystem); break;
 			}
 			switch (localPos.y)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, -1, 0), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 1, 0), ecb, meshSystem, colSystem); break;
 			}
 			switch (localPos.z)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, -1), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, 1), ecb, meshSystem, colSystem); break;
 			}
 		}
-
-		private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb, ChunkMeshBuilderSystem meshSystem, ChunkCollidersSystem colSystem)
+		
+		[BurstCompile]
+		private void TryMarkNeighbor(ref SystemState state, int3 neighborCoord, EntityCommandBuffer ecb, ChunkMeshBuilderSystem meshSystem, ChunkCollidersSystem colSystem)
 		{
 			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity)) return;
 
-			meshSystem?.CancelJobFor(chunkEntity);
-			colSystem?.CancelPendingBakeFor(chunkEntity);
+			meshSystem.CancelJobFor(chunkEntity);
+			colSystem.CancelPendingBakeFor(chunkEntity);
 
-			// TAG NEIGHBOR WITH URGENT MESH SYNC
-			if (!EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
 				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
 				
-			if (!EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
+			if (!state.EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
 				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
 		}
 	}

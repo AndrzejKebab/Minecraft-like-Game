@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Linq;
-using _Project.Tags;
+﻿using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
@@ -12,24 +10,29 @@ using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Systems
 {
-	[UpdateInGroup(typeof(SimulationSystemGroup))]
-	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
-	public partial class ChunkPopulateSystem : SystemBase
+	[UpdateInGroup(typeof(SimulationSystemGroup))][UpdateAfter(typeof(PlayerVisibleChunksSystem))]
+	public partial struct ChunkPopulateSystem : ISystem
 	{
-		private readonly List<ActiveJob> activeJobs = new();
-		private          bool            isNoiseInitialized;
-		private          FastNoise       noise;
+		private NativeList<ActiveJob> activeJobs;
+		private bool                  isNoiseInitialized;
+		private FastNoise             noise;
 
-		protected override void OnCreate()
+		public void OnCreate(ref SystemState state)
 		{
-			RequireForUpdate<WorldSettingsSingleton>();
-			RequireForUpdate<WorldBlockRegistrySingleton>();
+			state.RequireForUpdate<WorldBlockRegistrySingleton>();
+			state.RequireForUpdate<WorldSettingsSingleton>();
+			state.RequireForUpdate<WorldBlockRegistrySingleton>();
+			activeJobs = new NativeList<ActiveJob>(Allocator.Persistent);
 		}
 
-		protected override void OnDestroy()
+		public void OnDestroy(ref SystemState state)
 		{
 			if (isNoiseInitialized && noise.IsCreated)
 				noise.Dispose();
+			if (activeJobs.IsCreated)
+			{
+				activeJobs.Dispose();
+			}
 		}
 
 		public JobHandle GetChunkDependency(Entity chunkEntity)
@@ -42,24 +45,20 @@ namespace _Project.WorldGeneration.Systems
 			return default;
 		}
 
-		protected override void OnUpdate()
+		public void OnUpdate(ref SystemState state)
 		{
-			if (!SystemAPI.TryGetSingleton(out WorldSettingsSingleton settings))
-				return;
-
+			if (!SystemAPI.TryGetSingleton(out WorldSettingsSingleton settings)) return;
 			if (!isNoiseInitialized)
 			{
-				var nodeTree = settings.EncodedNodeTree.ToString();
-				noise              = FastNoise.FromEncodedNodeTree(nodeTree);
-				isNoiseInitialized = true;
+				InitializeFastNoise(ref settings);
 			}
 
-			ProcessJobs();
+			ProcessJobs(ref state);
 
 			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
 			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 
-			EntityManager em = EntityManager;
+			EntityManager em = state.EntityManager;
 
 			EntityQuery query = SystemAPI.QueryBuilder()
 			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent,
@@ -130,9 +129,18 @@ namespace _Project.WorldGeneration.Systems
 				JobHandle.ScheduleBatchedJobs();
 		}
 
-		private void ProcessJobs()
+		private bool InitializeFastNoise(ref WorldSettingsSingleton settings)
 		{
-			EntityManager em = EntityManager;
+			var nodeTree = settings.EncodedNodeTree.ToString();
+			noise              = FastNoise.FromEncodedNodeTree(nodeTree);
+			isNoiseInitialized = true;
+
+			return false;
+		}
+
+		private void ProcessJobs(ref SystemState state)
+		{
+			EntityManager em = state.EntityManager;
 			for (var i = activeJobs.Count - 1; i >= 0; i--)
 			{
 				ActiveJob job = activeJobs[i];
