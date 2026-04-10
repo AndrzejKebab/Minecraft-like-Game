@@ -27,7 +27,7 @@ namespace _Project.WorldGeneration
 		                                  in NativeCurve peaksAndValleysCurve)
 		{
 			var baseHeight      = biomeHeight.Evaluate(rawNoise);
-			var erosion         = erosionCurve.Evaluate(-1 * rawNoise);
+			var erosion         = erosionCurve.Evaluate(1.5f * rawNoise);
 			var peaksAndValleys = peaksAndValleysCurve.Evaluate(1 - rawNoise / 3 * 2);
 			return (int)(baseHeight + erosion * peaksAndValleys);
 		}

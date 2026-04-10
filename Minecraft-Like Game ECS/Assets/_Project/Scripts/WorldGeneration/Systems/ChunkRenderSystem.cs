@@ -84,8 +84,7 @@ namespace _Project.WorldGeneration.Systems
 					rp.worldBounds = bounds;
 					Graphics.RenderPrimitivesIndexedIndirect(
 					                                         in rp, MeshTopology.Triangles,
-					                                         gfx.IndexBuffer, gfx.ArgsBuffer,
-					                                         1, 0);
+					                                         gfx.IndexBuffer, gfx.ArgsBuffer);
 				}
 
 				if (gfx.FluidIndexCount <= 0) continue;

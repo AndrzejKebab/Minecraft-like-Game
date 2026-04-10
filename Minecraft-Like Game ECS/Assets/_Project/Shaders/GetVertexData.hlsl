@@ -1,8 +1,5 @@
 #pragma once
 
-// We don't need "UnityIndirect.cginc" because Graphics.RenderPrimitivesIndexedIndirect
-// automatically uses the IndexBuffer and passes the correct pulled index via SV_VertexID.
-
 struct Vertex
 {
     uint2 Position;   // packed half4 (8 bytes)
@@ -15,15 +12,13 @@ struct Vertex
 
 StructuredBuffer<Vertex> _Vertices;
 float3  _ChunkOrigin;
-int     _VertexCount; // Set from C# instead of GetDimensions — avoids sm4.0 restriction
+int     _VertexCount;
 
-// Unpacks two 16-bit floats from a 32-bit uint
 inline float2 unpack_half2(uint v)
 {
     return float2(f16tof32(v), f16tof32(v >> 16));
 }
 
-// Unpacks four 16-bit floats from a uint2
 inline float4 unpack_half4(uint2 v)
 {
     return float4(unpack_half2(v.x), unpack_half2(v.y));
@@ -50,7 +45,6 @@ void get_vertex_data_float(
     return;
 #endif
 
-    // Bounds check
     if (vertex_id >= (uint)_VertexCount)
     {
         PositionWS  = _ChunkOrigin;
@@ -61,10 +55,8 @@ void get_vertex_data_float(
         return;
     }
 
-    // Retrieve exactly 40-bytes
     Vertex v = _Vertices[vertex_id];
 
-    // Unpack from 16-bit exactly matching your C# memory layout (little-endian)
     float4 pos = unpack_half4(v.Position);
     float4 norm = unpack_half4(v.Normal);
     float4 tan = unpack_half4(v.Tangent);
@@ -81,8 +73,6 @@ void get_vertex_data_float(
     TexSpecular = texIds.w;
 }
 
-// Shader Graph generates both _float and _half variants for every custom
-// function node. Define _half as a direct call-through — all logic stays above.
 void get_vertex_data_half(
     uint   vertex_id : SV_VertexID,
     out half3 PositionWS,
