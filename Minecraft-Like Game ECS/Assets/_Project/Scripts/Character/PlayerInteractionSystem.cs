@@ -1,5 +1,5 @@
 ﻿using System;
-using _Project.Tags;
+using _Project.Tags; // Keep this
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Systems;
@@ -11,11 +11,15 @@ using Unity.Transforms;
 using UnityEngine;
 using RaycastHit = Unity.Physics.RaycastHit;
 
-namespace _Project.Character
+// ADD THIS COMPONENT DEFINITION HERE:
+namespace _Project.Tags
 {
-	[UpdateInGroup(typeof(SimulationSystemGroup))]
-	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
-	[UpdateAfter(typeof(ChunkPopulateSystem))]
+	public struct UrgentMeshSync : IComponentData { }
+}
+
+namespace _Project.Character
+{[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(PlayerVisibleChunksSystem))][UpdateAfter(typeof(ChunkPopulateSystem))]
 	[UpdateBefore(typeof(ChunkMeshBuilderSystem))]
 	public partial class PlayerInteractionSystem : SystemBase
 	{
@@ -46,6 +50,8 @@ namespace _Project.Character
 			foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI
 				         .Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
 			{
+                // ... (Keep all your existing scroll and raycast input logic here)
+                // ... (Omitted for brevity, do not change your raycast logic)
 				if (maxBlockID >= 1)
 				{
 					var scroll = interactState.ValueRO.ScrollDelta;
@@ -66,10 +72,7 @@ namespace _Project.Character
 								if (newID < 1) newID = (ushort)maxBlockID;
 							}
 
-							if (!registry.Blocks[newID].Name.IsEmpty)
-							{
-								break;
-							}
+							if (!registry.Blocks[newID].Name.IsEmpty) break;
 						}
 
 						interactState.ValueRW.SelectedBlockID = newID;
@@ -78,21 +81,16 @@ namespace _Project.Character
 
 				if (interactState.ValueRO is { BreakPressed: false, PlacePressed: false }) continue;
 
-				if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter))
-					continue;
+				if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)) continue;
 				if (!SystemAPI.HasComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter)) continue;
 
-				Entity viewEntity = SystemAPI
-				                    .GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)
-				                    .ViewEntity;
+				Entity viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
 				if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
 
 				var charTransform = SystemAPI.GetComponent<LocalTransform>(player.ValueRO.ControlledCharacter);
 				var charCollider  = SystemAPI.GetComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter);
-
 				var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
-				CollisionWorld collisionWorld =
-					SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+				CollisionWorld collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
 
 				var input = new RaycastInput()
 				            {
@@ -110,18 +108,10 @@ namespace _Project.Character
 				else if (interactState.ValueRO.PlacePressed)
 				{
 					float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
-					var worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y),
-					                        (int)math.floor(blockPos.z));
+					var worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y), (int)math.floor(blockPos.z));
+					var blockAabb = new Aabb { Min = worldInt + new float3(0.05f), Max = worldInt + new float3(0.95f) };
 
-					var blockAabb = new Aabb
-					                {
-						                Min = worldInt + new float3(0.05f),
-						                Max = worldInt + new float3(0.95f)
-					                };
-
-					Aabb charAabb =
-						charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation,
-						                                        charTransform.Position));
+					Aabb charAabb = charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation, charTransform.Position));
 
 					var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
 					                       blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
@@ -134,46 +124,19 @@ namespace _Project.Character
 					switch (blockProto.DirectionType)
 					{
 						case BlockDirectionType.YAxis:
-						{
 							float3 forward = viewLtw.Forward;
-							if (math.abs(forward.x) > math.abs(forward.z))
-								orientation = forward.x > 0 ? (byte)5 : (byte)4;
-							else
-								orientation = forward.z > 0 ? (byte)3 : (byte)2;
+							if (math.abs(forward.x) > math.abs(forward.z)) orientation = forward.x > 0 ? (byte)5 : (byte)4;
+							else orientation = forward.z > 0 ? (byte)3 : (byte)2;
 							break;
-						}
 						case BlockDirectionType.AllAxes:
-						{
 							float3 n = hit.SurfaceNormal;
-							orientation = n.y switch
-							              {
-								              > 0.5f  => 0,
-								              < -0.5f => 1,
-								              _ => n.z switch
-								                   {
-									                   > 0.5f  => 2,
-									                   < -0.5f => 3,
-									                   _ => n.x switch
-									                        {
-										                        > 0.5f  => 4,
-										                        < -0.5f => 5,
-										                        _       => orientation
-									                        }
-								                   }
-							              };
+							orientation = n.y switch { > 0.5f => 0, < -0.5f => 1, _ => n.z switch { > 0.5f => 2, < -0.5f => 3, _ => n.x switch { > 0.5f => 4, < -0.5f => 5, _ => orientation } } };
 							break;
-						}
-						case BlockDirectionType.None:
-							break;
-						default:
-							throw new ArgumentOutOfRangeException();
+						case BlockDirectionType.None: break;
+						default: throw new ArgumentOutOfRangeException();
 					}
 
-					var placedState = new BlockState
-					                  {
-						                  ID          = interactState.ValueRO.SelectedBlockID,
-						                  Orientation = orientation
-					                  };
+					var placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
 					ModifyBlock(blockPos, placedState, ecb, popSystem, meshSystem);
 				}
 			}
@@ -182,12 +145,11 @@ namespace _Project.Character
 			ecb.Dispose();
 		}
 
-		private void ModifyBlock(float3              worldPos,  BlockState newBlock, EntityCommandBuffer ecb,
+		private void ModifyBlock(float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb,
 		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
-			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y),
-			                        (int)math.floor(worldPos.z));
+			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
 			int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
 
 			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
@@ -197,51 +159,51 @@ namespace _Project.Character
 			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
 			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
-			// Cancel active jobs so we don't overwrite our new interaction
+			popSystem?.GetChunkDependency(chunkEntity).Complete();
+			meshSystem?.GetChunkDependency(chunkEntity).Complete();
+
 			meshSystem?.CancelJobFor(chunkEntity);
 			var colSystem = World.GetExistingSystemManaged<ChunkCollidersSystem>();
 			colSystem?.CancelPendingBakeFor(chunkEntity);
 
-			// Apply block change
 			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
 
 			if (newBlock.ID != 0 && EntityManager.HasComponent<IsEmpty>(chunkEntity))
 				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			// INSTEAD of synchronous baking, just tag the chunk. 
-			// ChunkMeshBuilderSystem will handle the rest!
-			if (!EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
-				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			// TAG WITH URGENT MESH SYNC
+			if (!EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
 
-			// Mark border neighbors
 			switch (localPos.x)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb); break;
+				case 0:                        TryMarkNeighbor(chunkCoord + new int3(-1, 0, 0), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(1, 0, 0), ecb, meshSystem, colSystem); break;
 			}
-
 			switch (localPos.y)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb); break;
+				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, -1, 0), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 1, 0), ecb, meshSystem, colSystem); break;
 			}
-
 			switch (localPos.z)
 			{
-				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb); break;
+				case 0:                        TryMarkNeighbor(chunkCoord + new int3(0, 0, -1), ecb, meshSystem, colSystem); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(chunkCoord + new int3(0, 0, 1), ecb, meshSystem, colSystem); break;
 			}
 		}
 
-		private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb)
+		private void TryMarkNeighbor(int3 neighborCoord, EntityCommandBuffer ecb, ChunkMeshBuilderSystem meshSystem, ChunkCollidersSystem colSystem)
 		{
-			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap
-			              .TryGetValue(neighborCoord, out Entity chunkEntity))
-				return;
+			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity)) return;
 
-			if (!EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
-				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			meshSystem?.CancelJobFor(chunkEntity);
+			colSystem?.CancelPendingBakeFor(chunkEntity);
+
+			// TAG NEIGHBOR WITH URGENT MESH SYNC
+			if (!EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
+				
 			if (!EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
 				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
 		}

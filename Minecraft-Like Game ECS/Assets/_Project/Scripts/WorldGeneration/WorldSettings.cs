@@ -40,6 +40,7 @@ namespace _Project.WorldGeneration
 
 		private void OnDestroy()
 		{
+			if (World.DefaultGameObjectInjectionWorld is null) return;
 			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
 			Entity settingsEntity = em.CreateEntity();

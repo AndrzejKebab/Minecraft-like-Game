@@ -86,8 +86,10 @@ namespace _Project.WorldGeneration.Systems
 		protected override void OnUpdate()
 		{
 			ProcessJobs();
+			ProcessUrgentJobs();
+			
 			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
-
+			
 			var                             registry        = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 			NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 			ComponentLookup<IsPopulated>    populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
@@ -214,7 +216,6 @@ namespace _Project.WorldGeneration.Systems
 				var totalV  = svCount + fvCount;
 				var totalI  = siCount + fiCount;
 
-				// ── GPU buffers ──────────────────────────────────────────
 				ChunkGfxBuffers gfx;
 				if (EntityManager.HasComponent<ChunkGfxBuffers>(job.Entity))
 				{
@@ -229,7 +230,6 @@ namespace _Project.WorldGeneration.Systems
 
 				if (totalV > 0)
 				{
-					// Stride = sizeof(Vertex) = 40 bytes
 					gfx.VertexBuffer = new GraphicsBuffer(
 					                                      GraphicsBuffer.Target.Structured, totalV, Marshal.SizeOf(typeof(Vertex)));
 
@@ -271,12 +271,12 @@ namespace _Project.WorldGeneration.Systems
 					gfx.SolidIndexCount = siCount;
 					gfx.FluidIndexCount = fiCount;
 				}
-
-				// ── Native mesh (kept alive for ColliderBakeJob) ─────────
-				// Manually dispose the old data first — ECS does NOT automatically
-				// call Dispose on IComponentData structs when SetComponentData is used.
+				
 				if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
 				{
+					var colSystem = World.GetExistingSystemManaged<ChunkCollidersSystem>();
+					colSystem?.CancelPendingBakeFor(job.Entity);
+					
 					var old = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 					old.Dispose();
 					EntityManager.SetComponentData(job.Entity, new ChunkMeshData
@@ -293,7 +293,6 @@ namespace _Project.WorldGeneration.Systems
 						                                           FluidMesh = job.FluidMesh
 					                                           });
 				}
-				// Ownership transferred — do NOT dispose job.SolidMesh / job.FluidMesh here
 
 				if (!EntityManager.HasComponent<HasMesh>(job.Entity))
 					EntityManager.AddComponent<HasMesh>(job.Entity);
@@ -303,6 +302,77 @@ namespace _Project.WorldGeneration.Systems
 				activeJobs.RemoveAt(i);
 			}
 		}
+		
+		  private void ProcessUrgentJobs()
+        {
+            EntityQuery urgentQuery = SystemAPI.QueryBuilder()
+                                               .WithAll<UrgentMeshSync, IsPopulated, ChunkPositionComponent>()
+                                               .WithNone<MarkedToDestroy, IsEmpty>()
+                                               .Build();
+
+            if (urgentQuery.IsEmpty) return;
+
+            var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+            NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+            ComponentLookup<ChunkComponent> blockDataLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
+
+            using NativeArray<Entity> urgentChunks = urgentQuery.ToEntityArray(Allocator.Temp);
+            
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
+
+            foreach (Entity entity in urgentChunks)
+            {
+                CancelJobFor(entity);
+
+                int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
+
+                chunkMap.TryGetValue(pos + new int3( 0,  0, -1), out Entity nZNeg);
+                chunkMap.TryGetValue(pos + new int3( 0,  0,  1), out Entity nZPos);
+                chunkMap.TryGetValue(pos + new int3( 0, -1,  0), out Entity nYNeg);
+                chunkMap.TryGetValue(pos + new int3( 0,  1,  0), out Entity nYPos);
+                chunkMap.TryGetValue(pos + new int3(-1,  0,  0), out Entity nXNeg);
+                chunkMap.TryGetValue(pos + new int3( 1,  0,  0), out Entity nXPos);
+
+                var solidMesh = new NativeMesh(Allocator.Persistent);
+                var fluidMesh = new NativeMesh(Allocator.Persistent);
+
+                var job = new BuildMeshJob
+                {
+                    Blocks          = blockDataLookup[entity].BlockData,
+                    BlockPrototypes = registry.Blocks,
+                    Meshes          = registry.Meshes,
+                    ChunkSize       = VoxelData.CHUNK_SIZE,
+                    FaceChecks      = faceChecks,
+                    FaceTangents    = faceTangents,
+                    NeighborZNeg    = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
+                    NeighborZPos    = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
+                    NeighborYNeg    = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
+                    NeighborYPos    = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
+                    NeighborXNeg    = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
+                    NeighborXPos    = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
+                    SolidMesh       = solidMesh,
+                    FluidMesh       = fluidMesh
+                };
+
+                job.RunByRef(); 
+
+                activeJobs.Add(new ActiveJob
+                {
+                    Entity    = entity,
+                    Handle    = default, 
+                    SolidMesh = solidMesh,
+                    FluidMesh = fluidMesh
+                });
+
+                ecb.RemoveComponent<UrgentMeshSync>(entity);
+                ecb.RemoveComponent<NeedsMeshSync>(entity);
+            }
+
+            ecb.Playback(EntityManager);
+            ecb.Dispose();
+
+            ProcessJobs(); 
+        }
 
 		private struct ActiveJob
 		{

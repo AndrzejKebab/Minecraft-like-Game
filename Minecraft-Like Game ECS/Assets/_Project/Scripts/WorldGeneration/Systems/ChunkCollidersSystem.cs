@@ -19,11 +19,11 @@ namespace _Project.WorldGeneration.Systems
         private const           int  COLLIDER_RADIUS = 1;
         private static readonly uint chunkLayer      = (uint)(1 << LayerMask.NameToLayer("Chunk"));
 
-        public static readonly CollisionFilter ChunkFilter = new()
-        {
-            BelongsTo    = chunkLayer,
-            CollidesWith = ~0u
-        };
+        private static readonly CollisionFilter chunkFilter = new()
+                                                              {
+                                                                  BelongsTo    = chunkLayer,
+                                                                  CollidesWith = ~0u
+                                                              };
 
         private readonly List<PendingBake> pendingBakes = new();
 
@@ -63,7 +63,6 @@ namespace _Project.WorldGeneration.Systems
             var ecb                  = new EntityCommandBuffer(Allocator.Temp);
             var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
 
-            // ── Complete finished bakes ──────────────────────────────────
             for (var i = pendingBakes.Count - 1; i >= 0; i--)
             {
                 PendingBake b = pendingBakes[i];
@@ -104,7 +103,6 @@ namespace _Project.WorldGeneration.Systems
                 pendingBakes.RemoveAt(i);
             }
 
-            // ── Schedule new bakes ───────────────────────────────────────
             foreach ((RefRO<ChunkMeshData> meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
                      SystemAPI.Query<RefRO<ChunkMeshData>, RefRO<ChunkPositionComponent>>()
                               .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
@@ -127,7 +125,7 @@ namespace _Project.WorldGeneration.Systems
                     SolidVertices = solid.Vertices,
                     SolidIndices  = solid.Triangles,
                     Collider      = collider,
-                    Filter        = ChunkFilter
+                    Filter        = chunkFilter
                 };
 
                 pendingBakes.Add(new PendingBake
@@ -140,7 +138,6 @@ namespace _Project.WorldGeneration.Systems
                 ecb.RemoveComponent<NeedsColliderSync>(entity);
             }
 
-            // ── Strip colliders from chunks that moved out of range ──────
             foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
                      SystemAPI.Query<RefRO<ChunkPositionComponent>>()
                               .WithAll<HasCollider>()

@@ -15,11 +15,12 @@ namespace _Project.WorldGeneration.Systems
 		{
 			var popSystem  = World.GetExistingSystemManaged<ChunkPopulateSystem>();
 			var meshSystem = World.GetExistingSystemManaged<ChunkMeshBuilderSystem>();
+			var colSystem  = World.GetExistingSystemManaged<ChunkCollidersSystem>(); // <-- ADDED
 
-			var ecb = new EntityCommandBuffer(Allocator.TempJob);
+			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-			var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.TempJob);
-			var oldBlocksToDispose    = new NativeList<NativeArray<BlockState>>(Allocator.TempJob);
+			var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
+			var oldBlocksToDispose    = new NativeList<NativeArray<BlockState>>(Allocator.Temp);
 
 			foreach ((_, Entity entity) in SystemAPI.Query<RefRO<MarkedToDestroy>>().WithEntityAccess())
 			{
@@ -29,6 +30,8 @@ namespace _Project.WorldGeneration.Systems
 
 				if (!combined.IsCompleted) continue;
 				combined.Complete();
+
+				colSystem?.CancelPendingBakeFor(entity); 
 
 				if (SystemAPI.HasComponent<ChunkComponent>(entity))
 				{
