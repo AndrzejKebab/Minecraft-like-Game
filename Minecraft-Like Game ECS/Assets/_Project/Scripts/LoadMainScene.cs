@@ -6,9 +6,10 @@ namespace _Project
 {
 	public class LoadMainScene : MonoBehaviour
 	{
-		private void Start()
+		private void Awake()
 		{
 			SceneManager.LoadScene("Main", LoadSceneMode.Additive);
+			Debug.Log("[LoadMainScene] Main scene loaded additively.");
 		}
 	}
 }

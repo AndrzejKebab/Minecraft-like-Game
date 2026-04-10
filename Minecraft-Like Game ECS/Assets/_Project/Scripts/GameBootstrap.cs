@@ -39,8 +39,9 @@ namespace _Project
 
 			Material chunkMaterial = GameDatabase.Instance.ChunkMaterial;
 
+			Debug.Log("[GameBootstrap] Found all blocks. Generating texture arrays...");
 			Dictionary<BlockDataSo, TextureArrayGenerator.TextureMapping> textureMappings = textureGenerator.GenerateTextureArrays(allBlocks, chunkMaterial);
-
+			Debug.Log("[GameBootstrap] Texture arrays generated. Preparing ECS data...");
 			var uniqueMeshes = new List<MeshDataSO>();
 			var meshToId     = new Dictionary<MeshDataSO, ushort>();
 
