@@ -20,28 +20,27 @@ namespace _Project
 
 		private void InitializeGame()
 		{
-			if (GameDatabase.Instance == null || WorldSettings.Instance == null)
+			if (GameDatabase.Instance == null)
 			{
-				Debug.LogError("[GameBootstrap] GameDatabase or WorldSettings is missing!");
+				Debug.LogError("[GameBootstrap] GameDatabase is missing!");
 				return;
 			}
 
 			BlockDataSo[] allBlocks = Resources.LoadAll<BlockDataSo>("Blocks");
 			GameDatabase.Instance.AllBlocks = allBlocks;
+			
 			System.Array.Sort(allBlocks, (a, b) => a.Block.ID.CompareTo(b.Block.ID));
 
 			if (allBlocks.Length == 0)
 			{
-				Debug.LogError("[GameBootstrap] No BlockDataSo found! Make sure they are in a 'Resources/Blocks' folder.");
+				Debug.LogError("[GameBootstrap] No BlockDataSo found!");
 				return;
 			}
 
 			Material chunkMaterial = GameDatabase.Instance.ChunkMaterial;
 
-			// 1. Generate Textures
 			Dictionary<BlockDataSo, TextureArrayGenerator.TextureMapping> textureMappings = textureGenerator.GenerateTextureArrays(allBlocks, chunkMaterial);
 
-			// 2. Map Unique Meshes
 			var uniqueMeshes = new List<MeshDataSO>();
 			var meshToId     = new Dictionary<MeshDataSO, ushort>();
 
@@ -52,11 +51,9 @@ namespace _Project
 				uniqueMeshes.Add(so.VoxelData);
 			}
 
-			// 3. Build Native Block Data
 			var maxId = 0;
 			foreach (BlockDataSo so in allBlocks)
-				if (so.Block.ID > maxId)
-					maxId = so.Block.ID;
+				if (so.Block.ID > maxId) maxId = so.Block.ID;
 
 			var nativeBlocks = new NativeArray<Block>(maxId + 1, Allocator.Persistent);
 			foreach (BlockDataSo so in allBlocks)
@@ -77,20 +74,16 @@ namespace _Project
 				nativeBlocks[b.ID] = b;
 			}
 
-			// 4. Build Native Mesh Data
 			var nativeMeshes = new NativeArray<NativeVoxelMeshData>(uniqueMeshes.Count, Allocator.Persistent);
 			for (var i = 0; i < uniqueMeshes.Count; i++)
 			{
 				nativeMeshes[i] = new NativeVoxelMeshData
 				                  {
-					                  Vertices = new NativeArray<float3>(uniqueMeshes[i].MeshData.Vertices,
-					                                                     Allocator.Persistent),
-					                  Triangles = new NativeArray<int4>(uniqueMeshes[i].MeshData.Triangles,
-					                                                    Allocator.Persistent)
+					                  Vertices = new NativeArray<float3>(uniqueMeshes[i].MeshData.Vertices, Allocator.Persistent),
+					                  Triangles = new NativeArray<int4>(uniqueMeshes[i].MeshData.Triangles, Allocator.Persistent)
 				                  };
 			}
 
-			// 5. Finalize and push to ECS
 			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
 			Entity regEntity = em.CreateEntity();
@@ -100,23 +93,12 @@ namespace _Project
 				                               Meshes = nativeMeshes
 			                               });
 
-			var    settings       = WorldSettings.Instance;
-			Entity settingsEntity = em.CreateEntity();
-			em.AddComponentData(settingsEntity, new WorldSettingsSingleton
-			                                    {
-				                                    Seed = settings.Seed,
-				                                    BiomeHeightCurve = settings.BiomeHeightCurve.ToNative(),
-				                                    ErosionCurve = settings.ErosionCurve.ToNative(),
-				                                    PeaksAndValleysCurve = settings.PeaksAndValleysCurve.ToNative(),
-				                                    EncodedNodeTree = new FixedString512Bytes(settings.EncodedNodeTree)
-			                                    });
+			em.AddComponentObject(regEntity, new ChunkMaterialComponent
+			                                 {
+				                                 Material = chunkMaterial
+			                                 });
 
-			em.AddComponentObject(settingsEntity, new ChunkMaterialComponent
-			                                      {
-				                                      Material = chunkMaterial
-			                                      });
-
-			Debug.Log($"[GameBootstrap] Ready! ECS Systems will now begin. Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");
+			Debug.Log($"[GameBootstrap] Game Data Ready! Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");
 		}
 	}
 }

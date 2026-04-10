@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
@@ -11,189 +10,176 @@ using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
 using Collider = Unity.Physics.Collider;
-using Mesh = UnityEngine.Mesh;
 
 namespace _Project.WorldGeneration.Systems
 {
-	[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
-	public partial class ChunkCollidersSystem : SystemBase
-	{
-		private const           int  COLLIDER_RADIUS = 1;
-		private static readonly uint chunkLayer      = (uint)(1 << LayerMask.NameToLayer("Chunk"));
+    [UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
+    public partial class ChunkCollidersSystem : SystemBase
+    {
+        private const           int  COLLIDER_RADIUS = 1;
+        private static readonly uint chunkLayer      = (uint)(1 << LayerMask.NameToLayer("Chunk"));
 
-		public static readonly CollisionFilter ChunkFilter = new()
-		                                                     {
-			                                                     BelongsTo    = chunkLayer,
-			                                                     CollidesWith = ~0u
-		                                                     };
+        public static readonly CollisionFilter ChunkFilter = new()
+        {
+            BelongsTo    = chunkLayer,
+            CollidesWith = ~0u
+        };
 
-		private readonly List<PendingBake> pendingBakes = new();
+        private readonly List<PendingBake> pendingBakes = new();
 
-		protected override void OnCreate()
-		{
-			RequireForUpdate<Player>();
-		}
+        protected override void OnCreate() => RequireForUpdate<Player>();
 
-		protected override void OnDestroy()
-		{
-			foreach (PendingBake b in pendingBakes)
-			{
-				b.Handle.Complete();
-				if (!b.Collider.IsCreated) continue;
-				if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
-				b.Collider.Dispose();
-			}
-		}
+        protected override void OnDestroy()
+        {
+            foreach (PendingBake b in pendingBakes)
+            {
+                b.Handle.Complete();
+                if (!b.Collider.IsCreated) continue;
+                if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
+                b.Collider.Dispose();
+            }
+        }
 
-		public void CancelPendingBakeFor(Entity entity)
-		{
-			for (var i = pendingBakes.Count - 1; i >= 0; i--)
-			{
-				if (pendingBakes[i].Entity != entity) continue;
-				PendingBake b = pendingBakes[i];
-				b.Handle.Complete();
-				b.MeshDataArray.Dispose();
-				if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
-				b.Collider.Dispose();
-				pendingBakes.RemoveAt(i);
-			}
-		}
-		
-		protected override void OnUpdate()
-		{
-			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
-			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
-			                            .Position;
-			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
-			var  ecb         = new EntityCommandBuffer(Allocator.Temp);
+        public void CancelPendingBakeFor(Entity entity)
+        {
+            for (var i = pendingBakes.Count - 1; i >= 0; i--)
+            {
+                if (pendingBakes[i].Entity != entity) continue;
+                PendingBake b = pendingBakes[i];
+                b.Handle.Complete();
+                if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
+                b.Collider.Dispose();
+                pendingBakes.RemoveAt(i);
+            }
+        }
 
-			var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
+        protected override void OnUpdate()
+        {
+            float3 playerPos = SystemAPI
+                .GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>())
+                .ValueRO.Position;
+            int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 
-			for (var i = pendingBakes.Count - 1; i >= 0; i--)
-			{
-				PendingBake b = pendingBakes[i];
-				if (!b.Handle.IsCompleted) continue;
-				b.Handle.Complete();
-				b.MeshDataArray.Dispose();
+            var ecb                  = new EntityCommandBuffer(Allocator.Temp);
+            var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
 
-				if (EntityManager.Exists(b.Entity))
-				{
-					if (b.Collider[0].IsCreated)
-					{
-						if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
-						{
-							var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-							if (oldCollider.Value.IsCreated) oldCollidersToDispose.Add(oldCollider.Value);
-							ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
-						}
-						else
-						{
-							ecb.AddComponent(b.Entity, new PhysicsCollider { Value         = b.Collider[0] });
-							ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
-							ecb.AddComponent<HasCollider>(b.Entity);
-						}
-					}
-					else if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
-					{
-						var oldCollider = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
-						if (oldCollider.Value.IsCreated) oldCollidersToDispose.Add(oldCollider.Value);
-						ecb.RemoveComponent<PhysicsCollider>(b.Entity);
-						ecb.RemoveComponent<HasCollider>(b.Entity);
-					}
-				}
-				else
-				{
-					if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
-				}
+            // ── Complete finished bakes ──────────────────────────────────
+            for (var i = pendingBakes.Count - 1; i >= 0; i--)
+            {
+                PendingBake b = pendingBakes[i];
+                if (!b.Handle.IsCompleted) continue;
+                b.Handle.Complete();
 
-				b.Collider.Dispose();
-				pendingBakes.RemoveAt(i);
-			}
+                if (EntityManager.Exists(b.Entity))
+                {
+                    if (b.Collider[0].IsCreated)
+                    {
+                        if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+                        {
+                            var old = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+                            if (old.Value.IsCreated) oldCollidersToDispose.Add(old.Value);
+                            ecb.SetComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
+                        }
+                        else
+                        {
+                            ecb.AddComponent(b.Entity, new PhysicsCollider { Value = b.Collider[0] });
+                            ecb.AddSharedComponent(b.Entity, new PhysicsWorldIndex { Value = 0 });
+                            ecb.AddComponent<HasCollider>(b.Entity);
+                        }
+                    }
+                    else if (EntityManager.HasComponent<PhysicsCollider>(b.Entity))
+                    {
+                        var old = EntityManager.GetComponentData<PhysicsCollider>(b.Entity);
+                        if (old.Value.IsCreated) oldCollidersToDispose.Add(old.Value);
+                        ecb.RemoveComponent<PhysicsCollider>(b.Entity);
+                        ecb.RemoveComponent<HasCollider>(b.Entity);
+                    }
+                }
+                else
+                {
+                    if (b.Collider[0].IsCreated) b.Collider[0].Dispose();
+                }
 
-			foreach ((ChunkMeshData meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
-			         SystemAPI.Query<ChunkMeshData, RefRO<ChunkPositionComponent>>()
-			                  .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
-			                  .WithEntityAccess())
-			{
-				if (pendingBakes.Count >= GameSettings.MAX_CONCURRENT_JOBS) break;
-				if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
-				if (meshData.ChunkMesh == null || meshData.ChunkMesh.vertexCount == 0) continue;
+                b.Collider.Dispose();
+                pendingBakes.RemoveAt(i);
+            }
 
-				var alreadyPending = false;
-				foreach (PendingBake b in pendingBakes)
-				{
-					if (b.Entity != entity) continue;
-					alreadyPending = true;
-					break;
-				}
+            // ── Schedule new bakes ───────────────────────────────────────
+            foreach ((RefRO<ChunkMeshData> meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
+                     SystemAPI.Query<RefRO<ChunkMeshData>, RefRO<ChunkPositionComponent>>()
+                              .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
+                              .WithEntityAccess())
+            {
+                if (pendingBakes.Count >= GameSettings.MAX_CONCURRENT_JOBS) break;
+                if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 
-				if (alreadyPending) continue;
+                NativeMesh solid = meshData.ValueRO.SolidMesh;
+                if (!solid.IsCreated || solid.Vertices.Length == 0) continue;
 
-				Mesh.MeshDataArray srcArray = Mesh.AcquireReadOnlyMeshData(meshData.ChunkMesh);
-				var                collider = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
+                var alreadyPending = false;
+                foreach (PendingBake b in pendingBakes)
+                    if (b.Entity == entity) { alreadyPending = true; break; }
+                if (alreadyPending) continue;
 
-				var job = new ColliderBakeJob
-				          {
-					          MeshDataArray = srcArray,
-					          Collider      = collider,
-					          Filter        = ChunkFilter
-				          };
+                var collider = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
+                var job = new ColliderBakeJob
+                {
+                    SolidVertices = solid.Vertices,
+                    SolidIndices  = solid.Triangles,
+                    Collider      = collider,
+                    Filter        = ChunkFilter
+                };
 
-				pendingBakes.Add(new PendingBake
-				                 {
-					                 Entity        = entity,
-					                 Handle        = job.Schedule(),
-					                 Collider      = collider,
-					                 MeshDataArray = srcArray
-				                 });
+                pendingBakes.Add(new PendingBake
+                {
+                    Entity   = entity,
+                    Handle   = job.Schedule(),
+                    Collider = collider
+                });
 
-				ecb.RemoveComponent<NeedsColliderSync>(entity);
-			}
+                ecb.RemoveComponent<NeedsColliderSync>(entity);
+            }
 
-			foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
-			         SystemAPI.Query<RefRO<ChunkPositionComponent>>()
-			                  .WithAll<HasCollider>()
-			                  .WithEntityAccess())
-			{
-				if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+            // ── Strip colliders from chunks that moved out of range ──────
+            foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
+                     SystemAPI.Query<RefRO<ChunkPositionComponent>>()
+                              .WithAll<HasCollider>()
+                              .WithEntityAccess())
+            {
+                if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 
-				if (EntityManager.HasComponent<PhysicsCollider>(entity))
-				{
-					var phys = EntityManager.GetComponentData<PhysicsCollider>(entity);
-					if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
-				}
+                if (EntityManager.HasComponent<PhysicsCollider>(entity))
+                {
+                    var phys = EntityManager.GetComponentData<PhysicsCollider>(entity);
+                    if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
+                }
 
-				ecb.RemoveComponent<PhysicsCollider>(entity);
-				ecb.RemoveComponent<PhysicsWorldIndex>(entity);
-				ecb.RemoveComponent<HasCollider>(entity);
+                ecb.RemoveComponent<PhysicsCollider>(entity);
+                ecb.RemoveComponent<PhysicsWorldIndex>(entity);
+                ecb.RemoveComponent<HasCollider>(entity);
 
-				if (!EntityManager.HasComponent<NeedsColliderSync>(entity))
-					ecb.AddComponent<NeedsColliderSync>(entity);
-			}
+                if (!EntityManager.HasComponent<NeedsColliderSync>(entity))
+                    ecb.AddComponent<NeedsColliderSync>(entity);
+            }
 
-			ecb.Playback(EntityManager);
-			ecb.Dispose();
+            ecb.Playback(EntityManager);
+            ecb.Dispose();
 
-			foreach (BlobAssetReference<Collider> oldCollider in oldCollidersToDispose)
-			{
-				oldCollider.Dispose();
-			}
+            foreach (BlobAssetReference<Collider> c in oldCollidersToDispose) c.Dispose();
+            oldCollidersToDispose.Dispose();
+        }
 
-			oldCollidersToDispose.Dispose();
-		}
+        private static bool IsChebyshevNear(int3 a, int3 b, int radius)
+        {
+            int3 d = math.abs(a - b);
+            return d.x <= radius && d.y <= radius && d.z <= radius;
+        }
 
-		private static bool IsChebyshevNear(int3 a, int3 b, int radius)
-		{
-			int3 d = math.abs(a - b);
-			return d.x <= radius && d.y <= radius && d.z <= radius;
-		}
-
-		private struct PendingBake
-		{
-			public Entity                                    Entity;
-			public JobHandle                                 Handle;
-			public NativeArray<BlobAssetReference<Collider>> Collider;
-			public Mesh.MeshDataArray                        MeshDataArray;
-		}
-	}
+        private struct PendingBake
+        {
+            public Entity                                    Entity;
+            public JobHandle                                 Handle;
+            public NativeArray<BlobAssetReference<Collider>> Collider;
+        }
+    }
 }

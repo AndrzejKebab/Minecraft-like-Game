@@ -7,9 +7,9 @@ using UnityEngine;
 public static class Utility
 {
 	[BurstCompile]
-	public static int FlattenIndex(int posX, int posY, int posZ)
+	public static void FlattenIndex(this int index, int posX, int posY, int posZ)
 	{
-		return posX | (posY << 5) | (posZ << 10);
+		index = posX | (posY << 5) | (posZ << 10);
 	}
 
 	[BurstCompile]
@@ -28,7 +28,8 @@ public static class Utility
 	[BurstCompile]
 	public static T GetAtPosition<T>(this NativeArray<T> array, int posX, int posY, int posZ) where T : struct
 	{
-		var index = FlattenIndex(posX, posY, posZ);
+		var index = 0;
+		index.FlattenIndex(posX, posY, posZ);
 		return array[index];
 	}
 

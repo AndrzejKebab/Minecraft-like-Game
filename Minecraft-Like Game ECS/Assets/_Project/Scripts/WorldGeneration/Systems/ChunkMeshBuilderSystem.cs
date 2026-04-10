@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
+using System.Runtime.InteropServices;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
@@ -8,7 +8,6 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace _Project.WorldGeneration.Systems
 {
@@ -16,18 +15,7 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial class ChunkMeshBuilderSystem : SystemBase
 	{
-		public static readonly NativeArray<float3> FaceTangents =
-			new(6, Allocator.Persistent)
-			{
-				[0] = new float3(1, 0, 0),
-				[1] = new float3(-1, 0, 0),
-				[2] = new float3(1, 0, 0),
-				[3] = new float3(-1, 0, 0),
-				[4] = new float3(0, 0, -1),
-				[5] = new float3(0, 0, 1)
-			};
-
-		public static readonly NativeArray<float3> FaceChecks =
+		private static readonly NativeArray<float3> faceChecks =
 			new(6, Allocator.Persistent)
 			{
 				[0] = new float3(0, 0, -1),
@@ -38,15 +26,15 @@ namespace _Project.WorldGeneration.Systems
 				[5] = new float3(1, 0, 0)
 			};
 
-		public static readonly NativeArray<VertexAttributeDescriptor> Layout =
+		private static readonly NativeArray<float3> faceTangents =
 			new(6, Allocator.Persistent)
 			{
-				[0] = new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float16, 4),
-				[1] = new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float16, 4),
-				[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float16, 4),
-				[3] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UInt8, 4),
-				[4] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float16, 2),
-				[5] = new VertexAttributeDescriptor(VertexAttribute.TexCoord7, VertexAttributeFormat.Float16, 4)
+				[0] = new float3(1, 0, 0),
+				[1] = new float3(-1, 0, 0),
+				[2] = new float3(1, 0, 0),
+				[3] = new float3(-1, 0, 0),
+				[4] = new float3(0, 0, -1),
+				[5] = new float3(0, 0, 1)
 			};
 
 		private readonly List<ActiveJob> activeJobs = new();
@@ -59,10 +47,15 @@ namespace _Project.WorldGeneration.Systems
 
 		protected override void OnDestroy()
 		{
-			foreach (ActiveJob job in activeJobs) job.Handle.Complete();
-			FaceChecks.Dispose();
-			FaceTangents.Dispose();
-			Layout.Dispose();
+			foreach (ActiveJob job in activeJobs)
+			{
+				job.Handle.Complete();
+				job.SolidMesh.Dispose();
+				job.FluidMesh.Dispose();
+			}
+
+			faceChecks.Dispose();
+			faceTangents.Dispose();
 		}
 
 		public void CancelJobFor(Entity entity)
@@ -72,7 +65,8 @@ namespace _Project.WorldGeneration.Systems
 				if (activeJobs[i].Entity != entity) continue;
 				ActiveJob job = activeJobs[i];
 				job.Handle.Complete();
-				job.MeshDataArray.Dispose();
+				job.SolidMesh.Dispose();
+				job.FluidMesh.Dispose();
 				activeJobs.RemoveAt(i);
 			}
 		}
@@ -81,19 +75,17 @@ namespace _Project.WorldGeneration.Systems
 		{
 			JobHandle result = default;
 			foreach (ActiveJob job in activeJobs)
-			{
-				if (job.Entity == chunkEntity || job.NBack == chunkEntity || job.NFront == chunkEntity ||
-				    job.NTop == chunkEntity || job.NBottom == chunkEntity || job.NLeft == chunkEntity ||
-				    job.NRight == chunkEntity) result = JobHandle.CombineDependencies(result, job.Handle);
-			}
-
+				if (job.Entity == chunkEntity || job.NBack == chunkEntity ||
+				    job.NFront == chunkEntity || job.NTop == chunkEntity ||
+				    job.NBottom == chunkEntity || job.NLeft == chunkEntity ||
+				    job.NRight == chunkEntity)
+					result = JobHandle.CombineDependencies(result, job.Handle);
 			return result;
 		}
 
 		protected override void OnUpdate()
 		{
 			ProcessJobs();
-
 			if (activeJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
 
 			var                             registry        = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
@@ -103,22 +95,23 @@ namespace _Project.WorldGeneration.Systems
 
 			var queue           = new NativePriorityQueue<Entity>(128, Allocator.Temp);
 			var toStripMeshSync = new NativeList<Entity>(Allocator.Temp);
+
 			foreach ((RefRO<ChunkComponent> _, RefRO<ChunkPositionComponent> posComp,
-			          RefRO<ChunkPriorityComponent> priority, Entity entity) in SystemAPI
-				         .Query<RefRO<ChunkComponent>,
-					         RefRO<ChunkPositionComponent>,
-					         RefRO<ChunkPriorityComponent>>()
-				         .WithAll<IsPopulated, NeedsMeshSync>()
-				         .WithNone<MarkedToDestroy, IsEmpty>()
-				         .WithEntityAccess())
+			          RefRO<ChunkPriorityComponent> priority, Entity entity) in
+			         SystemAPI.Query<RefRO<ChunkComponent>,
+				                  RefRO<ChunkPositionComponent>,
+				                  RefRO<ChunkPriorityComponent>>()
+			                  .WithAll<IsPopulated, NeedsMeshSync>()
+			                  .WithNone<MarkedToDestroy, IsEmpty>()
+			                  .WithEntityAccess())
 			{
 				var alreadyProcessing = false;
 				foreach (ActiveJob j in activeJobs)
-				{
-					if (j.Entity != entity) continue;
-					alreadyProcessing = true;
-					break;
-				}
+					if (j.Entity == entity)
+					{
+						alreadyProcessing = true;
+						break;
+					}
 
 				if (alreadyProcessing) continue;
 
@@ -126,9 +119,11 @@ namespace _Project.WorldGeneration.Systems
 				var  neighborsReady = true;
 				for (var i = 0; i < 6; i++)
 				{
-					int3 nPos = pos + new int3(FaceChecks[i]);
-					if (chunkMap.TryGetValue(nPos, out Entity nEntity) && populatedLookup.HasComponent(nEntity) &&
-					    blockDataLookup.HasComponent(nEntity) && blockDataLookup[nEntity].BlockData.IsCreated) continue;
+					int3 nPos = pos + new int3(faceChecks[i]);
+					if (chunkMap.TryGetValue(nPos, out Entity nEntity) &&
+					    populatedLookup.HasComponent(nEntity) &&
+					    blockDataLookup.HasComponent(nEntity) &&
+					    blockDataLookup[nEntity].BlockData.IsCreated) continue;
 					neighborsReady = false;
 					break;
 				}
@@ -145,41 +140,43 @@ namespace _Project.WorldGeneration.Systems
 					Entity entity = queue.Dequeue();
 					int3   pos    = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
 
-					Entity neighborZNeg = chunkMap[pos + new int3(0, 0, -1)];
-					Entity neighborZPos = chunkMap[pos + new int3(0, 0, 1)];
-					Entity neighborYNeg = chunkMap[pos + new int3(0, -1, 0)];
-					Entity neighborYPos = chunkMap[pos + new int3(0, 1, 0)];
-					Entity neighborXNeg = chunkMap[pos + new int3(-1, 0, 0)];
-					Entity neighborXPos = chunkMap[pos + new int3(1, 0, 0)];
+					Entity nZNeg = chunkMap[pos + new int3(0, 0, -1)];
+					Entity nZPos = chunkMap[pos + new int3(0, 0, 1)];
+					Entity nYNeg = chunkMap[pos + new int3(0, -1, 0)];
+					Entity nYPos = chunkMap[pos + new int3(0, 1, 0)];
+					Entity nXNeg = chunkMap[pos + new int3(-1, 0, 0)];
+					Entity nXPos = chunkMap[pos + new int3(1, 0, 0)];
 
-					Mesh.MeshDataArray meshData = Mesh.AllocateWritableMeshData(1);
+					var solidMesh = new NativeMesh(Allocator.TempJob);
+					var fluidMesh = new NativeMesh(Allocator.TempJob);
+
 					var job = new BuildMeshJob
 					          {
 						          Blocks          = blockDataLookup[entity].BlockData,
 						          BlockPrototypes = registry.Blocks,
 						          Meshes          = registry.Meshes,
 						          ChunkSize       = VoxelData.CHUNK_SIZE,
-
-						          NeighborZNeg  = blockDataLookup[neighborZNeg].BlockData,
-						          NeighborZPos  = blockDataLookup[neighborZPos].BlockData,
-						          NeighborYNeg  = blockDataLookup[neighborYNeg].BlockData,
-						          NeighborYPos  = blockDataLookup[neighborYPos].BlockData,
-						          NeighborXNeg  = blockDataLookup[neighborXNeg].BlockData,
-						          NeighborXPos  = blockDataLookup[neighborXPos].BlockData,
-						          Layout        = Layout,
-						          FaceChecks    = FaceChecks,
-						          FaceTangents  = FaceTangents,
-						          MeshDataArray = meshData
+						          FaceChecks      = faceChecks,
+						          FaceTangents    = faceTangents,
+						          NeighborZNeg    = blockDataLookup[nZNeg].BlockData,
+						          NeighborZPos    = blockDataLookup[nZPos].BlockData,
+						          NeighborYNeg    = blockDataLookup[nYNeg].BlockData,
+						          NeighborYPos    = blockDataLookup[nYPos].BlockData,
+						          NeighborXNeg    = blockDataLookup[nXNeg].BlockData,
+						          NeighborXPos    = blockDataLookup[nXPos].BlockData,
+						          SolidMesh       = solidMesh,
+						          FluidMesh       = fluidMesh
 					          };
 
 					activeJobs.Add(new ActiveJob
 					               {
-						               Entity        = entity,
-						               NBack         = neighborZNeg, NFront  = neighborZPos,
-						               NTop          = neighborYPos, NBottom = neighborYNeg,
-						               NLeft         = neighborXNeg, NRight  = neighborXPos,
-						               Handle        = job.ScheduleByRef(),
-						               MeshDataArray = meshData
+						               Entity    = entity,
+						               NBack     = nZNeg, NFront  = nZPos,
+						               NTop      = nYPos, NBottom = nYNeg,
+						               NLeft     = nXNeg, NRight  = nXPos,
+						               Handle    = job.ScheduleByRef(),
+						               SolidMesh = solidMesh,
+						               FluidMesh = fluidMesh
 					               });
 					toStripMeshSync.Add(entity);
 				}
@@ -188,8 +185,7 @@ namespace _Project.WorldGeneration.Systems
 					EntityManager.RemoveComponent<NeedsMeshSync>(e);
 				toStripMeshSync.Dispose();
 
-				if (countToSchedule > 0)
-					JobHandle.ScheduleBatchedJobs();
+				if (countToSchedule > 0) JobHandle.ScheduleBatchedJobs();
 			}
 
 			queue.Dispose();
@@ -197,60 +193,124 @@ namespace _Project.WorldGeneration.Systems
 
 		private void ProcessJobs()
 		{
-			var ecb                = new EntityCommandBuffer(Allocator.Temp);
-			var processedThisFrame = 0;
-
 			for (var i = activeJobs.Count - 1; i >= 0; i--)
 			{
 				ActiveJob job = activeJobs[i];
 				if (!job.Handle.IsCompleted) continue;
 				job.Handle.Complete();
 
-				if (processedThisFrame >= GameSettings.MAX_CONCURRENT_JOBS) continue;
-
-				if (EntityManager.Exists(job.Entity))
+				if (!EntityManager.Exists(job.Entity))
 				{
-					if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
-					{
-						var chunkMeshData = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
-						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
-						chunkMeshData.ChunkMesh.bounds =
-							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
-						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
-							ecb.AddComponent<NeedsColliderSync>(job.Entity);
-					}
-					else
-					{
-						var chunkMeshData = new ChunkMeshData { ChunkMesh = new Mesh() };
-						Mesh.ApplyAndDisposeWritableMeshData(job.MeshDataArray, chunkMeshData.ChunkMesh);
-						chunkMeshData.ChunkMesh.bounds =
-							new Bounds(new Vector3(16f, 16f, 16f), new Vector3(32, 32, 32));
-						ecb.AddComponent(job.Entity, chunkMeshData);
-						if (!EntityManager.HasComponent<HasMesh>(job.Entity))
-							ecb.AddComponent<HasMesh>(job.Entity);
-						if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
-							ecb.AddComponent<NeedsColliderSync>(job.Entity);
-					}
+					job.SolidMesh.Dispose();
+					job.FluidMesh.Dispose();
+					activeJobs.RemoveAt(i);
+					continue;
+				}
+
+				var svCount = job.SolidMesh.Vertices.Length;
+				var fvCount = job.FluidMesh.Vertices.Length;
+				var siCount = job.SolidMesh.Triangles.Length;
+				var fiCount = job.FluidMesh.Triangles.Length;
+				var totalV  = svCount + fvCount;
+				var totalI  = siCount + fiCount;
+
+				// ── GPU buffers ──────────────────────────────────────────
+				ChunkGfxBuffers gfx;
+				if (EntityManager.HasComponent<ChunkGfxBuffers>(job.Entity))
+				{
+					gfx = EntityManager.GetComponentObject<ChunkGfxBuffers>(job.Entity);
+					gfx.Dispose();
 				}
 				else
 				{
-					job.MeshDataArray.Dispose();
+					gfx = new ChunkGfxBuffers();
+					EntityManager.AddComponentObject(job.Entity, gfx);
 				}
 
-				activeJobs.RemoveAt(i);
-				processedThisFrame++;
-			}
+				if (totalV > 0)
+				{
+					// Stride = sizeof(Vertex) = 40 bytes
+					gfx.VertexBuffer = new GraphicsBuffer(
+					                                      GraphicsBuffer.Target.Structured, totalV, Marshal.SizeOf(typeof(Vertex)));
 
-			ecb.Playback(EntityManager);
-			ecb.Dispose();
+					var combined = new NativeArray<Vertex>(totalV, Allocator.Temp);
+
+					if (svCount > 0)
+						NativeArray<Vertex>.Copy(job.SolidMesh.Vertices.AsArray(), 0, combined, 0, svCount);
+					if (fvCount > 0)
+						NativeArray<Vertex>.Copy(job.FluidMesh.Vertices.AsArray(), 0, combined, svCount, fvCount);
+
+					gfx.VertexBuffer.SetData(combined);
+					combined.Dispose();
+
+					gfx.IndexBuffer = new GraphicsBuffer(
+					                                     GraphicsBuffer.Target.Index, totalI, sizeof(int));
+					var idxArray = new NativeArray<int>(totalI, Allocator.Temp);
+					if (siCount > 0)
+						for (var k = 0; k < siCount; k++)
+							idxArray[k] = job.SolidMesh.Triangles[k];
+					if (fiCount > 0)
+						for (var k = 0; k < fiCount; k++)
+							idxArray[siCount + k] = job.FluidMesh.Triangles[k] + svCount;
+					gfx.IndexBuffer.SetData(idxArray);
+					idxArray.Dispose();
+
+					gfx.ArgsBuffer = new GraphicsBuffer(
+					                                    GraphicsBuffer.Target.IndirectArguments, 2,
+					                                    GraphicsBuffer.IndirectDrawIndexedArgs.size);
+					var args = new GraphicsBuffer.IndirectDrawIndexedArgs[2];
+					args[0] = new GraphicsBuffer.IndirectDrawIndexedArgs
+					          { indexCountPerInstance = (uint)siCount, instanceCount = 1, startIndex = 0 };
+					args[1] = new GraphicsBuffer.IndirectDrawIndexedArgs
+					          {
+						          indexCountPerInstance = (uint)fiCount, instanceCount = 1,
+						          startIndex            = (uint)siCount
+					          };
+					gfx.ArgsBuffer.SetData(args);
+
+					gfx.SolidIndexCount = siCount;
+					gfx.FluidIndexCount = fiCount;
+				}
+
+				// ── Native mesh (kept alive for ColliderBakeJob) ─────────
+				// Manually dispose the old data first — ECS does NOT automatically
+				// call Dispose on IComponentData structs when SetComponentData is used.
+				if (EntityManager.HasComponent<ChunkMeshData>(job.Entity))
+				{
+					var old = EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
+					old.Dispose();
+					EntityManager.SetComponentData(job.Entity, new ChunkMeshData
+					                                           {
+						                                           SolidMesh = job.SolidMesh,
+						                                           FluidMesh = job.FluidMesh
+					                                           });
+				}
+				else
+				{
+					EntityManager.AddComponentData(job.Entity, new ChunkMeshData
+					                                           {
+						                                           SolidMesh = job.SolidMesh,
+						                                           FluidMesh = job.FluidMesh
+					                                           });
+				}
+				// Ownership transferred — do NOT dispose job.SolidMesh / job.FluidMesh here
+
+				if (!EntityManager.HasComponent<HasMesh>(job.Entity))
+					EntityManager.AddComponent<HasMesh>(job.Entity);
+				if (!EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
+					EntityManager.AddComponent<NeedsColliderSync>(job.Entity);
+
+				activeJobs.RemoveAt(i);
+			}
 		}
 
 		private struct ActiveJob
 		{
-			public Entity             Entity;
-			public Entity             NBack, NFront, NTop, NBottom, NLeft, NRight;
-			public JobHandle          Handle;
-			public Mesh.MeshDataArray MeshDataArray;
+			public Entity     Entity;
+			public Entity     NBack, NFront, NTop, NBottom, NLeft, NRight;
+			public JobHandle  Handle;
+			public NativeMesh SolidMesh;
+			public NativeMesh FluidMesh;
 		}
 	}
 }

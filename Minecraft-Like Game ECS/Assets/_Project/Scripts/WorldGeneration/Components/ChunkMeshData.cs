@@ -1,19 +1,19 @@
 ﻿using System;
 using Unity.Entities;
-using UnityEngine;
-using Object = UnityEngine.Object;
 
 namespace _Project.WorldGeneration.Components
 {
-	public class ChunkMeshData : IComponentData, IDisposable
+	public struct ChunkMeshData : IComponentData, IDisposable
 	{
-		public Mesh ChunkMesh;
+		public NativeMesh SolidMesh;
+		public NativeMesh FluidMesh;
 
 		public void Dispose()
 		{
-			if (ChunkMesh == null) return;
-			Object.Destroy(ChunkMesh);
-			ChunkMesh = null;
+			if (SolidMesh.IsCreated)
+				SolidMesh.Dispose();
+			if (FluidMesh.IsCreated)
+				FluidMesh.Dispose();
 		}
 	}
 }
