@@ -5,6 +5,7 @@ namespace _Project.WorldGeneration.Components
 {
 	public class ChunkMaterialComponent : IComponentData
 	{
-		public Material Material;
+		public Material SolidMaterial;
+		public Material WaterMaterial;
 	}
 }

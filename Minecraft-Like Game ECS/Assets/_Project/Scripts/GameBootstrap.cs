@@ -38,6 +38,7 @@ namespace _Project
 			}
 
 			Material chunkMaterial = GameDatabase.Instance.ChunkMaterial;
+			Material waterMaterial = GameDatabase.Instance.WaterMaterial;
 
 			Debug.Log("[GameBootstrap] Found all blocks. Generating texture arrays...");
 			Dictionary<BlockDataSo, TextureArrayGenerator.TextureMapping> textureMappings = textureGenerator.GenerateTextureArrays(allBlocks, chunkMaterial);
@@ -96,7 +97,8 @@ namespace _Project
 
 			em.AddComponentObject(regEntity, new ChunkMaterialComponent
 			                                 {
-				                                 Material = chunkMaterial
+				                                 SolidMaterial = chunkMaterial,
+				                                 WaterMaterial = waterMaterial
 			                                 });
 
 			Debug.Log($"[GameBootstrap] Game Data Ready! Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");

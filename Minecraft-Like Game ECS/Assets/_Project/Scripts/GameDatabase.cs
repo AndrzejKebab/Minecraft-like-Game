@@ -18,7 +18,9 @@ namespace _Project
 
 		public BlockDataSo[] AllBlocks;
 
-		[Header("Materials")] public Material ChunkMaterial;
+		[Header("Materials")] 
+		public Material ChunkMaterial;
+		public Material WaterMaterial;
 
 		private void Awake()
 		{

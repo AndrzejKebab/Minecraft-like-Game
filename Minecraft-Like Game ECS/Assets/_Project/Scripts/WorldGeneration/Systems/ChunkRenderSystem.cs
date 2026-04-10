@@ -13,7 +13,7 @@ namespace _Project.WorldGeneration.Systems
 	public partial class ChunkRenderSystem : SystemBase
 	{
 		private Material solidMaterial;
-		private Material fluidMaterial;
+		private Material waterMaterial;
 
 		private RenderParams renderParams;
 
@@ -31,14 +31,14 @@ namespace _Project.WorldGeneration.Systems
 		[BurstCompile]
 		protected override void OnUpdate()
 		{
-			if (solidMaterial == null && fluidMaterial == null)
+			if (solidMaterial == null && waterMaterial == null)
 			{
 				if (SystemAPI.TryGetSingletonEntity<WorldBlockRegistrySingleton>(out Entity registryEntity) &&
 				    EntityManager.HasComponent<ChunkMaterialComponent>(registryEntity))
 				{
 					var matComp = EntityManager.GetComponentData<ChunkMaterialComponent>(registryEntity);
-					solidMaterial = matComp.Material;
-					fluidMaterial = matComp.Material; // for now, later i will make material for fluids
+					solidMaterial = matComp.SolidMaterial;
+					waterMaterial = matComp.WaterMaterial;
 					renderParams = new RenderParams
 					               {
 						               renderingLayerMask = RenderingLayerMask.defaultRenderingLayerMask,
@@ -90,7 +90,7 @@ namespace _Project.WorldGeneration.Systems
 				if (gfx.FluidIndexCount <= 0) continue;
 				{
 					RenderParams rp = renderParams;
-					rp.material    = fluidMaterial;
+					rp.material    = waterMaterial;
 					rp.matProps    = mpb;
 					rp.worldBounds = bounds;
 					Graphics.RenderPrimitivesIndexedIndirect(
