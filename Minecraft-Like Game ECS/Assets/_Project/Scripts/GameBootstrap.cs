@@ -116,21 +116,21 @@ namespace _Project
  
 			ores[0] = new OreSettings   // Coal  — common, wide Y range
 			          {
-				          BlockID       = reg.Blocks[7].ID,
+				          BlockID       = reg.Blocks[13].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY  = 128,
 				          VeinsPerChunk = 20, MaxVeinSize = 17, VeinRadius = 2f
 			          };
 			ores[1] = new OreSettings   // Iron  — medium rarity
 			          {
-				          BlockID       = reg.Blocks[8].ID,
+				          BlockID       = reg.Blocks[11].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY = 64,
 				          VeinsPerChunk = 9, MaxVeinSize = 9, VeinRadius = 1.5f
 			          };
 			ores[2] = new OreSettings   // Diamond — rare, deep only
 			          {
-				          BlockID       = reg.Blocks[9].ID,
+				          BlockID       = reg.Blocks[12].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY = 16,
 				          VeinsPerChunk = 2, MaxVeinSize = 8, VeinRadius = 1f

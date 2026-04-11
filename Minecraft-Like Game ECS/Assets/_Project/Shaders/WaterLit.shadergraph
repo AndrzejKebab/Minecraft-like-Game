@@ -343,6 +343,20 @@
             },
             "m_InputSlot": {
                 "m_Node": {
+                    "m_Id": "2b11dac7211b4a90ab37bf0c7bcf7a43"
+                },
+                "m_SlotId": 0
+            }
+        },
+        {
+            "m_OutputSlot": {
+                "m_Node": {
+                    "m_Id": "3ce974f55e5f4ea4971afddc428d17ef"
+                },
+                "m_SlotId": 1
+            },
+            "m_InputSlot": {
+                "m_Node": {
                     "m_Id": "99c229d1707140fe96874c2991cd20e8"
                 },
                 "m_SlotId": 0
@@ -710,20 +724,6 @@
                     "m_Id": "0abe8917f1c24d3184a5764c3594cb81"
                 },
                 "m_SlotId": 1
-            }
-        },
-        {
-            "m_OutputSlot": {
-                "m_Node": {
-                    "m_Id": "ef43da9da9a140dda9f2e11c527dccb7"
-                },
-                "m_SlotId": 5
-            },
-            "m_InputSlot": {
-                "m_Node": {
-                    "m_Id": "2b11dac7211b4a90ab37bf0c7bcf7a43"
-                },
-                "m_SlotId": 0
             }
         },
         {
@@ -3410,11 +3410,11 @@
     "m_AlphaMode": 0,
     "m_RenderFace": 2,
     "m_AlphaClip": true,
-    "m_CastShadows": true,
+    "m_CastShadows": false,
     "m_ReceiveShadows": true,
     "m_DisableTint": false,
     "m_Sort3DAs2DCompatible": false,
-    "m_AdditionalMotionVectorMode": 0,
+    "m_AdditionalMotionVectorMode": 1,
     "m_AlembicMotionVectors": false,
     "m_SupportsLODCrossFade": false,
     "m_CustomEditorGUI": "",

@@ -1,0 +1,112 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c4c0348593424ed4821cb84cb4245bb3, type: 3}
+  m_Name: CoalOre
+  m_EditorClassIdentifier: Assembly-CSharp::_Project.WorldGeneration.Blocks.BlockDataSo
+  BlockName: Coal Ore
+  Block:
+    ID: 13
+    MeshID: 0
+    IsTransparent: 0
+    IsFluid: 0
+    TintColor:
+      serializedVersion: 2
+      rgba: 4279332969
+    DirectionType: 0
+    Name:
+      utf8LengthInBytes: 8
+      bytes:
+        offset0000:
+          byte0000: 67
+          byte0001: 111
+          byte0002: 97
+          byte0003: 108
+          byte0004: 32
+          byte0005: 79
+          byte0006: 114
+          byte0007: 101
+          byte0008: 0
+          byte0009: 0
+          byte0010: 0
+          byte0011: 0
+          byte0012: 0
+          byte0013: 0
+          byte0014: 0
+          byte0015: 0
+        byte0016: 0
+        byte0017: 0
+        byte0018: 0
+        byte0019: 0
+        byte0020: 0
+        byte0021: 0
+        byte0022: 0
+        byte0023: 0
+        byte0024: 0
+        byte0025: 0
+        byte0026: 0
+        byte0027: 0
+        byte0028: 0
+        byte0029: 0
+    BaseTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    NormalTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    SpecularTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+    OverlayTextures:
+      Front: 0
+      Back: 0
+      Top: 0
+      Bottom: 0
+      Left: 0
+      Right: 0
+  TintColor:
+    serializedVersion: 2
+    rgba: 4279332969
+  VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
+  TexturesLayer:
+  - TextureType: 0
+    FrontTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+    BackTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+    TopTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+    BottomTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+    RightTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+    LeftTexture: {fileID: 2800000, guid: b23f6ccad74ff9d49992a88e40a60cd2, type: 3}
+  - TextureType: 1
+    FrontTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+    BackTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+    TopTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+    BottomTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+    RightTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+    LeftTexture: {fileID: 2800000, guid: e59d482094039884d8e784b4939f2ed3, type: 3}
+  - TextureType: 2
+    FrontTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}
+    BackTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}
+    TopTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}
+    BottomTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}
+    RightTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}
+    LeftTexture: {fileID: 2800000, guid: 417196e643709324eb6b5eb8fa107d73, type: 3}

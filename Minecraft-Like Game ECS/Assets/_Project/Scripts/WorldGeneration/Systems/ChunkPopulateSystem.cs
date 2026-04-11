@@ -161,12 +161,13 @@ namespace _Project.WorldGeneration.Systems
 
 				if (em.Exists(job.Entity))
 				{
-					// Write block data into the ChunkComponent so neighbours can
-					// reach it when building the _chunkDataMap for decoration.
-					var comp = em.GetComponentData<ChunkComponent>(job.Entity);
-					comp.BlockData = job.BlockData;
-					em.SetComponentData(job.Entity, comp);
-
+					// Block data stays exclusively in _terrainReady until ALL passes
+					// complete. Writing it into ChunkComponent here would create two
+					// owners: if the entity is destroyed before decoration finishes,
+					// the chunk manager disposes comp.BlockData and then
+					// CleanupDestroyedEntries double-disposes the same pointer → crash.
+					// It is assigned to ChunkComponent only in ApplyDecorationResults,
+					// right before IsPopulated is added.
 					_terrainReady.TryAdd(job.ChunkCoord, new TerrainReadyEntry
 					{
 						Entity    = job.Entity,
@@ -252,12 +253,13 @@ namespace _Project.WorldGeneration.Systems
 				// --- Pass B: cave carving (depends on terrain) ---
 				var cavesJob = new CavesPassJob
 				{
-					BlockData     = blockData,
-					ChunkWorldPos = worldPos,
-					ChunkSize     = VoxelData.CHUNK_SIZE,
-					Seed          = settings.Seed,
-					StoneID       = registry.Blocks[1].ID,
-					MaxCaveWorldY = 60,
+					BlockData       = blockData,
+					BlockPrototypes = registry.Blocks,
+					ChunkWorldPos   = worldPos,
+					ChunkSize       = VoxelData.CHUNK_SIZE,
+					Seed            = settings.Seed,
+					StoneID         = registry.Blocks[1].ID,
+					MaxCaveWorldY   = 60,
 				};
 				JobHandle cavesHandle = cavesJob.ScheduleByRef(terrainHandle);
 
@@ -424,6 +426,14 @@ namespace _Project.WorldGeneration.Systems
 
 				if (em.Exists(entry.Entity))
 				{
+					// Transfer block data ownership to ChunkComponent exactly once,
+					// at the moment the chunk becomes fully generated.
+					// This is the only place comp.BlockData is ever written,
+					// preventing the double-dispose that occurs if it is set earlier.
+					var comp = em.GetComponentData<ChunkComponent>(entry.Entity);
+					comp.BlockData = entry.BlockData;
+					em.SetComponentData(entry.Entity, comp);
+
 					// *** IsPopulated is added HERE — after all three passes ***
 					em.AddComponentData(entry.Entity, new IsPopulated());
 

@@ -17,6 +17,14 @@ namespace _Project.WorldGeneration
 	/// Safe to call from concurrent jobs ONLY when the calling jobs are in the
 	/// same checkerboard colour group (guaranteed ≥2 chunks apart in XZ),
 	/// which ensures their write zones never overlap.
+	///
+	/// SURFACE DETECTION
+	/// ─────────────────
+	/// <see cref="FindSurface"/> searches specifically for a grass block rather
+	/// than the first non-air block.  This prevents canopy leaves written into
+	/// a neighbour by an earlier checkerboard wave from being mistaken for the
+	/// ground surface, which would cause tree trunks to sprout mid-air above
+	/// the existing canopy.
 	/// </summary>
 	[BurstCompile(OptimizeFor    = OptimizeFor.Performance,
 	              FloatMode      = FloatMode.Fast,
@@ -27,7 +35,7 @@ namespace _Project.WorldGeneration
 		public static void Generate(
 			ref  NativeArray<BlockState>                               ownBlockData,
 			ref NativeParallelHashMap<int3, ChunkBlockDataRef>        chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter          dirtyWriter,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter      dirtyWriter,
 			ref int3   chunkWorldPos,
 			int    chunkSize,
 			int    seed,
@@ -42,19 +50,20 @@ namespace _Project.WorldGeneration
 			for (var x = 0; x < chunkSize; x++)
 			for (var z = 0; z < chunkSize; z++)
 			{
-				int localSurface = FindSurface(ref ownBlockData, x, z, chunkSize, airID);
+				// Find the highest GRASS block in this column.
+				// Searching for grassID (not just any non-air block) prevents
+				// leaf canopies written by earlier decoration waves from being
+				// misidentified as the surface, which would place tree roots
+				// on top of existing canopies in a neighbouring chunk.
+				int localSurface = FindSurface(ref ownBlockData, x, z, chunkSize, grassID);
 				if (localSurface < 0) continue;
-
-				// Trees only on grass
-				if (ownBlockData[ToIndex(x, localSurface, z, chunkSize)].ID != grassID)
-					continue;
 
 				int worldX = chunkWorldPos.x + x;
 				int worldZ = chunkWorldPos.z + z;
 				int worldY = chunkWorldPos.y + localSurface;
 
-				// Deterministic per-column hash — same world pos always produces the
-				// same tree regardless of which chunk iteration triggered it
+				// Deterministic per-column hash — same world pos always produces
+				// the same tree regardless of which chunk iteration triggered it
 				var rng = Random.CreateFromIndex(ColumnHash(worldX, worldZ, seed));
 
 				if (rng.NextFloat() > treeDensity) continue;
@@ -74,7 +83,7 @@ namespace _Project.WorldGeneration
 		[BurstCompile]
 		private static void PlaceTree(
 			ref NativeParallelHashMap<int3, ChunkBlockDataRef>      chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter          dirtyWriter,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter    dirtyWriter,
 			ref int3   root,         // World-space position of the grass block
 			int    trunkHeight,
 			int    chunkSize,
@@ -110,7 +119,7 @@ namespace _Project.WorldGeneration
 				// Don't cap the trunk with leaves
 				if (lx == 0 && lz == 0 && ly <= 0) continue;
 
-				// Leaves only fill air — won't carve into adjacent terrain
+				// Leaves only replace air — won't carve into adjacent terrain
 				int3 worldPos   = root + new int3(lx, canopyCentreY + ly, lz);
 				var  blockState = new BlockState { ID = leavesID, Orientation = 0 };
 				WriteBlock(ref chunkMap, ref dirtyWriter,
@@ -130,7 +139,7 @@ namespace _Project.WorldGeneration
 		[BurstCompile]
 		private static void WriteBlock(
 			ref NativeParallelHashMap<int3, ChunkBlockDataRef>      chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter          dirtyWriter,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter    dirtyWriter,
 			ref int3       worldPos,
 			int        chunkSize,
 			ref BlockState value,
@@ -138,36 +147,40 @@ namespace _Project.WorldGeneration
 		{
 			int3 coord = WorldToChunkCoord(worldPos, chunkSize);
 
-			// TryGetValue is thread-safe for reads on NativeParallelHashMap
 			if (!chunkMap.TryGetValue(coord, out ChunkBlockDataRef chunkRef)) return;
 
 			int3 local = worldPos - coord * chunkSize;
 			if (math.any(local < 0) || math.any(local >= chunkSize)) return;
 
-			// TryWrite does the conditional check internally (air-only, replace-any, etc.)
 			if (chunkRef.TryWrite(ToIndex(local.x, local.y, local.z, chunkSize),
 			                      value, requiredExistingID))
 			{
-				// TryAdd is safe for concurrent parallel writers —
-				// if the key already exists the no-op path is fine for a dirty flag
 				dirtyWriter.TryAdd(coord, true);
 			}
 		}
 
 		// ── Utilities ─────────────────────────────────────────────────────────
 
+		/// <summary>
+		/// Finds the highest block with <paramref name="grassID"/> in column (x, z).
+		/// Returns the local Y, or -1 if no grass block is found.
+		///
+		/// Searching for grassID specifically (rather than the first non-air block)
+		/// prevents canopy leaves placed by an earlier checkerboard wave from
+		/// being treated as the surface in neighbouring chunks.
+		/// </summary>
 		[BurstCompile]
 		private static int FindSurface(
-			ref NativeArray<BlockState> data, int x, int z, int size, ushort airID)
+			ref NativeArray<BlockState> data, int x, int z, int size, ushort grassID)
 		{
 			for (int y = size - 1; y >= 0; y--)
-				if (data[ToIndex(x, y, z, size)].ID != airID) return y;
+				if (data[ToIndex(x, y, z, size)].ID == grassID) return y;
 			return -1;
 		}
 
 		/// <summary>
 		/// Must match the <c>SetAtIndex(x,y,z)</c> extension used in
-		/// <see cref="PopulateChunkJob"/>.  Change here if your layout differs.
+		/// <see cref="TerrainShapePassJob"/>.  Change here if your layout differs.
 		/// </summary>
 		[BurstCompile]
 		internal static int ToIndex(int x, int y, int z, int size)
@@ -178,7 +191,6 @@ namespace _Project.WorldGeneration
 			    FloorDiv(world.y, size),
 			    FloorDiv(world.z, size));
 
-		// Correct floor division for negative coordinates (C# % is truncated, not floored)
 		[BurstCompile]
 		private static int FloorDiv(int a, int b)
 			=> a / b - (a % b != 0 && (a ^ b) < 0 ? 1 : 0);

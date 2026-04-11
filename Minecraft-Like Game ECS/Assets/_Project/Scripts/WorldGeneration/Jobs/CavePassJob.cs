@@ -12,8 +12,9 @@ namespace _Project.WorldGeneration.Jobs
 	/// <see cref="TerrainShapePassJob"/> using a "cheese cave" technique:
 	/// two offset 3D Simplex noise fields are multiplied together — blocks are
 	/// carved wherever the product exceeds <see cref="CaveThreshold"/>.
-	/// Multiplying two independent noise samples creates irregular blob shapes
-	/// rather than the flat slabs a single field would produce.
+	///
+	/// Fluid blocks (water, lava) are never carved so underground lakes and
+	/// rivers remain intact and surface water is not broken.
 	///
 	/// Tuning knobs
 	/// ────────────
@@ -26,24 +27,22 @@ namespace _Project.WorldGeneration.Jobs
 	              FloatPrecision = FloatPrecision.Low)]
 	public struct CavesPassJob : IJob
 	{
-		public NativeArray<BlockState> BlockData;
+		public            NativeArray<BlockState> BlockData;
+		[ReadOnly] public NativeArray<Block>      BlockPrototypes;
 
 		public int3   ChunkWorldPos;
 		public int    ChunkSize;
 		public int    Seed;
-		public ushort StoneID;       // Only report block ID for logging; carving replaces any non-air block
+		public ushort StoneID;
 		public int    MaxCaveWorldY; // e.g. 60 — prevents caves from breaking through the surface
 
-		// Exposed so callers can tune without recompiling; set reasonable defaults in the system.
+		// Tunable; sensible defaults are applied internally if left at 0
 		public float CaveFrequency;  // default 0.04
 		public float CaveThreshold;  // default 0.12
 
 		public void Execute()
 		{
-			// Apply seed as a constant world-space offset so every seed produces a
-			// completely different cave layout without changing the noise algorithm.
 			float seedShift = Seed * 0.0013f;
-
 			float freq      = CaveFrequency  > 0f ? CaveFrequency  : 0.04f;
 			float threshold = CaveThreshold  > 0f ? CaveThreshold  : 0.12f;
 
@@ -52,22 +51,28 @@ namespace _Project.WorldGeneration.Jobs
 			for (int z = 0; z < ChunkSize; z++)
 			{
 				int worldY = ChunkWorldPos.y + y;
-				if (worldY > MaxCaveWorldY) continue; // no caves near / above surface
+				if (worldY > MaxCaveWorldY) continue;
 
 				int idx   = x * ChunkSize * ChunkSize + y * ChunkSize + z;
 				var block = BlockData[idx];
-				if (block.ID == 0) continue; // already air — skip
+				if (block.ID == 0) continue; // already air
+
+				// Never carve fluid blocks — preserves underground water/lava
+				// and prevents surface water from losing its underlying support
+				if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid)
+					continue;
 
 				float3 p = new float3(
 					ChunkWorldPos.x + x,
 					worldY,
 					ChunkWorldPos.z + z) * freq + seedShift;
 
-				// Two noise samples shifted apart so they're statistically independent
+				// Two noise samples shifted apart so they are statistically independent.
+				// Carving where both are simultaneously positive creates blob shapes
+				// rather than the flat sheets a single noise field produces.
 				float n1 = noise.snoise(p);
 				float n2 = noise.snoise(p + new float3(31.7f, 17.3f, 53.1f));
 
-				// Carve where both fields are simultaneously high
 				if (n1 * n2 > threshold)
 					BlockData[idx] = new BlockState { ID = 0, Orientation = 0 };
 			}
