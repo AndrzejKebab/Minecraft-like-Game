@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
@@ -10,7 +9,8 @@ using Unity.Mathematics;
 using UnityEngine;
 
 namespace _Project.WorldGeneration.Systems
-{[UpdateInGroup(typeof(SimulationSystemGroup))]
+{
+	[UpdateInGroup(typeof(SimulationSystemGroup))]
 	[UpdateAfter(typeof(ChunkPopulateSystem))]
 	public partial struct ChunkMeshBuilderSystem : ISystem
 	{

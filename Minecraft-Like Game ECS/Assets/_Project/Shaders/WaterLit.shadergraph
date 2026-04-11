@@ -343,20 +343,6 @@
             },
             "m_InputSlot": {
                 "m_Node": {
-                    "m_Id": "2b11dac7211b4a90ab37bf0c7bcf7a43"
-                },
-                "m_SlotId": 0
-            }
-        },
-        {
-            "m_OutputSlot": {
-                "m_Node": {
-                    "m_Id": "3ce974f55e5f4ea4971afddc428d17ef"
-                },
-                "m_SlotId": 1
-            },
-            "m_InputSlot": {
-                "m_Node": {
                     "m_Id": "99c229d1707140fe96874c2991cd20e8"
                 },
                 "m_SlotId": 0
@@ -724,6 +710,20 @@
                     "m_Id": "0abe8917f1c24d3184a5764c3594cb81"
                 },
                 "m_SlotId": 1
+            }
+        },
+        {
+            "m_OutputSlot": {
+                "m_Node": {
+                    "m_Id": "ef43da9da9a140dda9f2e11c527dccb7"
+                },
+                "m_SlotId": 5
+            },
+            "m_InputSlot": {
+                "m_Node": {
+                    "m_Id": "2b11dac7211b4a90ab37bf0c7bcf7a43"
+                },
+                "m_SlotId": 0
             }
         },
         {
@@ -1319,7 +1319,7 @@
     "m_Hidden": false,
     "m_PerRendererData": false,
     "m_customAttributes": [],
-    "m_Value": 0.25,
+    "m_Value": 0.5,
     "m_FloatType": 0,
     "m_LiteralFloatMode": false,
     "m_RangeValues": {
@@ -2973,7 +2973,7 @@
     "m_Title": "Water Color",
     "m_Position": {
         "x": -2449.0,
-        "y": -210.99993896484375
+        "y": -210.9999542236328
     }
 }
 

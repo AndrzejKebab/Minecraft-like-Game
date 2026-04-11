@@ -26,14 +26,16 @@ namespace _Project.WorldGeneration
 			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
 			Entity settingsEntity = em.CreateEntity();
-			em.AddComponentData(settingsEntity, new WorldSettingsSingleton
-			                                    {
-				                                    Seed                 = Seed,
-				                                    BiomeHeightCurve     = BiomeHeightCurve.ToNative(),
-				                                    ErosionCurve         = ErosionCurve.ToNative(),
-				                                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
-				                                    EncodedNodeTree      = new FixedString512Bytes(EncodedNodeTree)
-			                                    });
+			var worldSettings = new WorldSettingsSingleton
+			                    {
+				                    Seed                 = Seed,
+				                    BiomeHeightCurve     = BiomeHeightCurve.ToNative(),
+				                    ErosionCurve         = ErosionCurve.ToNative(),
+				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
+				                    EncodedNodeTree      = new FixedString512Bytes(EncodedNodeTree),
+			                    };
+			
+			em.AddComponentData(settingsEntity, worldSettings);
 
 			Debug.Log($"[WorldSettings] World loaded with seed: {Seed} and injected into ECS.");
 		}

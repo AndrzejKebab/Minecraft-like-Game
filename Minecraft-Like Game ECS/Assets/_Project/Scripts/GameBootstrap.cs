@@ -89,11 +89,16 @@ namespace _Project
 			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
 			Entity regEntity = em.CreateEntity();
-			em.AddComponentData(regEntity, new WorldBlockRegistrySingleton
-			                               {
-				                               Blocks = nativeBlocks,
-				                               Meshes = nativeMeshes
-			                               });
+			var blockRegistrySingleton = new WorldBlockRegistrySingleton
+			        {
+				        Blocks = nativeBlocks,
+				        Meshes = nativeMeshes,
+				        TreeDensity = 0.015f,
+				        MinTrunkHeight = 4,
+				        MaxTrunkHeight = 12
+			        };
+			blockRegistrySingleton.OreTypes = CreateDefaultOres(blockRegistrySingleton);
+			em.AddComponentData(regEntity, blockRegistrySingleton);
 
 			em.AddComponentObject(regEntity, new ChunkMaterialComponent
 			                                 {
@@ -102,6 +107,35 @@ namespace _Project
 			                                 });
 
 			Debug.Log($"[GameBootstrap] Game Data Ready! Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");
+		}
+		
+		private static NativeArray<OreSettings> CreateDefaultOres(WorldBlockRegistrySingleton reg)
+		{
+			ushort stone = reg.Blocks[1].ID;
+			var    ores  = new NativeArray<OreSettings>(3, Allocator.Persistent);
+ 
+			ores[0] = new OreSettings   // Coal  — common, wide Y range
+			          {
+				          BlockID       = reg.Blocks[7].ID,
+				          TargetBlockID = stone,
+				          MinWorldY     = -64, MaxWorldY  = 128,
+				          VeinsPerChunk = 20, MaxVeinSize = 17, VeinRadius = 2f
+			          };
+			ores[1] = new OreSettings   // Iron  — medium rarity
+			          {
+				          BlockID       = reg.Blocks[8].ID,
+				          TargetBlockID = stone,
+				          MinWorldY     = -64, MaxWorldY = 64,
+				          VeinsPerChunk = 9, MaxVeinSize = 9, VeinRadius = 1.5f
+			          };
+			ores[2] = new OreSettings   // Diamond — rare, deep only
+			          {
+				          BlockID       = reg.Blocks[9].ID,
+				          TargetBlockID = stone,
+				          MinWorldY     = -64, MaxWorldY = 16,
+				          VeinsPerChunk = 2, MaxVeinSize = 8, VeinRadius = 1f
+			          };
+			return ores;
 		}
 	}
 }

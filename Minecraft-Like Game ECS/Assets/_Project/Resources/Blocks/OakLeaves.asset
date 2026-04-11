@@ -20,7 +20,7 @@ MonoBehaviour:
     IsFluid: 0
     TintColor:
       serializedVersion: 2
-      rgba: 0
+      rgba: 1697238
     DirectionType: 0
     Name:
       utf8LengthInBytes: 9
@@ -78,18 +78,25 @@ MonoBehaviour:
       Left: 0
       Right: 0
     OverlayTextures:
-      Front: 0
-      Back: 0
-      Top: 0
-      Bottom: 0
-      Left: 0
-      Right: 0
+      Front: 3
+      Back: 3
+      Top: 3
+      Bottom: 3
+      Left: 3
+      Right: 3
   TintColor:
     serializedVersion: 2
-    rgba: 0
+    rgba: 1697238
   VoxelData: {fileID: 11400000, guid: 05f2e3c39487f0d41b7ed2e6ef336ea6, type: 2}
   TexturesLayer:
   - TextureType: 0
+    FrontTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+    BackTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+    TopTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+    BottomTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+    RightTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+    LeftTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
+  - TextureType: 3
     FrontTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
     BackTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}
     TopTexture: {fileID: 2800000, guid: c68ea4311c0a35b4fad24db722287bdb, type: 3}

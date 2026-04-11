@@ -26,5 +26,11 @@ namespace _Project.WorldGeneration.Components
 	{
 		public NativeArray<Block>               Blocks;
 		public NativeArray<NativeVoxelMeshData> Meshes;
+				
+		public float TreeDensity;    // 0–1, e.g. 0.015f
+		public int   MinTrunkHeight; // e.g. 4
+		public int   MaxTrunkHeight; // e.g. 8
+		
+		public NativeArray<OreSettings> OreTypes;
 	}
 }
