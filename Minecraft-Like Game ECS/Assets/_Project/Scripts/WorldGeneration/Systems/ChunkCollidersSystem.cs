@@ -60,16 +60,15 @@ namespace _Project.WorldGeneration.Systems
             }
         }
 
-        public void OnUpdate(ref SystemState state)
+public void OnUpdate(ref SystemState state)
         {
-            float3 playerPos = SystemAPI
-                .GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>())
-                .ValueRO.Position;
+            float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
             int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 
-            var ecb                  = new EntityCommandBuffer(Allocator.Temp);
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
             var oldCollidersToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
 
+            // 1. Process Finished Bakes
             for (var i = pendingBakes.Count - 1; i >= 0; i--)
             {
                 PendingBake b = pendingBakes[i];
@@ -100,6 +99,14 @@ namespace _Project.WorldGeneration.Systems
                         ecb.RemoveComponent<PhysicsCollider>(b.Entity);
                         ecb.RemoveComponent<HasCollider>(b.Entity);
                     }
+                    
+                    // ONCE COLLIDER IS BAKED, WE DON'T NEED THE MESH IN RAM ANYMORE! Dump it.
+                    if (state.EntityManager.HasComponent<ChunkMeshData>(b.Entity))
+                    {
+                        var meshData = state.EntityManager.GetComponentData<ChunkMeshData>(b.Entity);
+                        meshData.Dispose(); 
+                        ecb.RemoveComponent<ChunkMeshData>(b.Entity);
+                    }
                 }
                 else
                 {
@@ -110,6 +117,7 @@ namespace _Project.WorldGeneration.Systems
                 pendingBakes.RemoveAt(i);
             }
 
+            // 2. Schedule New Bakes
             foreach ((RefRO<ChunkMeshData> meshData, RefRO<ChunkPositionComponent> pos, Entity entity) in
                      SystemAPI.Query<RefRO<ChunkMeshData>, RefRO<ChunkPositionComponent>>()
                               .WithAll<IsVisible, HasMesh, NeedsColliderSync>()
@@ -145,25 +153,37 @@ namespace _Project.WorldGeneration.Systems
                 ecb.RemoveComponent<NeedsColliderSync>(entity);
             }
 
+            // 3. Remove Colliders for chunks that moved too far away
             foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
                      SystemAPI.Query<RefRO<ChunkPositionComponent>>()
                               .WithAll<HasCollider>()
                               .WithEntityAccess())
             {
-                if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
-
-                if (state.EntityManager.HasComponent<PhysicsCollider>(entity))
+                if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) 
                 {
-                    var phys = state.EntityManager.GetComponentData<PhysicsCollider>(entity);
-                    if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
+                    if (state.EntityManager.HasComponent<PhysicsCollider>(entity))
+                    {
+                        var phys = state.EntityManager.GetComponentData<PhysicsCollider>(entity);
+                        if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
+                    }
+
+                    ecb.RemoveComponent<PhysicsCollider>(entity);
+                    ecb.RemoveComponent<PhysicsWorldIndex>(entity);
+                    ecb.RemoveComponent<HasCollider>(entity);
                 }
+            }
 
-                ecb.RemoveComponent<PhysicsCollider>(entity);
-                ecb.RemoveComponent<PhysicsWorldIndex>(entity);
-                ecb.RemoveComponent<HasCollider>(entity);
-
-                if (!state.EntityManager.HasComponent<NeedsColliderSync>(entity))
-                    ecb.AddComponent<NeedsColliderSync>(entity);
+            // 4. Trigger Mesh Rebuild for chunks that just walked INTO range but disposed their mesh to save RAM earlier
+            foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
+                     SystemAPI.Query<RefRO<ChunkPositionComponent>>()
+                              .WithAll<IsVisible, HasMesh>()
+                              .WithNone<ChunkMeshData, UrgentMeshSync, NeedsMeshSync>()
+                              .WithEntityAccess())
+            {
+                if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) 
+                {
+                    ecb.AddComponent<UrgentMeshSync>(entity); 
+                }
             }
 
             ecb.Playback(state.EntityManager);

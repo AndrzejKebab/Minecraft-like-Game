@@ -258,7 +258,6 @@ namespace _Project.WorldGeneration.Systems
 					ChunkWorldPos   = worldPos,
 					ChunkSize       = VoxelData.CHUNK_SIZE,
 					Seed            = settings.Seed,
-					StoneID         = registry.Blocks[1].ID,
 					MaxCaveWorldY   = 60,
 				};
 				JobHandle cavesHandle = cavesJob.ScheduleByRef(terrainHandle);
