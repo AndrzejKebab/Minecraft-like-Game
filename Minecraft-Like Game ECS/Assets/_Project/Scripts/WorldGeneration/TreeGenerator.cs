@@ -55,12 +55,12 @@ namespace _Project.WorldGeneration
 				// leaf canopies written by earlier decoration waves from being
 				// misidentified as the surface, which would place tree roots
 				// on top of existing canopies in a neighbouring chunk.
-				int localSurface = FindSurface(ref ownBlockData, x, z, chunkSize, grassID);
+				var localSurface = FindSurface(ref ownBlockData, x, z, chunkSize, grassID);
 				if (localSurface < 0) continue;
 
-				int worldX = chunkWorldPos.x + x;
-				int worldZ = chunkWorldPos.z + z;
-				int worldY = chunkWorldPos.y + localSurface;
+				var worldX = chunkWorldPos.x + x;
+				var worldZ = chunkWorldPos.z + z;
+				var worldY = chunkWorldPos.y + localSurface;
 
 				// Deterministic per-column hash — same world pos always produces
 				// the same tree regardless of which chunk iteration triggered it
@@ -68,7 +68,7 @@ namespace _Project.WorldGeneration
 
 				if (rng.NextFloat() > treeDensity) continue;
 
-				int trunkHeight = rng.NextInt(minTrunkHeight, maxTrunkHeight + 1);
+				var trunkHeight = rng.NextInt(minTrunkHeight, maxTrunkHeight + 1);
 
 				var root = new int3(worldX, worldY, worldZ);
 				PlaceTree(ref chunkMap, ref dirtyWriter,
@@ -92,7 +92,7 @@ namespace _Project.WorldGeneration
 			ushort leavesID)
 		{
 			// ── Trunk ─────────────────────────────────────────────────────────
-			for (int i = 1; i <= trunkHeight; i++)
+			for (var i = 1; i <= trunkHeight; i++)
 			{
 				int3 worldPos   = root + new int3(0, i, 0);
 				var  blockState = new BlockState { ID = logID, Orientation = 0 };
@@ -103,15 +103,15 @@ namespace _Project.WorldGeneration
 			}
 
 			// ── Canopy — flattened ellipsoid centred one above trunk tip ──────
-			int canopyCentreY = trunkHeight + 1;
+			var canopyCentreY = trunkHeight + 1;
 			const int   HR = 3;    // horizontal radius in blocks
 			const float VR = 2.2f; // vertical scale (< HR → flat disc shape)
 
-			for (int lx = -HR; lx <= HR; lx++)
-			for (int lz = -HR; lz <= HR; lz++)
-			for (int ly = -1;  ly <= HR; ly++) // asymmetric: more up than down
+			for (var lx = -HR; lx <= HR; lx++)
+			for (var lz = -HR; lz <= HR; lz++)
+			for (var ly = -1;  ly <= HR; ly++) // asymmetric: more up than down
 			{
-				float d = math.sqrt(lx * lx
+				var d = math.sqrt(lx * lx
 				                  + (ly * (HR / VR)) * (ly * (HR / VR))
 				                  + lz * lz);
 				if (d > HR) continue;
@@ -172,7 +172,7 @@ namespace _Project.WorldGeneration
 		private static int FindSurface(
 			ref NativeArray<BlockState> data, int x, int z, int size, ushort grassID)
 		{
-			for (int y = size - 1; y >= 0; y--)
+			for (var y = size - 1; y >= 0; y--)
 				if (data.GetAtPosition(x,y,z).ID == grassID) return y;
 			return -1;
 		}
@@ -191,7 +191,7 @@ namespace _Project.WorldGeneration
 		{
 			unchecked
 			{
-				uint h = (uint)(x * 1376312589 ^ z * 1664525 ^ seed * 22695477);
+				var h = (uint)(x * 1376312589 ^ z * 1664525 ^ seed * 22695477);
 				h ^= h >> 16;
 				h *= 0x45d9f3b;
 				h ^= h >> 16;

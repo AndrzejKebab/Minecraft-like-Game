@@ -111,7 +111,7 @@ namespace _Project
 		
 		private static NativeArray<OreSettings> CreateDefaultOres(WorldBlockRegistrySingleton reg)
 		{
-			ushort stone = reg.Blocks[1].ID;
+			var stone = reg.Blocks[1].ID;
 			var    ores  = new NativeArray<OreSettings>(3, Allocator.Persistent);
  
 			ores[0] = new OreSettings   // Coal  — common, wide Y range

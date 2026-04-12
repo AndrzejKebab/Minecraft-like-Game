@@ -45,14 +45,14 @@ namespace _Project.WorldGeneration.Jobs
 			for (var x = 0; x < ChunkSize; x++)
 			for (var z = 0; z < ChunkSize; z++)
 			{
-				float rawNoise     = heightMap[new int2(x, z)];
-				int   terrainHeight = NoiseGenerator.HeightFromNoise(
-					rawNoise, in BiomeHeight, in ErosionCurve, in PeaksAndValleysCurve);
+				var rawNoise     = heightMap[new int2(x, z)];
+				var   terrainHeight = NoiseGenerator.HeightFromNoise(
+				                                                     rawNoise, in BiomeHeight, in ErosionCurve, in PeaksAndValleysCurve);
 
 				for (var y = 0; y < ChunkSize; y++)
 				{
-					int    worldY = ChunkWorldPos.y + y;
-					ushort id     = NoiseGenerator.ClassifyVoxel(worldY, terrainHeight);
+					var    worldY = ChunkWorldPos.y + y;
+					var id     = NoiseGenerator.ClassifyVoxel(worldY, terrainHeight);
 					id = id < BlockPrototypes.Length ? BlockPrototypes[id].ID : (ushort)0;
 
 					if (id != 0) IsDirty.Value = true;
