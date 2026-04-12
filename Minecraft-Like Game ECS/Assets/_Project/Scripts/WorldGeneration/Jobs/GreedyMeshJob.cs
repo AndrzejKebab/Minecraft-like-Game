@@ -24,7 +24,7 @@ namespace _Project.WorldGeneration.Jobs
 
 		public NativeMesh SolidMesh;
 		public NativeMesh FluidMesh;
-		public int3       ChunkWorldPos;
+
 		private struct Mask
 		{
 			public ushort BlockID;
@@ -349,36 +349,33 @@ namespace _Project.WorldGeneration.Jobs
 			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
 		}
 
-		private Vertex PackVertex(float3 pos, float u, float v, Block block, int normalIdx, int ao, float4 tangent)
+		private static Vertex PackVertex(float3 pos, float u, float v, Block block, int normalIdx, int ao, float4 tangent)
 		{
-			// Bake the world position directly into the vertex!
-			float3 posWS = pos + ChunkWorldPos;
+			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
+			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
+			var pz       = (uint)math.round(math.clamp(pos.z * 10f, 0f, 1023f));
+			var aoPacked = (uint)ao & 0x3;
 
-			uint aoPacked = (uint)ao & 0x3;
-			uint uPacked  = (uint)math.round(math.clamp(u * 10f, 0f, 1023f));
-			uint vPacked  = (uint)math.round(math.clamp(v * 10f, 0f, 1023f));
-			uint tanSign  = tangent.w >= 0f ? 1u : 0u;
+			var uPacked = (uint)math.round(math.clamp(u * 10f, 0f, 1023f));
+			var vPacked = (uint)math.round(math.clamp(v * 10f, 0f, 1023f));
 
-			Color32 color       = block.TintColor;
-			uint    colorPacked = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
+			var tanSign = tangent.w >= 0f ? 1u : 0u;
+			var data1   = px | (py << 10) | (pz << 20) | (aoPacked << 30);
+
+			Color32 color = block.TintColor;
+			var     data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
 
 			uint tBase    = GetTextureIndex(normalIdx, block.BaseTextures);
 			uint tOverlay = GetTextureIndex(normalIdx, block.OverlayTextures);
 			uint tNorm    = GetTextureIndex(normalIdx, block.NormalTextures);
 			uint tSpec    = GetTextureIndex(normalIdx, block.SpecularTextures);
-			uint tanIdx   = DirToIndex(tangent.xyz);
+			var  tanIdx   = DirToIndex(tangent.xyz);
 
-			uint data3 = (tBase & 0x1FFu) | ((tOverlay & 0x1FFu) << 9) | (uPacked << 18) | ((uint)normalIdx << 28) | (tanSign << 31);
-            
-			// AO is now safely packed into data4!
-			uint data4 = (tNorm & 0x1FFu) | ((tSpec & 0x1FFu) << 9) | (vPacked << 18) | (tanIdx << 28) | (aoPacked << 30);
+			var data3 = (tBase & 0x1FFu) | ((tOverlay & 0x1FFu) << 9) | (uPacked << 18) | ((uint)normalIdx << 28) |
+			            (tanSign << 31);
+			var data4 = (tNorm & 0x1FFu) | ((tSpec & 0x1FFu) << 9) | (vPacked << 18) | (tanIdx << 28);
 
-			return new Vertex { 
-				                  PositionWS = posWS, 
-				                  Color      = math.asfloat(colorPacked), 
-				                  Data3      = math.asfloat(data3), 
-				                  Data4      = math.asfloat(data4) 
-			                  };
+			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = data4 };
 		}
 
 		private static uint DirToIndex(float3 dir)

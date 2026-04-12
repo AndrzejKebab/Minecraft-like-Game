@@ -8,7 +8,6 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 namespace _Project.WorldGeneration.Systems
 {
@@ -220,73 +219,81 @@ namespace _Project.WorldGeneration.Systems
 				var totalV  = svCount + fvCount;
 				var totalI  = siCount + fiCount;
 
+				ChunkGfxBuffers gfx;
+				if (state.EntityManager.HasComponent<ChunkGfxBuffers>(job.Entity))
+				{
+					gfx = state.EntityManager.GetComponentObject<ChunkGfxBuffers>(job.Entity);
+					gfx.Dispose();
+				}
+				else
+				{
+					gfx = new ChunkGfxBuffers();
+					state.EntityManager.AddComponentObject(job.Entity, gfx);
+				}
+
 				if (totalV > 0)
 				{
-                    // Generate proper UnityEngine.Mesh for BRG
-                    var meshDataArray = Mesh.AllocateWritableMeshData(1);
-                    var meshData = meshDataArray[0];
+					gfx.VertexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, totalV, Marshal.SizeOf(typeof(Vertex)));
+					var combined = new NativeArray<Vertex>(totalV, Allocator.Temp);
 
-                    var layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Temp);
-                    layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
-                    layout[1] = new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.Float32, 1);
-                    layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 1);
-                    layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord1, VertexAttributeFormat.Float32, 1);
+					if (svCount > 0) NativeArray<Vertex>.Copy(job.SolidMesh.Vertices.AsArray(), 0, combined, 0, svCount);
+					if (fvCount > 0) NativeArray<Vertex>.Copy(job.FluidMesh.Vertices.AsArray(), 0, combined, svCount, fvCount);
 
-                    meshData.SetVertexBufferParams(totalV, layout);
-                    meshData.SetIndexBufferParams(totalI, IndexFormat.UInt32);
+					gfx.VertexBuffer.SetData(combined);
+					combined.Dispose();
 
-                    var verts = meshData.GetVertexData<Vertex>();
-                    if (svCount > 0) NativeArray<Vertex>.Copy(job.SolidMesh.Vertices.AsArray(), 0, verts, 0, svCount);
-                    if (fvCount > 0) NativeArray<Vertex>.Copy(job.FluidMesh.Vertices.AsArray(), 0, verts, svCount, fvCount);
+					gfx.IndexBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Index, totalI, sizeof(int));
+					var idxArray = new NativeArray<int>(totalI, Allocator.Temp);
+					if (siCount > 0)
+						for (var k = 0; k < siCount; k++) idxArray[k] = job.SolidMesh.Triangles[k];
+					if (fiCount > 0)
+						for (var k = 0; k < fiCount; k++) idxArray[siCount + k] = job.FluidMesh.Triangles[k] + svCount;
+					
+					gfx.IndexBuffer.SetData(idxArray);
+					idxArray.Dispose();
 
-                    var indices = meshData.GetIndexData<int>();
-                    if (siCount > 0) NativeArray<int>.Copy(job.SolidMesh.Triangles.AsArray(), 0, indices, 0, siCount);
-                    if (fiCount > 0)
-                    {
-                        var fluidSource = job.FluidMesh.Triangles.AsArray();
-                        for (int k = 0; k < fiCount; k++) indices[siCount + k] = fluidSource[k] + svCount; // Offset fluid indices
-                    }
+					gfx.ArgsBuffer = new GraphicsBuffer(GraphicsBuffer.Target.IndirectArguments, 2, GraphicsBuffer.IndirectDrawIndexedArgs.size);
+					var args = new GraphicsBuffer.IndirectDrawIndexedArgs[2];
+					args[0] = new GraphicsBuffer.IndirectDrawIndexedArgs { indexCountPerInstance = (uint)siCount, instanceCount = 1, startIndex = 0 };
+					args[1] = new GraphicsBuffer.IndirectDrawIndexedArgs { indexCountPerInstance = (uint)fiCount, instanceCount = 1, startIndex = (uint)siCount };
+					gfx.ArgsBuffer.SetData(args);
 
-                    meshData.subMeshCount = 2;
-                    meshData.SetSubMesh(0, new SubMeshDescriptor(0, siCount), MeshUpdateFlags.DontRecalculateBounds);
-                    meshData.SetSubMesh(1, new SubMeshDescriptor(siCount, fiCount), MeshUpdateFlags.DontRecalculateBounds);
-
-                    var unityMesh = new Mesh();
-                    int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).WorldPosition;
-                    unityMesh.bounds = new Bounds(new Vector3(pos.x + 16f, pos.y + 16f, pos.z + 16f), new Vector3(32f, 32f, 32f));
-                    
-                    Mesh.ApplyAndDisposeWritableMeshData(meshDataArray, unityMesh, MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
-
-                    state.EntityManager.AddComponentData(job.Entity, new ChunkRendererData { 
-                        Mesh = unityMesh, SolidIndexCount = siCount, FluidIndexCount = fiCount 
-                    });
+					gfx.SolidIndexCount = siCount;
+					gfx.FluidIndexCount = fiCount;
 				}
 
 				// --- MEMORY AND COLLIDER OPTIMIZATION SECTION ---
+                
+				// 1. Fluid meshes are never used for physics, dump the RAM instantly
 				job.FluidMesh.Dispose(); 
 				
+				// Cancel any pending bake so we don't conflict
 				SystemHandle colSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkCollidersSystem>();
 				ref ChunkCollidersSystem colSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkCollidersSystem>(colSystemHandle);
 				colSystem.CancelPendingBakeFor(job.Entity);
 
+				// Clean up old ChunkMeshData if it existed
 				if (state.EntityManager.HasComponent<ChunkMeshData>(job.Entity)) {
 					var old = state.EntityManager.GetComponentData<ChunkMeshData>(job.Entity);
 					old.Dispose();
 					state.EntityManager.RemoveComponent<ChunkMeshData>(job.Entity);
 				}
 
+				// 2. Check if chunk is close enough to need a collider
 				float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
 				int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
-				var needsCollider = math.abs(job.Entity.Index) >= 0 && 
+				var needsCollider = math.abs(job.Entity.Index) >= 0 && // Safe fallback check
 				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.x - playerChunk.x) <= 1 && 
 				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.y - playerChunk.y) <= 1 && 
 				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.z - playerChunk.z) <= 1;
 
 				if (needsCollider && svCount > 0) 
 				{
+					// Chunk is near player: Save SolidMesh for ChunkCollidersSystem to consume
 					job.SolidMesh.Vertices.TrimExcess(); 
 					job.SolidMesh.Triangles.TrimExcess();
 
+					// Notice we pass `default` to FluidMesh so we don't get a double-dispose crash
 					state.EntityManager.AddComponentData(job.Entity, new ChunkMeshData { SolidMesh = job.SolidMesh, FluidMesh = default });
     
 					if (!state.EntityManager.HasComponent<NeedsColliderSync>(job.Entity))
@@ -294,11 +301,14 @@ namespace _Project.WorldGeneration.Systems
 				} 
 				else 
 				{
+					// Chunk is far away: dispose of RAM right away!
 					job.SolidMesh.Dispose();
 					state.EntityManager.RemoveComponent<NeedsColliderSync>(job.Entity);
 				}
 
-				if (!state.EntityManager.HasComponent<HasMesh>(job.Entity)) state.EntityManager.AddComponent<HasMesh>(job.Entity);
+				if (!state.EntityManager.HasComponent<HasMesh>(job.Entity))
+					state.EntityManager.AddComponent<HasMesh>(job.Entity);
+
 				activeJobs.RemoveAt(i);
 			}
 		}
