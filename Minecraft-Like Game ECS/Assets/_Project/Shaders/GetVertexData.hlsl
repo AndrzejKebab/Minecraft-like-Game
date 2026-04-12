@@ -60,11 +60,21 @@ void get_vertex_data_float(
 
     uint4 v = vertices[vertex_id].data;
 
-    // --- DATA 1: Position ---
-    float px = (float)(v.x & 0x3FF) / 16.0f;
-    float py = (float)((v.x >> 10) & 0x3FF) / 16.0f;
-    float pz = (float)((v.x >> 20) & 0x3FF) / 16.0f;
+    // --- DATA 1: Position, UV_X, UV_Y, AO ---
+    // Extract 6 bits (0x3F) for each position and UV
+    float px   = (float)(v.x & 0x3F);
+    float py   = (float)((v.x >> 6) & 0x3F);
+    float pz   = (float)((v.x >> 12) & 0x3F);
+    float uv_x = (float)((v.x >> 18) & 0x3F);
+    float uv_y = (float)((v.x >> 24) & 0x3F);
+
+    // Extract top 2 bits for AO (0 to 3)
+    uint ao_val = (v.x >> 30) & 0x3;
+    float ao = ao_val / 3.0f; // Results in 0.0, 0.33, 0.66, 1.0
+
     position_ws = float3(px, py, pz) + chunk_origin;
+    uv = float2(uv_x, uv_y); // Pass greedy UVs
+    // Note: Multiply your final pixel color by `ao` in your shader!
 
     // --- DATA 2: Color ---
     color = float4((v.y & 0xFF) / 255.0f, ((v.y >> 8) & 0xFF) / 255.0f, ((v.y >> 16) & 0xFF) / 255.0f, ((v.y >> 24) & 0xFF) / 255.0f);

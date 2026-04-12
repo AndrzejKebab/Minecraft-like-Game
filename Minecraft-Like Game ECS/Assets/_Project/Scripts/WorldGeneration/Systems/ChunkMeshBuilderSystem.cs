@@ -320,8 +320,8 @@ namespace _Project.WorldGeneration.Systems
 
             if (urgentQuery.IsEmpty) return;
 
-            var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-            NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+            var                             registry        = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+            NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
             ComponentLookup<ChunkComponent> blockDataLookup = SystemAPI.GetComponentLookup<ChunkComponent>(true);
 
             using NativeArray<Entity> urgentChunks = urgentQuery.ToEntityArray(Allocator.Temp);
@@ -333,34 +333,23 @@ namespace _Project.WorldGeneration.Systems
                 CancelJobFor(entity);
 
                 int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
-
-                chunkMap.TryGetValue(pos + new int3( 0,  0, -1), out Entity nZNeg);
-                chunkMap.TryGetValue(pos + new int3( 0,  0,  1), out Entity nZPos);
-                chunkMap.TryGetValue(pos + new int3( 0, -1,  0), out Entity nYNeg);
-                chunkMap.TryGetValue(pos + new int3( 0,  1,  0), out Entity nYPos);
-                chunkMap.TryGetValue(pos + new int3(-1,  0,  0), out Entity nXNeg);
-                chunkMap.TryGetValue(pos + new int3( 1,  0,  0), out Entity nXPos);
-
+                
                 var solidMesh = new NativeMesh(Allocator.Persistent);
                 var fluidMesh = new NativeMesh(Allocator.Persistent);
 
-                var job = new BuildMeshJob
-                {
-                    Blocks          = blockDataLookup[entity].BlockData,
-                    BlockPrototypes = registry.Blocks,
-                    Meshes          = registry.Meshes,
-                    ChunkSize       = VoxelData.CHUNK_SIZE,
-                    FaceChecks      = faceChecks,
-                    FaceTangents    = faceTangents,
-                    NeighborZNeg    = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
-                    NeighborZPos    = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
-                    NeighborYNeg    = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
-                    NeighborYPos    = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
-                    NeighborXNeg    = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
-                    NeighborXPos    = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
-                    SolidMesh       = solidMesh,
-                    FluidMesh       = fluidMesh
-                };
+                var job = new GreedyMeshJob
+                          {
+	                          Accessor = new ChunkAccessor 
+	                                     {
+		                                     ChunkMap         = chunkMap,
+		                                     ChunkData        = blockDataLookup,
+		                                     CenterChunkCoord = pos,
+		                                     ChunkSize        = VoxelData.CHUNK_SIZE
+	                                     },
+	                          BlockPrototypes = registry.Blocks,
+	                          SolidMesh       = solidMesh,
+	                          FluidMesh       = fluidMesh
+                          };
 
                 job.RunByRef(); 
 
