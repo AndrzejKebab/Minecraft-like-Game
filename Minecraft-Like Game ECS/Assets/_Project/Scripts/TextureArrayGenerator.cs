@@ -135,7 +135,7 @@ namespace _Project
 			var array = new Texture2DArray(size, size, sources.Count, targetFormat, flags)
 			            {
 				            filterMode = FilterMode.Point,
-				            wrapMode   = TextureWrapMode.Clamp,
+				            wrapMode   = TextureWrapMode.Repeat,
 				            name       = name
 			            };
 

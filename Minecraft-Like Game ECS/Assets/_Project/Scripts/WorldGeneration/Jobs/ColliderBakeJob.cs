@@ -30,9 +30,9 @@ namespace _Project.WorldGeneration.Jobs
 				uint data1 = SolidVertices[j].Data1;
 				
 				// Decode the bit-packed position
-				float px = (data1 & 0x3FF) / 16f;
-				float py = ((data1 >> 10) & 0x3FF) / 16f;
-				float pz = ((data1 >> 20) & 0x3FF) / 16f;
+				float px = (data1 & 0x3FF) / 10f;
+				float py = ((data1 >> 10) & 0x3FF) / 10f;
+				float pz = ((data1 >> 20) & 0x3FF) / 10f;
 				
 				verts[j] = new float3(px, py, pz);
 			}

@@ -143,44 +143,46 @@ namespace _Project.WorldGeneration.Systems
 					Entity entity = queue.Dequeue();
 					int3   pos    = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
 
-					Entity nZNeg = chunkMap[pos + new int3(0, 0, -1)];
-					Entity nZPos = chunkMap[pos + new int3(0, 0, 1)];
-					Entity nYNeg = chunkMap[pos + new int3(0, -1, 0)];
-					Entity nYPos = chunkMap[pos + new int3(0, 1, 0)];
-					Entity nXNeg = chunkMap[pos + new int3(-1, 0, 0)];
-					Entity nXPos = chunkMap[pos + new int3(1, 0, 0)];
+					var    solidMesh = new NativeMesh(Allocator.Persistent);
+					var    fluidMesh = new NativeMesh(Allocator.Persistent);
+					Entity nZNeg     = chunkMap[pos + new int3(0, 0, -1)];
+					Entity nZPos     = chunkMap[pos + new int3(0, 0, 1)];
+					Entity nYNeg     = chunkMap[pos + new int3(0, -1, 0)];
+					Entity nYPos     = chunkMap[pos + new int3(0, 1, 0)];
+					Entity nXNeg     = chunkMap[pos + new int3(-1, 0, 0)];
+					Entity nXPos     = chunkMap[pos + new int3(1, 0, 0)];
 
-					var solidMesh = new NativeMesh(Allocator.Persistent); 
-					var fluidMesh = new NativeMesh(Allocator.Persistent);
-
-					var job = new BuildMeshJob
+					var job = new GreedyMeshJob
 					          {
-						          Blocks          = blockDataLookup[entity].BlockData,
+						          Accessor = new ChunkAccessor 
+						                     {
+							                     Center       = blockDataLookup[entity].BlockData,
+							                     NeighborZNeg = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
+							                     NeighborZPos = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
+							                     NeighborYNeg = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
+							                     NeighborYPos = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
+							                     NeighborXNeg = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
+							                     NeighborXPos = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
+							                     ChunkSize    = VoxelData.CHUNK_SIZE
+						                     },
 						          BlockPrototypes = registry.Blocks,
-						          Meshes          = registry.Meshes,
-						          ChunkSize       = VoxelData.CHUNK_SIZE,
+						          CustomMeshes    = registry.Meshes,
 						          FaceChecks      = faceChecks,
 						          FaceTangents    = faceTangents,
-						          NeighborZNeg    = blockDataLookup[nZNeg].BlockData,
-						          NeighborZPos    = blockDataLookup[nZPos].BlockData,
-						          NeighborYNeg    = blockDataLookup[nYNeg].BlockData,
-						          NeighborYPos    = blockDataLookup[nYPos].BlockData,
-						          NeighborXNeg    = blockDataLookup[nXNeg].BlockData,
-						          NeighborXPos    = blockDataLookup[nXPos].BlockData,
 						          SolidMesh       = solidMesh,
 						          FluidMesh       = fluidMesh
 					          };
 
+					job.RunByRef(); 
+
 					activeJobs.Add(new ActiveJob
 					               {
 						               Entity    = entity,
-						               NBack     = nZNeg, NFront  = nZPos,
-						               NTop      = nYPos, NBottom = nYNeg,
-						               NLeft     = nXNeg, NRight  = nXPos,
-						               Handle    = job.ScheduleByRef(),
+						               Handle    = default, 
 						               SolidMesh = solidMesh,
 						               FluidMesh = fluidMesh
 					               });
+					
 					toStripMeshSync.Add(entity);
 				}
 
@@ -334,19 +336,32 @@ namespace _Project.WorldGeneration.Systems
 
                 int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
                 
-                var solidMesh = new NativeMesh(Allocator.Persistent);
-                var fluidMesh = new NativeMesh(Allocator.Persistent);
+                var    solidMesh = new NativeMesh(Allocator.Persistent);
+                var    fluidMesh = new NativeMesh(Allocator.Persistent);
+                Entity nZNeg     = chunkMap[pos + new int3(0, 0, -1)];
+                Entity nZPos     = chunkMap[pos + new int3(0, 0, 1)];
+                Entity nYNeg     = chunkMap[pos + new int3(0, -1, 0)];
+                Entity nYPos     = chunkMap[pos + new int3(0, 1, 0)];
+                Entity nXNeg     = chunkMap[pos + new int3(-1, 0, 0)];
+                Entity nXPos     = chunkMap[pos + new int3(1, 0, 0)];
 
                 var job = new GreedyMeshJob
                           {
 	                          Accessor = new ChunkAccessor 
 	                                     {
-		                                     ChunkMap         = chunkMap,
-		                                     ChunkData        = blockDataLookup,
-		                                     CenterChunkCoord = pos,
-		                                     ChunkSize        = VoxelData.CHUNK_SIZE
+		                                     Center       = blockDataLookup[entity].BlockData,
+		                                     NeighborZNeg = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
+		                                     NeighborZPos = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
+		                                     NeighborYNeg = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
+		                                     NeighborYPos = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
+		                                     NeighborXNeg = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
+		                                     NeighborXPos = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
+		                                     ChunkSize    = VoxelData.CHUNK_SIZE
 	                                     },
 	                          BlockPrototypes = registry.Blocks,
+	                          CustomMeshes    = registry.Meshes,
+	                          FaceChecks      = faceChecks,
+	                          FaceTangents    = faceTangents,
 	                          SolidMesh       = solidMesh,
 	                          FluidMesh       = fluidMesh
                           };
