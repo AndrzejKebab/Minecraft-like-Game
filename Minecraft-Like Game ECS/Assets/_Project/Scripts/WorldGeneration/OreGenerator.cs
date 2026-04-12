@@ -100,9 +100,8 @@ namespace _Project.WorldGeneration
 					                    chunkWorldPos.z, chunkWorldPos.z + chunkSize - 1);
 
 					int3 local = new int3(bx, by, bz) - chunkWorldPos;
-					int  idx   = TreeGenerator.ToIndex(local.x, local.y, local.z, chunkSize);
 
-					if (chunkRef.TryWrite(idx,
+					if (chunkRef.TryWrite(Utility.FlattenIndex(local.x, local.y, local.z),
 					                      new BlockState { ID = ore.BlockID, Orientation = 0 },
 					                      ore.TargetBlockID))
 						veinDirtied = true;

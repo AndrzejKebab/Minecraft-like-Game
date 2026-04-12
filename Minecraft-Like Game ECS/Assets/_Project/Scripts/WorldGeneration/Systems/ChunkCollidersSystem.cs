@@ -177,7 +177,8 @@ public void OnUpdate(ref SystemState state)
             foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
                      SystemAPI.Query<RefRO<ChunkPositionComponent>>()
                               .WithAll<IsVisible, HasMesh>()
-                              .WithNone<ChunkMeshData, UrgentMeshSync, NeedsMeshSync>()
+                              .WithNone<HasCollider, NeedsColliderSync, ChunkMeshData>()
+                              .WithNone<UrgentMeshSync, NeedsMeshSync>()
                               .WithEntityAccess())
             {
                 if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) 

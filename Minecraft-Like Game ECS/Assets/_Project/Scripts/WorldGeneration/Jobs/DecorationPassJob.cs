@@ -54,6 +54,7 @@ namespace _Project.WorldGeneration.Jobs
 		/// Thread-safe parallel writer — records which chunk coords received at
 		/// least one block write so the system can trigger mesh sync.
 		/// </summary>
+		[NativeDisableContainerSafetyRestriction]
 		public NativeParallelHashMap<int3, bool>.ParallelWriter DirtyWriter;
 
 		// ── Chunk identity ────────────────────────────────────────────────────

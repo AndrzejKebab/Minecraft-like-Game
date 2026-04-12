@@ -152,8 +152,7 @@ namespace _Project.WorldGeneration
 			int3 local = worldPos - coord * chunkSize;
 			if (math.any(local < 0) || math.any(local >= chunkSize)) return;
 
-			if (chunkRef.TryWrite(ToIndex(local.x, local.y, local.z, chunkSize),
-			                      value, requiredExistingID))
+			if (chunkRef.TryWrite(Utility.FlattenIndex(local.x, local.y, local.z), value, requiredExistingID))
 			{
 				dirtyWriter.TryAdd(coord, true);
 			}
@@ -174,18 +173,10 @@ namespace _Project.WorldGeneration
 			ref NativeArray<BlockState> data, int x, int z, int size, ushort grassID)
 		{
 			for (int y = size - 1; y >= 0; y--)
-				if (data[ToIndex(x, y, z, size)].ID == grassID) return y;
+				if (data.GetAtPosition(x,y,z).ID == grassID) return y;
 			return -1;
 		}
-
-		/// <summary>
-		/// Must match the <c>SetAtIndex(x,y,z)</c> extension used in
-		/// <see cref="TerrainShapePassJob"/>.  Change here if your layout differs.
-		/// </summary>
-		[BurstCompile]
-		internal static int ToIndex(int x, int y, int z, int size)
-			=> x * size * size + y * size + z;
-
+		
 		internal static int3 WorldToChunkCoord(int3 world, int size) =>
 			new(FloorDiv(world.x, size),
 			    FloorDiv(world.y, size),

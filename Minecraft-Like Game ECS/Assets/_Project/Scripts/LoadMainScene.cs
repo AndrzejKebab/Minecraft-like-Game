@@ -1,5 +1,4 @@
-﻿#if !UNITY_EDITOR
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace _Project
@@ -13,4 +12,3 @@ namespace _Project
 		}
 	}
 }
-#endif

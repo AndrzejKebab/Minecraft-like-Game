@@ -1,22 +1,18 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using UnityEngine;
-
-[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+using UnityEngine;[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public static class Utility
 {
-	[BurstCompile]
-	public static void FlattenIndex(this int index, int posX, int posY, int posZ)
+	public static int FlattenIndex(int x, int y, int z)
 	{
-		index = posX | (posY << 5) | (posZ << 10);
+		return x | (y << 5) | (z << 10);
 	}
-
+	
 	[BurstCompile]
 	public static void SetAtIndex<T>(this NativeArray<T> array, int posX, int posY, int posZ, T data) where T : struct
 	{
-		var index = posX | (posY << 5) | (posZ << 10);
-		array[index] = data;
+		array[posX | (posY << 5) | (posZ << 10)] = data;
 	}
 
 	[BurstCompile]
@@ -28,9 +24,7 @@ public static class Utility
 	[BurstCompile]
 	public static T GetAtPosition<T>(this NativeArray<T> array, int posX, int posY, int posZ) where T : struct
 	{
-		var index = 0;
-		index.FlattenIndex(posX, posY, posZ);
-		return array[index];
+		return array[FlattenIndex(posX, posY, posZ)];
 	}
 
 	public static Vector3 ToVector3(this ref int3 v)

@@ -323,16 +323,24 @@ namespace _Project.WorldGeneration.Systems
 			var popPositions = populatedQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
 			_chunkDataMap = new NativeParallelHashMap<int3, ChunkBlockDataRef>(
-				_terrainReady.Count + popEntities.Length + 1, Allocator.Persistent);
+			                                                                   _terrainReady.Count + popEntities.Length + 1, Allocator.Persistent);
 
 			foreach (var kvp in _terrainReady)
 				if (kvp.Value.BlockData.IsCreated)
 					_chunkDataMap.TryAdd(kvp.Key, ChunkBlockDataRef.From(kvp.Value.BlockData));
 
+			// FIX: Get access to the MeshBuilderSystem
+			SystemHandle meshSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkMeshBuilderSystem>();
+			ref ChunkMeshBuilderSystem meshSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkMeshBuilderSystem>(meshSystemHandle);
+
 			for (int i = 0; i < popEntities.Length; i++)
 			{
 				int3 coord = WorldToChunkCoord(popPositions[i].WorldPosition);
-				if (_chunkDataMap.ContainsKey(coord)) continue; // already from _terrainReady
+				if (_chunkDataMap.ContainsKey(coord)) continue; 
+				
+				// FIX: Tell the MeshBuilderSystem to finish its job for this chunk before we grab the pointer!
+				meshSystem.GetChunkDependency(popEntities[i]).Complete();
+				
 				var comp = em.GetComponentData<ChunkComponent>(popEntities[i]);
 				if (comp.BlockData.IsCreated)
 					_chunkDataMap.TryAdd(coord, ChunkBlockDataRef.From(comp.BlockData));
