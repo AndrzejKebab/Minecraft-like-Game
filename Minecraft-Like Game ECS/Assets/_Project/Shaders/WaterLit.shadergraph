@@ -1110,32 +1110,6 @@
 }
 
 {
-    "m_SGVersion": 0,
-    "m_Type": "UnityEditor.ShaderGraph.Vector4MaterialSlot",
-    "m_ObjectId": "081b466f99354daab4b1a3280638e827",
-    "m_Id": 9,
-    "m_DisplayName": "Color",
-    "m_SlotType": 1,
-    "m_Hidden": false,
-    "m_HideConnector": false,
-    "m_ShaderOutputName": "Color",
-    "m_StageCapability": 1,
-    "m_Value": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0,
-        "w": 0.0
-    },
-    "m_DefaultValue": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0,
-        "w": 0.0
-    },
-    "m_Labels": []
-}
-
-{
     "m_SGVersion": 1,
     "m_Type": "UnityEditor.ShaderGraph.Internal.Vector1ShaderProperty",
     "m_ObjectId": "088a50cba31e404b8a9b7ef6deac259b",
@@ -2452,9 +2426,6 @@
             "m_Id": "5a7607209a2b4cd39ba272f647c9a167"
         },
         {
-            "m_Id": "081b466f99354daab4b1a3280638e827"
-        },
-        {
             "m_Id": "a60dd67842da46b291ca02e03a57f8c6"
         },
         {
@@ -3001,8 +2972,8 @@
     "m_ObjectId": "5120fa1d37d747d4aa8c278d8680e8fd",
     "m_Title": "Water Color",
     "m_Position": {
-        "x": -2449.000244140625,
-        "y": -210.9998779296875
+        "x": -2449.0,
+        "y": -210.9999542236328
     }
 }
 
@@ -4124,8 +4095,8 @@
     "m_ObjectId": "8d7a9c4f163744e28ab70ec677c9dbf3",
     "m_Title": "Water Waves",
     "m_Position": {
-        "x": -2099.000244140625,
-        "y": -627.9998779296875
+        "x": -2099.0,
+        "y": -627.9999389648438
     }
 }
 
