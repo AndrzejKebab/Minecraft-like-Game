@@ -1,0 +1,35 @@
+{
+	"name": "FastNoise2.Tests",
+	"rootNamespace": "FastNoise2.Tests",
+	"references": [
+		"FastNoise2.Runtime",
+		"FastNoise2.Authoring",
+		"Unity.Burst",
+		"Unity.Collections",
+		"Unity.Mathematics",
+		"UnityEngine.TestRunner",
+		"UnityEditor.TestRunner",
+		"Unity.PerformanceTesting"
+	],
+	"includePlatforms": [
+		"Editor"
+	],
+	"excludePlatforms": [],
+	"allowUnsafeCode": true,
+	"overrideReferences": true,
+	"autoReferenced": false,
+	"noEngineReferences": false,
+	"precompiledReferences": [
+		"nunit.framework.dll"
+	],
+	"defineConstraints": [
+		"UNITY_INCLUDE_TESTS"
+	],
+	"versionDefines": [
+		{
+			"name": "com.unity.test-framework.performance",
+			"expression": "3.0.1",
+			"define": "WITH_TEST_PERFORMANCE"
+		}
+	]
+}

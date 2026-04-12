@@ -1,0 +1,28 @@
+{
+    "name": "NativeTexture.FastNoise2",
+    "rootNamespace": "NativeTexture.FastNoise2",
+    "references": [
+        "NativeTexture",
+        "FastNoise2.Runtime",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Mathematics"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "HAS_FASTNOISE2"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.api-haus.fastnoise2",
+            "expression": "",
+            "define": "HAS_FASTNOISE2"
+        }
+    ],
+    "noEngineReferences": false
+}

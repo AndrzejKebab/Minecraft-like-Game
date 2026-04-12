@@ -1,0 +1,34 @@
+{
+	"name": "NativeTexture.FastNoise2.Tests",
+	"rootNamespace": "NativeTexture.FastNoise2.Tests",
+	"references": [
+		"NativeTexture",
+		"NativeTexture.FastNoise2",
+		"FastNoise2.Runtime",
+		"Unity.Collections",
+		"Unity.Mathematics",
+		"Unity.Burst",
+		"UnityEngine.TestRunner",
+		"UnityEditor.TestRunner"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": true,
+	"overrideReferences": true,
+	"precompiledReferences": [
+		"nunit.framework.dll"
+	],
+	"autoReferenced": false,
+	"defineConstraints": [
+		"UNITY_INCLUDE_TESTS",
+		"HAS_FASTNOISE2"
+	],
+	"versionDefines": [
+		{
+			"name": "com.api-haus.fastnoise2",
+			"expression": "",
+			"define": "HAS_FASTNOISE2"
+		}
+	],
+	"noEngineReferences": false
+}

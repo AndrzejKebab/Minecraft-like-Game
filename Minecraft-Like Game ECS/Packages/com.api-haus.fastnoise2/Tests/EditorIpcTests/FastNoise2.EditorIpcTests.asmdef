@@ -1,0 +1,26 @@
+{
+	"name": "FastNoise2.EditorIpcTests",
+	"rootNamespace": "FastNoise2.Tests",
+	"references": [
+		"FastNoise2.Runtime",
+		"FastNoise2.Authoring",
+		"FastNoise2.Editor",
+		"UnityEngine.TestRunner",
+		"UnityEditor.TestRunner"
+	],
+	"includePlatforms": [
+		"Editor"
+	],
+	"excludePlatforms": [],
+	"allowUnsafeCode": false,
+	"overrideReferences": true,
+	"precompiledReferences": [
+		"nunit.framework.dll"
+	],
+	"autoReferenced": false,
+	"defineConstraints": [
+		"UNITY_INCLUDE_TESTS"
+	],
+	"versionDefines": [],
+	"noEngineReferences": false
+}

@@ -1,0 +1,63 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!117 &-6424413355353989740
+Texture3D:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: New Noise Asset
+  m_ImageContentsHash:
+    serializedVersion: 2
+    Hash: 00000000000000000000000000000000
+  m_IsAlphaChannelOptional: 0
+  serializedVersion: 4
+  m_ColorSpace: 0
+  m_Format: 49
+  m_Width: 128
+  m_Height: 128
+  m_Depth: 128
+  m_MipCount: 1
+  m_DataSize: 8388608
+  m_TextureSettings:
+    serializedVersion: 2
+    m_FilterMode: 1
+    m_Aniso: 1
+    m_MipBias: 0
+    m_WrapU: 0
+    m_WrapV: 0
+    m_WrapW: 0
+  m_UsageMode: 0
+  m_IsReadable: 1
+  image data: 8388608
+  m_StreamData:
+    serializedVersion: 2
+    offset: 0
+    size: 0
+    path: 
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e28fba09286d4d2a861bbcf0efbfc59d, type: 3}
+  m_Name: New Noise Asset
+  m_EditorClassIdentifier: 
+  graph:
+    encodedGraph: Bg@AMhCBA==
+  textureOutput: 1
+  textureFormat: 0
+  resolution:
+    x: 128
+    y: 128
+    z: 128
+  offset:
+    x: 0
+    y: 0
+    z: 0
+  frequency: 0.02
+  seed: 1337

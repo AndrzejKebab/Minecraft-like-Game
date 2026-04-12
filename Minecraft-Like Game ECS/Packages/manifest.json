@@ -3,7 +3,6 @@
     "com.andrzejkebab.utilitylibrary": "https://github.com/AndrzejKebab/Utility-Library.git",
     "com.api-haus.fastnoise2": "https://github.com/api-haus/com.api-haus.fastnoise2.git",
     "com.api-haus.native-texture": "https://github.com/api-haus/im.pala.nativetexture.git",
-    "com.cysharp.unitask": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
     "com.github-glitchenzo.nugetforunity": "4.5.0",
     "com.unity.burst": "1.8.29",
     "com.unity.charactercontroller": "1.4.2",

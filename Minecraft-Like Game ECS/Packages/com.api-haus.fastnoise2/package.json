@@ -1,0 +1,25 @@
+{
+  "displayName": "FastNoise2",
+  "name": "com.api-haus.fastnoise2",
+  "version": "1.4.2",
+  "description": "FastNoise2 in UPM",
+  "hideInEditor": false,
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/api-haus/com.api-haus.fastnoise2.git"
+  },
+  "samples": [
+    {
+      "displayName": "NoiseQuad",
+      "description": "Scrolling noise texture rendered on a quad using FastNoiseGraph.",
+      "path": "Samples~/NoiseQuad"
+    },
+    {
+      "displayName": "NoiseMuseum",
+      "description": "Grid of noise textures showcasing the full builder API: factories, operators, fractals, blends, domain warps, modifiers, cellular, and specialized nodes.",
+      "path": "Samples~/NoiseMuseum"
+    }
+  ],
+  "_fingerprint": "3f7bc2f3ed3beb94924ceb5c8dbde3f1e07f47cc"
+}

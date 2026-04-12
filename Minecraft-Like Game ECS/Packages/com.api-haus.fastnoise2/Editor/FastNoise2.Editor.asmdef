@@ -1,0 +1,22 @@
+{
+	"name": "FastNoise2.Editor",
+	"rootNamespace": "FastNoise2",
+	"references": [
+		"FastNoise2.Authoring",
+		"FastNoise2.Runtime",
+		"Unity.Collections",
+		"Unity.Mathematics",
+		"Unity.Burst"
+	],
+	"includePlatforms": [
+		"Editor"
+	],
+	"excludePlatforms": [],
+	"allowUnsafeCode": true,
+	"overrideReferences": false,
+	"precompiledReferences": [],
+	"autoReferenced": false,
+	"defineConstraints": [],
+	"versionDefines": [],
+	"noEngineReferences": false
+}

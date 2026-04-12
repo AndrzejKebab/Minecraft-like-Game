@@ -1,0 +1,25 @@
+{
+	"name": "NativeTexture.Tests",
+	"rootNamespace": "NativeTexture.Tests",
+	"references": [
+		"NativeTexture",
+		"Unity.Collections",
+		"Unity.Mathematics",
+		"Unity.Burst",
+		"UnityEngine.TestRunner",
+		"UnityEditor.TestRunner"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": true,
+	"overrideReferences": true,
+	"precompiledReferences": [
+		"nunit.framework.dll"
+	],
+	"autoReferenced": false,
+	"defineConstraints": [
+		"UNITY_INCLUDE_TESTS"
+	],
+	"versionDefines": [],
+	"noEngineReferences": false
+}
