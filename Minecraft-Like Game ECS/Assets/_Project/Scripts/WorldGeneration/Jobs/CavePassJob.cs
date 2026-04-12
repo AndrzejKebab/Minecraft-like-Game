@@ -58,7 +58,7 @@ namespace _Project.WorldGeneration.Jobs
 					for (int x = 0; x < ChunkSize; x++)
 					{
 						int idx   = x | (y << 5) | (z << 10);
-						var block = BlockData[idx];
+						BlockState block = BlockData[idx];
 
 						if (block.ID == 0) continue; // Skip air
 						if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid)

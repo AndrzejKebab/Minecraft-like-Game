@@ -17,9 +17,9 @@ namespace _Project.WorldGeneration.Systems
         private          MaterialPropertyBlock mpb;
         private readonly Plane[]               frustumPlanes = new Plane[6]; // Added for culling
 
-        private static readonly int verticesPid    = Shader.PropertyToID("_Vertices");
-        private static readonly int vertexCountPid = Shader.PropertyToID("_VertexCount");
-        private static readonly int chunkOriginPid = Shader.PropertyToID("_ChunkOrigin");
+        private static readonly int verticesPid    = Shader.PropertyToID("vertices");
+        private static readonly int chunkOriginPid = Shader.PropertyToID("chunk_origin");
+        private static readonly int vertexCountPid = Shader.PropertyToID("vertex_count");
 
         protected override void OnCreate()
         {
@@ -104,7 +104,7 @@ namespace _Project.WorldGeneration.Systems
 
         protected override void OnDestroy()
         {
-            foreach (var gfx in SystemAPI.Query<ChunkGfxBuffers>())
+            foreach (ChunkGfxBuffers gfx in SystemAPI.Query<ChunkGfxBuffers>())
             {
                 gfx.Dispose();
             }

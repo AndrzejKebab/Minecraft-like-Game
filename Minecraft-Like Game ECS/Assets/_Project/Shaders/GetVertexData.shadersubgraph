@@ -149,6 +149,20 @@
                 },
                 "m_SlotId": 8
             }
+        },
+        {
+            "m_OutputSlot": {
+                "m_Node": {
+                    "m_Id": "9dd4ad88862542ab8e524a0945fbdcf4"
+                },
+                "m_SlotId": 9
+            },
+            "m_InputSlot": {
+                "m_Node": {
+                    "m_Id": "65ce84ac067b475cbe5341462f565306"
+                },
+                "m_SlotId": 9
+            }
         }
     ],
     "m_VertexContext": {
@@ -213,6 +227,32 @@
     "m_CustomColors": {
         "m_SerializableColors": []
     }
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+    "m_ObjectId": "08954f0637304050a242fdc0cabf65d8",
+    "m_Id": 9,
+    "m_DisplayName": "Color",
+    "m_SlotType": 0,
+    "m_Hidden": false,
+    "m_HideConnector": false,
+    "m_ShaderOutputName": "Color",
+    "m_StageCapability": 1,
+    "m_Value": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_DefaultValue": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_Labels": []
 }
 
 {
@@ -385,6 +425,32 @@
 
 {
     "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+    "m_ObjectId": "6034cc849f0d4b8fa843d02795a0c781",
+    "m_Id": 9,
+    "m_DisplayName": "Color",
+    "m_SlotType": 1,
+    "m_Hidden": false,
+    "m_HideConnector": false,
+    "m_ShaderOutputName": "Color",
+    "m_StageCapability": 3,
+    "m_Value": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_DefaultValue": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_Labels": []
+}
+
+{
+    "m_SGVersion": 0,
     "m_Type": "UnityEditor.ShaderGraph.SubGraphOutputNode",
     "m_ObjectId": "65ce84ac067b475cbe5341462f565306",
     "m_Group": {
@@ -413,6 +479,9 @@
         },
         {
             "m_Id": "2ed41115b9b9487e85a71f26d6c91f65"
+        },
+        {
+            "m_Id": "08954f0637304050a242fdc0cabf65d8"
         },
         {
             "m_Id": "d34caa0fc5e0475bb742b9efb9554c9c"
@@ -553,6 +622,9 @@
         },
         {
             "m_Id": "3850386de05741a38e73b273aed407e7"
+        },
+        {
+            "m_Id": "6034cc849f0d4b8fa843d02795a0c781"
         },
         {
             "m_Id": "348eea87cc8f4da7944a3793e201f81f"

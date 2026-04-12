@@ -1022,6 +1022,9 @@
             "m_Id": "7626e91a70f64114a0f5ffa129d829a6"
         },
         {
+            "m_Id": "8ca7c734a3e242888260daae00874851"
+        },
+        {
             "m_Id": "3540607ab37240aa80e2ae26d5912054"
         },
         {
@@ -3512,6 +3515,32 @@
         "w": 0.0
     },
     "m_LiteralMode": false
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector4MaterialSlot",
+    "m_ObjectId": "8ca7c734a3e242888260daae00874851",
+    "m_Id": 9,
+    "m_DisplayName": "Color",
+    "m_SlotType": 1,
+    "m_Hidden": false,
+    "m_HideConnector": false,
+    "m_ShaderOutputName": "Color",
+    "m_StageCapability": 1,
+    "m_Value": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_DefaultValue": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.0
+    },
+    "m_Labels": []
 }
 
 {

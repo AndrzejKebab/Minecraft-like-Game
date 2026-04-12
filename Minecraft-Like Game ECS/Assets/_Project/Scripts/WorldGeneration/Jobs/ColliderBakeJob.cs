@@ -27,8 +27,14 @@ namespace _Project.WorldGeneration.Jobs
 
 			for (var j = 0; j < vertCount; j++)
 			{
-				half4 p = SolidVertices[j].Position;
-				verts[j] = new float3(p.x, p.y, p.z);
+				uint data1 = SolidVertices[j].Data1;
+				
+				// Decode the bit-packed position
+				float px = (data1 & 0x3FF) / 16f;
+				float py = ((data1 >> 10) & 0x3FF) / 16f;
+				float pz = ((data1 >> 20) & 0x3FF) / 16f;
+				
+				verts[j] = new float3(px, py, pz);
 			}
 
 			for (var j = 0; j < idxCount / 3; j++)

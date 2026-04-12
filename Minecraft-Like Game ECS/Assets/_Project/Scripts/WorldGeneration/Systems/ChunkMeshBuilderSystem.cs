@@ -280,10 +280,10 @@ namespace _Project.WorldGeneration.Systems
 				// 2. Check if chunk is close enough to need a collider
 				float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
 				int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
-				bool needsCollider = math.abs(job.Entity.Index) >= 0 && // Safe fallback check
-				                     math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.x - playerChunk.x) <= 1 && 
-				                     math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.y - playerChunk.y) <= 1 && 
-				                     math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.z - playerChunk.z) <= 1;
+				var needsCollider = math.abs(job.Entity.Index) >= 0 && // Safe fallback check
+				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.x - playerChunk.x) <= 1 && 
+				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.y - playerChunk.y) <= 1 && 
+				                    math.abs(SystemAPI.GetComponent<ChunkPositionComponent>(job.Entity).ChunkCoord.z - playerChunk.z) <= 1;
 
 				if (needsCollider && svCount > 0) 
 				{

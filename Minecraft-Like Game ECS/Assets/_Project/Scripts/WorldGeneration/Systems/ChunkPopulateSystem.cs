@@ -4,6 +4,7 @@ using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
 using FastNoise2.Bindings;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -91,7 +92,7 @@ namespace _Project.WorldGeneration.Systems
 			if (_noiseInit && _noise.IsCreated) _noise.Dispose();
 
 			// Complete and discard any running terrain jobs
-			for (int i = 0; i < _terrainJobs.Count; i++)
+			for (var i = 0; i < _terrainJobs.Count; i++)
 			{
 				_terrainJobs[i].Handle.Complete();
 				_terrainJobs[i].BlockData.Dispose();
@@ -105,10 +106,10 @@ namespace _Project.WorldGeneration.Systems
 			_decorBatchCoords.Dispose();
 
 			// Dispose block data for chunks still awaiting decoration
-			using var keys = _terrainReady.GetKeyArray(Allocator.Temp);
+			using NativeArray<int3> keys = _terrainReady.GetKeyArray(Allocator.Temp);
 			foreach (int3 key in keys)
 			{
-				var e = _terrainReady[key];
+				TerrainReadyEntry e = _terrainReady[key];
 				if (e.BlockData.IsCreated) e.BlockData.Dispose();
 			}
 			_terrainReady.Dispose();
@@ -122,7 +123,7 @@ namespace _Project.WorldGeneration.Systems
 			if (!_noiseInit) InitNoise(ref settings);
 
 			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-			var em       = state.EntityManager;
+			EntityManager em       = state.EntityManager;
 
 			// Step 1 — collect terrain+caves jobs that finished this frame
 			ProcessTerrainJobs(em);
@@ -152,7 +153,7 @@ namespace _Project.WorldGeneration.Systems
 
 		private void ProcessTerrainJobs(EntityManager em)
 		{
-			for (int i = _terrainJobs.Count - 1; i >= 0; i--)
+			for (var i = _terrainJobs.Count - 1; i >= 0; i--)
 			{
 				ActiveTerrainJob job = _terrainJobs[i];
 				if (!job.Handle.IsCompleted) continue;
@@ -193,26 +194,26 @@ namespace _Project.WorldGeneration.Systems
 		{
 			if (_terrainJobs.Count >= GameSettings.MAX_CONCURRENT_JOBS) return;
 
-			var query = SystemAPI.QueryBuilder()
-				.WithAll<IsVisible, ChunkPositionComponent, ChunkComponent, ChunkPriorityComponent>()
-				.WithNone<IsPopulated, MarkedToDestroy>()
-				.Build();
+			EntityQuery query = SystemAPI.QueryBuilder()
+			                             .WithAll<IsVisible, ChunkPositionComponent, ChunkComponent, ChunkPriorityComponent>()
+			                             .WithNone<IsPopulated, MarkedToDestroy>()
+			                             .Build();
 
 			if (query.IsEmpty) return;
 
-			var entities   = query.ToEntityArray(Allocator.Temp);
-			var priorities = query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
+			NativeArray<Entity>                 entities   = query.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPriorityComponent> priorities = query.ToComponentDataArray<ChunkPriorityComponent>(Allocator.Temp);
 
 			// Priority queue — process closest chunks first
 			var pq = new NativePriorityQueue<Entity>(entities.Length, Allocator.Temp);
-			for (int i = 0; i < entities.Length; i++)
+			for (var i = 0; i < entities.Length; i++)
 			{
 				Entity e     = entities[i];
 				int3   coord = WorldToChunkCoord(em.GetComponentData<ChunkPositionComponent>(e).WorldPosition);
 
 				if (_terrainReady.ContainsKey(coord)) continue; // already done terrain
 
-				bool running = false;
+				var running = false;
 				foreach (ActiveTerrainJob j in _terrainJobs)
 				{
 					if (j.Entity != e) continue;
@@ -222,8 +223,8 @@ namespace _Project.WorldGeneration.Systems
 				if (!running) pq.Enqueue(e, priorities[i].Distance);
 			}
 
-			int slots = math.min(GameSettings.MAX_CONCURRENT_JOBS - _terrainJobs.Count, pq.Count);
-			for (int i = 0; i < slots; i++)
+			var slots = math.min(GameSettings.MAX_CONCURRENT_JOBS - _terrainJobs.Count, pq.Count);
+			for (var i = 0; i < slots; i++)
 			{
 				Entity e        = pq.Dequeue();
 				int3   worldPos = em.GetComponentData<ChunkPositionComponent>(e).WorldPosition;
@@ -291,22 +292,22 @@ namespace _Project.WorldGeneration.Systems
 			//   (a) chunks still awaiting decoration  →  _terrainReady
 			//   (b) fully decorated chunks            →  ECS IsPopulated
 			// This prevents an already-decorated neighbour from blocking new chunks.
-			var populatedQuery = SystemAPI.QueryBuilder()
-				.WithAll<IsPopulated, ChunkPositionComponent>()
-				.WithNone<MarkedToDestroy>()
-				.Build();
+			EntityQuery populatedQuery = SystemAPI.QueryBuilder()
+			                                      .WithAll<IsPopulated, ChunkPositionComponent>()
+			                                      .WithNone<MarkedToDestroy>()
+			                                      .Build();
 
-			var popPos = populatedQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> popPos = populatedQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 			var allReady = new NativeHashSet<int3>(
 				_terrainReady.Count + popPos.Length + 1, Allocator.Temp);
 
-			foreach (var kvp in _terrainReady) allReady.Add(kvp.Key);
-			foreach (var p in popPos)          allReady.Add(WorldToChunkCoord(p.WorldPosition));
+			foreach (KVPair<int3, TerrainReadyEntry> kvp in _terrainReady) allReady.Add(kvp.Key);
+			foreach (ChunkPositionComponent p in popPos)          allReady.Add(WorldToChunkCoord(p.WorldPosition));
 			popPos.Dispose();
 
 			// Collect _terrainReady chunks whose required neighbours are all ready
 			var toDecorate = new NativeList<int3>(Allocator.Temp);
-			foreach (var kvp in _terrainReady)
+			foreach (KVPair<int3, TerrainReadyEntry> kvp in _terrainReady)
 				if (AllNeighboursReady(kvp.Key, allReady)) toDecorate.Add(kvp.Key);
 
 			if (toDecorate.Length == 0)
@@ -319,26 +320,24 @@ namespace _Project.WorldGeneration.Systems
 			// Build the shared block-data map for decoration jobs.
 			// Includes both _terrainReady chunks and already-IsPopulated chunks so
 			// cross-border tree canopies can reach any loaded neighbour.
-			var popEntities  = populatedQuery.ToEntityArray(Allocator.Temp);
-			var popPositions = populatedQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+			NativeArray<Entity>                 popEntities  = populatedQuery.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> popPositions = populatedQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
 			_chunkDataMap = new NativeParallelHashMap<int3, ChunkBlockDataRef>(
 			                                                                   _terrainReady.Count + popEntities.Length + 1, Allocator.Persistent);
 
-			foreach (var kvp in _terrainReady)
+			foreach (KVPair<int3, TerrainReadyEntry> kvp in _terrainReady)
 				if (kvp.Value.BlockData.IsCreated)
 					_chunkDataMap.TryAdd(kvp.Key, ChunkBlockDataRef.From(kvp.Value.BlockData));
 
-			// FIX: Get access to the MeshBuilderSystem
 			SystemHandle meshSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkMeshBuilderSystem>();
 			ref ChunkMeshBuilderSystem meshSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkMeshBuilderSystem>(meshSystemHandle);
 
-			for (int i = 0; i < popEntities.Length; i++)
+			for (var i = 0; i < popEntities.Length; i++)
 			{
 				int3 coord = WorldToChunkCoord(popPositions[i].WorldPosition);
 				if (_chunkDataMap.ContainsKey(coord)) continue; 
 				
-				// FIX: Tell the MeshBuilderSystem to finish its job for this chunk before we grab the pointer!
 				meshSystem.GetChunkDependency(popEntities[i]).Complete();
 				
 				var comp = em.GetComponentData<ChunkComponent>(popEntities[i]);
@@ -351,35 +350,32 @@ namespace _Project.WorldGeneration.Systems
 			_dirtyMap = new NativeParallelHashMap<int3, bool>(toDecorate.Length * 9, Allocator.Persistent);
 			_decorBatchCoords.Clear();
 
-			var    dirtyWriter = _dirtyMap.AsParallelWriter();
-			ushort airID       = registry.Blocks[0].ID;
-			ushort grassID     = registry.Blocks[3].ID;
-			ushort logID       = registry.Blocks[7].ID;
-			ushort leavesID    = registry.Blocks[10].ID;
+			NativeParallelHashMap<int3, bool>.ParallelWriter    dirtyWriter = _dirtyMap.AsParallelWriter();
+			var airID       = registry.Blocks[0].ID;
+			var grassID     = registry.Blocks[3].ID;
+			var logID       = registry.Blocks[7].ID;
+			var leavesID    = registry.Blocks[10].ID;
 
-			// Bucket into 4 colour groups for checkerboard wave scheduling
 			var groups = new NativeArray<NativeList<int3>>(4, Allocator.Temp);
-			for (int c = 0; c < 4; c++)
+			for (var c = 0; c < 4; c++)
 				groups[c] = new NativeList<int3>(Allocator.Temp);
 
-			for (int i = 0; i < toDecorate.Length; i++)
+			for (var i = 0; i < toDecorate.Length; i++)
 			{
 				int3 coord  = toDecorate[i];
-				int  colour = PositiveMod(coord.x, 2) * 2 + PositiveMod(coord.z, 2);
+				var  colour = PositiveMod(coord.x, 2) * 2 + PositiveMod(coord.z, 2);
 				groups[colour].Add(coord);
 				_decorBatchCoords.Add(coord);
 			}
-
-			// Chain four waves: each wave depends on the previous wave's combined handle.
-			// All jobs within a wave run in parallel (same-colour chunks never overlap).
+			
 			JobHandle waveHandle = default;
-			for (int colour = 0; colour < 4; colour++)
+			for (var colour = 0; colour < 4; colour++)
 			{
 				NativeList<int3> group = groups[colour];
 				if (group.Length == 0) continue;
 
 				var waveHandles = new NativeArray<JobHandle>(group.Length, Allocator.Temp);
-				for (int i = 0; i < group.Length; i++)
+				for (var i = 0; i < group.Length; i++)
 				{
 					int3             coord = group[i];
 					TerrainReadyEntry entry = _terrainReady[coord];
@@ -408,7 +404,7 @@ namespace _Project.WorldGeneration.Systems
 				waveHandles.Dispose();
 			}
 
-			for (int c = 0; c < 4; c++) groups[c].Dispose();
+			for (var c = 0; c < 4; c++) groups[c].Dispose();
 			groups.Dispose();
 			toDecorate.Dispose();
 			allReady.Dispose();
@@ -424,24 +420,18 @@ namespace _Project.WorldGeneration.Systems
 		{
 			EntityManager em = state.EntityManager;
 
-			// Finalise every chunk decorated in this batch
 			foreach (int3 coord in _decorBatchCoords)
 			{
 				if (!_terrainReady.TryGetValue(coord, out TerrainReadyEntry entry)) continue;
 
-				bool finalDirty = entry.IsDirty || _dirtyMap.ContainsKey(coord);
+				var finalDirty = entry.IsDirty || _dirtyMap.ContainsKey(coord);
 
 				if (em.Exists(entry.Entity))
 				{
-					// Transfer block data ownership to ChunkComponent exactly once,
-					// at the moment the chunk becomes fully generated.
-					// This is the only place comp.BlockData is ever written,
-					// preventing the double-dispose that occurs if it is set earlier.
 					var comp = em.GetComponentData<ChunkComponent>(entry.Entity);
 					comp.BlockData = entry.BlockData;
 					em.SetComponentData(entry.Entity, comp);
 
-					// *** IsPopulated is added HERE — after all three passes ***
 					em.AddComponentData(entry.Entity, new IsPopulated());
 
 					if (finalDirty) em.AddComponentData(entry.Entity, new NeedsMeshSync());
@@ -454,18 +444,16 @@ namespace _Project.WorldGeneration.Systems
 
 				_terrainReady.Remove(coord);
 			}
+			
+			EntityQuery q = SystemAPI.QueryBuilder()
+			                         .WithAll<IsPopulated, ChunkPositionComponent>()
+			                         .WithNone<MarkedToDestroy>()
+			                         .Build();
 
-			// Propagate dirty flag to already-IsPopulated neighbours that received
-			// decoration writes (e.g. tree canopy crossing a chunk border).
-			var q = SystemAPI.QueryBuilder()
-				.WithAll<IsPopulated, ChunkPositionComponent>()
-				.WithNone<MarkedToDestroy>()
-				.Build();
+			NativeArray<Entity>                 allEntities  = q.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> allPositions = q.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
-			var allEntities  = q.ToEntityArray(Allocator.Temp);
-			var allPositions = q.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
-
-			for (int i = 0; i < allEntities.Length; i++)
+			for (var i = 0; i < allEntities.Length; i++)
 			{
 				int3   coord = WorldToChunkCoord(allPositions[i].WorldPosition);
 				Entity e     = allEntities[i];
@@ -478,9 +466,7 @@ namespace _Project.WorldGeneration.Systems
 			allEntities.Dispose();
 			allPositions.Dispose();
 
-			// Propagate dirty flag to _terrainReady neighbours that received writes
-			// (they'll pick it up when they eventually get IsPopulated)
-			foreach (var kvp in _dirtyMap)
+			foreach (KeyValue<int3, bool> kvp in _dirtyMap)
 			{
 				int3 coord = kvp.Key;
 				if (!_terrainReady.TryGetValue(coord, out TerrainReadyEntry entry)) continue;
@@ -494,7 +480,7 @@ namespace _Project.WorldGeneration.Systems
 		/// <summary>Dispose block data for any _terrainReady entry whose entity was destroyed.</summary>
 		private void CleanupDestroyedEntries(EntityManager em)
 		{
-			using var keys = _terrainReady.GetKeyArray(Allocator.Temp);
+			using NativeArray<int3> keys = _terrainReady.GetKeyArray(Allocator.Temp);
 			foreach (int3 key in keys)
 			{
 				TerrainReadyEntry entry = _terrainReady[key];
@@ -537,9 +523,7 @@ namespace _Project.WorldGeneration.Systems
 			foreach (ActiveTerrainJob job in _terrainJobs)
 				if (job.Entity == chunkEntity) return job.Handle;
 
-			if (_decorBatchActive) return _decorBatchHandle;
-
-			return default;
+			return _decorBatchActive ? _decorBatchHandle : default;
 		}
 
 		// ── Helpers ───────────────────────────────────────────────────────────
@@ -551,8 +535,8 @@ namespace _Project.WorldGeneration.Systems
 		/// </summary>
 		private static bool AllNeighboursReady(int3 coord, in NativeHashSet<int3> allReady)
 		{
-			for (int dx = -1; dx <= 1; dx++)
-			for (int dz = -1; dz <= 1; dz++)
+			for (var dx = -1; dx <= 1; dx++)
+			for (var dz = -1; dz <= 1; dz++)
 			{
 				if (dx == 0 && dz == 0) continue;
 				if (!allReady.Contains(coord + new int3(dx, 0, dz))) return false;
@@ -562,7 +546,7 @@ namespace _Project.WorldGeneration.Systems
 
 		private static int3 WorldToChunkCoord(int3 world)
 		{
-			int s = VoxelData.CHUNK_SIZE;
+			const int s = VoxelData.CHUNK_SIZE;
 			return new int3(FloorDiv(world.x, s), FloorDiv(world.y, s), FloorDiv(world.z, s));
 		}
 
