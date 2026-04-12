@@ -29,6 +29,11 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<float3> FaceTangents;
 		public            int                 ChunkSize;
 
+		// Grid coordinate (in chunk units) of this chunk.
+		// Stored in every vertex so the shader can reconstruct world-space origin
+		// without relying on SV_InstanceID or Unity's indirect draw constant system.
+		public int3 ChunkCoord;
+
 		public NativeMesh SolidMesh;
 		public NativeMesh FluidMesh;
 
@@ -61,46 +66,34 @@ namespace _Project.WorldGeneration.Jobs
 
 					if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent)) continue;
 
-					// Rotate each vertex around the block centre then shift to chunk space.
-					// Works for any mesh shape — cube, slab, stair, custom.
 					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f + wPos;
 					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f + wPos;
 					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f + wPos;
 					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
 
 					float3 rotatedTangent    = math.round(math.mul(rot, originalTangent));
-					float3 originalBitangent = math.cross(originalNormal, originalTangent);
-					float3 rotatedBitangent  = math.round(math.mul(rot, originalBitangent));
-					float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
-					var    tangentW          = math.dot(rotatedBitangent, expectedBitangent) >= 0f ? 1f : -1f;
-					var    tangent4          = new float4(rotatedTangent, tangentW);
 
 					var tBase     = GetTextureIndex(originalNormal, block.BaseTextures);
 					var tOverlay  = GetTextureIndex(originalNormal, block.OverlayTextures);
 					var tNormal   = GetTextureIndex(originalNormal, block.NormalTextures);
 					var tSpecular = GetTextureIndex(originalNormal, block.SpecularTextures);
 
-					Vertex vert0 = MakeVertex(v0, rotatedNormal, tangent4, block.TintColor, 0f, 0f, tBase, tOverlay,
-					                          tNormal, tSpecular);
-					Vertex vert1 = MakeVertex(v1, rotatedNormal, tangent4, block.TintColor, 0f, 1f, tBase, tOverlay,
-					                          tNormal, tSpecular);
-					Vertex vert2 = MakeVertex(v2, rotatedNormal, tangent4, block.TintColor, 1f, 0f, tBase, tOverlay,
-					                          tNormal, tSpecular);
-					Vertex vert3 = MakeVertex(v3, rotatedNormal, tangent4, block.TintColor, 1f, 1f, tBase, tOverlay,
-					                          tNormal, tSpecular);
+					Vertex vert0 = new (v0, rotatedNormal, rotatedTangent, block.TintColor, 0f, 0f, tBase, tOverlay, tNormal, tSpecular, ChunkCoord);
+					Vertex vert1 = new (v1, rotatedNormal, rotatedTangent, block.TintColor, 0f, 1f, tBase, tOverlay, tNormal, tSpecular, ChunkCoord);
+					Vertex vert2 = new (v2, rotatedNormal, rotatedTangent, block.TintColor, 1f, 0f, tBase, tOverlay, tNormal, tSpecular, ChunkCoord);
+					Vertex vert3 = new (v3, rotatedNormal, rotatedTangent, block.TintColor, 1f, 1f, tBase, tOverlay, tNormal, tSpecular, ChunkCoord);
 
 					if (block.IsFluid) AddFace(vert0, vert1, vert2, vert3, ref FluidMesh);
-					else AddFace(vert0, vert1, vert2, vert3, ref SolidMesh);
+					else               AddFace(vert0, vert1, vert2, vert3, ref SolidMesh);
 				}
 			}
 		}
 
 		private static Vertex MakeVertex(float3  pos,   float3 norm,     float4 tangent,
 		                                 Color32 color, float  u,        float  v,
-		                                 ushort  tBase, ushort tOverlay, ushort tNorm, ushort tSpec)
+		                                 ushort  tBase, ushort tOverlay, ushort tNorm, ushort tSpec,
+		                                 int3    chunkCoord)
 		{
-			// Position: 16 units of precision per block (perfect for 1/16th voxel pixel sizes like slabs/fences).
-			// 10 bits allows coordinates up to 63.9375, more than enough for a 32x32x32 chunk.
 			var posX    = (uint)math.round(math.clamp(pos.x * 16f, 0f, 1023f));
 			var posY    = (uint)math.round(math.clamp(pos.y * 16f, 0f, 1023f));
 			var posZ    = (uint)math.round(math.clamp(pos.z * 16f, 0f, 1023f));
@@ -108,11 +101,8 @@ namespace _Project.WorldGeneration.Jobs
 
 			var data1 = posX | (posY << 10) | (posZ << 20) | (tanSign << 30);
 
-			// Color: Packed exactly as 32 bits
 			var data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
 
-			// UVs: Multiply by 256. 1/16th texture increments map perfectly to integer 16.
-			// 9 bits allows values from 0 to 511 (supports UVs up to 1.99).
 			var uvX = (uint)math.round(math.clamp(u * 256f, 0f, 511f));
 			var uvY = (uint)math.round(math.clamp(v * 256f, 0f, 511f));
 
@@ -124,16 +114,25 @@ namespace _Project.WorldGeneration.Jobs
 			uint uNorm    = tNorm;
 			uint uSpec    = tSpec;
 
-			// Textures limited to 1023 (10 bits) to make room for precise UVs
 			var data3 = (uBase & 0x3FFu) | ((uOverlay & 0x3FFu) << 10) | (uvX << 20) | (normIdx << 29);
-			var data4 = (uNorm & 0x3FFu) | ((uSpec & 0x3FFu) << 10) | (uvY << 20) | (tanIdx << 29);
+			var data4 = (uNorm & 0x3FFu) | ((uSpec    & 0x3FFu) << 10) | (uvY << 20) | (tanIdx  << 29);
+
+			// Pack chunk grid coordinates into data5 (10 bits each, biased by +512).
+			// The shader decodes these to reconstruct world-space chunk origin,
+			// eliminating any dependency on SV_InstanceID or Unity's indirect draw system.
+			// Supports chunk grid coords -512..+511 per axis (world ±16 384 units).
+			var cx    = (uint)(chunkCoord.x + 512) & 0x3FFu;
+			var cy    = (uint)(chunkCoord.y + 512) & 0x3FFu;
+			var cz    = (uint)(chunkCoord.z + 512) & 0x3FFu;
+			var data5 = cx | (cy << 10) | (cz << 20);
 
 			return new Vertex
 			       {
 				       Data1 = data1,
 				       Data2 = data2,
 				       Data3 = data3,
-				       Data4 = data4
+				       Data4 = data4,
+				       Data5 = data5
 			       };
 		}
 
@@ -197,6 +196,7 @@ namespace _Project.WorldGeneration.Jobs
 			mesh.Vertices.Add(v1);
 			mesh.Vertices.Add(v2);
 			mesh.Vertices.Add(v3);
+			
 			mesh.Triangles.Add(b);
 			mesh.Triangles.Add(b + 1);
 			mesh.Triangles.Add(b + 3);

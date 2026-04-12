@@ -52,10 +52,14 @@ namespace _Project.WorldGeneration.Systems
 					if (phys.Value.IsCreated) oldCollidersToDispose.Add(phys.Value);
 				}
 				
-				if (state.EntityManager.HasComponent<ChunkGfxBuffers>(entity))
+				if (SystemAPI.HasComponent<VoxelMeshAllocation>(entity))
 				{
-					var gfx = state.EntityManager.GetComponentObject<ChunkGfxBuffers>(entity);
-					gfx.Dispose();
+					var alloc = SystemAPI.GetComponent<VoxelMeshAllocation>(entity);
+					if (alloc.IsAllocated)
+					{
+						var megaBufferSystem = World.DefaultGameObjectInjectionWorld.GetExistingSystemManaged<MegaBufferSystem>();
+						megaBufferSystem.Free(alloc.VertexOffset, alloc.VertexCount, alloc.IndexOffset, alloc.SolidIndexCount + alloc.FluidIndexCount);
+					}
 				}
 
 				ecb.DestroyEntity(entity);
