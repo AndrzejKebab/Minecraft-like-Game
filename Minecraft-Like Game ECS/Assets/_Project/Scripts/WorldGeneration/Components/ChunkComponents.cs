@@ -21,6 +21,7 @@ namespace _Project.WorldGeneration.Components
 
 	public struct ChunkMapSingleton : IComponentData
 	{
-		public NativeHashMap<int3, Entity> ChunkMap;
+		public NativeHashMap<int3, Entity>           ChunkMap;
+		public NativeHashMap<Entity, ChunkComponent> ChunkDataLookup;
 	}
 }

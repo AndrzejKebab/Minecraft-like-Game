@@ -43,12 +43,7 @@ namespace _Project.Character
 		{
 			var registry   = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 			var maxBlockID = registry.Blocks.Length - 1;
-
-			SystemHandle     popSystemHandle  = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkPopulateSystem>();
-			ref ChunkPopulateSystem popSystem        = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkPopulateSystem>(popSystemHandle);
-			SystemHandle     meshSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkMeshBuilderSystem>();
-			ref ChunkMeshBuilderSystem meshSystem		= ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkMeshBuilderSystem>(meshSystemHandle);
-			var     ecb              = new EntityCommandBuffer(Allocator.Temp);
+			var ecb        = new EntityCommandBuffer(Allocator.Temp);
 
 			foreach ((RefRW<PlayerInteractionState> interactState, RefRO<FirstPersonPlayer> player) in SystemAPI
 				         .Query<RefRW<PlayerInteractionState>, RefRO<FirstPersonPlayer>>())
@@ -104,7 +99,7 @@ namespace _Project.Character
 				if (interactState.ValueRO.BreakPressed)
 				{
 					float3 blockPos = hit.Position - hit.SurfaceNormal * 0.01f;
-					ModifyBlock(ref state, blockPos, new BlockState() { ID = 0 }, ecb, popSystem, meshSystem);
+					ModifyBlock(ref state, blockPos, new BlockState() { ID = 0 }, ecb);
 				}
 				else if (interactState.ValueRO.PlacePressed)
 				{
@@ -138,7 +133,7 @@ namespace _Project.Character
 					}
 
 					var placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
-					ModifyBlock(ref state, blockPos, placedState, ecb, popSystem, meshSystem);
+					ModifyBlock(ref state, blockPos, placedState, ecb);
 				}
 			}
 
@@ -147,8 +142,7 @@ namespace _Project.Character
 		}
 		
 		[BurstCompile]
-		private void ModifyBlock(ref SystemState state, float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb,
-		                         ChunkPopulateSystem popSystem, ChunkMeshBuilderSystem meshSystem)
+		private void ModifyBlock(ref SystemState state, float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
 			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
@@ -161,13 +155,8 @@ namespace _Project.Character
 			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
 			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
-			popSystem.GetChunkDependency(chunkEntity).Complete();
-			meshSystem.GetChunkDependency(chunkEntity).Complete();
-
-			meshSystem.CancelJobFor(chunkEntity);
-			SystemHandle colSystemHandle = state.WorldUnmanaged.GetExistingUnmanagedSystem<ChunkCollidersSystem>();
-			ref ChunkCollidersSystem colSystem = ref state.WorldUnmanaged.GetUnsafeSystemRef<ChunkCollidersSystem>(colSystemHandle);
-			colSystem.CancelPendingBakeFor(chunkEntity);
+            // This single line tells ECS to freeze all jobs globally so you can securely write to the chunk
+            state.Dependency.Complete(); 
 
 			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
@@ -175,39 +164,33 @@ namespace _Project.Character
 			if (newBlock.ID != 0 && state.EntityManager.HasComponent<IsEmpty>(chunkEntity))
 				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
-				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
+				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
 
 			switch (localPos.x)
 			{
-				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(-1, 0, 0), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(1, 0, 0), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(-1, 0, 0), ecb); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(1, 0, 0), ecb); break;
 			}
 			switch (localPos.y)
 			{
-				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, -1, 0), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 1, 0), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, -1, 0), ecb); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 1, 0), ecb); break;
 			}
 			switch (localPos.z)
 			{
-				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, -1), ecb, meshSystem, colSystem); break;
-				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, 1), ecb, meshSystem, colSystem); break;
+				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, -1), ecb); break;
+				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, 1), ecb); break;
 			}
 		}
 		
 		[BurstCompile]
-		private void TryMarkNeighbor(ref SystemState state, int3 neighborCoord, EntityCommandBuffer ecb, ChunkMeshBuilderSystem meshSystem, ChunkCollidersSystem colSystem)
+		private void TryMarkNeighbor(ref SystemState state, int3 neighborCoord, EntityCommandBuffer ecb)
 		{
 			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity)) return;
 
-			meshSystem.CancelJobFor(chunkEntity);
-			colSystem.CancelPendingBakeFor(chunkEntity);
-
-			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
-				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
-				
-			if (!state.EntityManager.HasComponent<NeedsColliderSync>(chunkEntity))
-				ecb.AddComponent<NeedsColliderSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
+				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
 		}
 	}
 }

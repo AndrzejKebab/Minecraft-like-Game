@@ -1,7 +1,10 @@
 ﻿using _Project.WorldGeneration.Blocks;
+using _Project.Tags;
+using _Project.WorldGeneration.Components;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -9,9 +12,13 @@ using UnityEngine;
 namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-	public unsafe struct GreedyMeshJob : IJob
+	public unsafe struct GreedyMeshJob : IJobFor
 	{
-		[ReadOnly] public ChunkAccessor Accessor;
+		[ReadOnly] public NativeArray<Entity>           Entities;
+		[ReadOnly] public NativeArray<int3>             Positions;
+		[ReadOnly] public NativeHashMap<int3, Entity>   ChunkMap;
+		[NativeDisableContainerSafetyRestriction]
+		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
 		[NativeDisableContainerSafetyRestriction] 
 		[ReadOnly] public NativeArray<Block> BlockPrototypes;
@@ -19,12 +26,10 @@ namespace _Project.WorldGeneration.Jobs
 		[NativeDisableContainerSafetyRestriction] 
 		[ReadOnly] public NativeArray<NativeVoxelMeshData> CustomMeshes;
 
-		[ReadOnly] public NativeArray<float3> FaceChecks;
+		[ReadOnly] public NativeArray<int3> FaceChecks;
 
-		public NativeList<Vertex>    CombinedVertices;
-		public NativeList<int>       CombinedIndices;
-		public NativeReference<int2> SolidCounts; // x = SolidVertices count, y = SolidIndices count
-
+		public EntityCommandBuffer.ParallelWriter ECB;
+		
 		private struct Mask
 		{
 			public ushort BlockID;
@@ -33,21 +38,92 @@ namespace _Project.WorldGeneration.Jobs
 			public int4   AO;
 		}
 
-		public void Execute()
+		public void Execute(int index)
 		{
-			var chunkSize = Accessor.ChunkSize;
+			Entity entity = Entities[index];
+			int3 pos = Positions[index];
+
+			ChunkMap.TryGetValue(pos + new int3(0, 0, -1), out Entity nZNeg);
+			ChunkMap.TryGetValue(pos + new int3(0, 0, 1), out Entity nZPos);
+			ChunkMap.TryGetValue(pos + new int3(0, -1, 0), out Entity nYNeg);
+			ChunkMap.TryGetValue(pos + new int3(0, 1, 0), out Entity nYPos);
+			ChunkMap.TryGetValue(pos + new int3(-1, 0, 0), out Entity nXNeg);
+			ChunkMap.TryGetValue(pos + new int3(1, 0, 0), out Entity nXPos);
+
+			var accessor = new ChunkAccessor
+			{
+				Center = BlockDataLookup[entity].BlockData,
+				NeighborZNeg = BlockDataLookup[nZNeg].BlockData,
+				NeighborZPos = BlockDataLookup[nZPos].BlockData,
+				NeighborYNeg = BlockDataLookup[nYNeg].BlockData,
+				NeighborYPos = BlockDataLookup[nYPos].BlockData,
+				NeighborXNeg = BlockDataLookup[nXNeg].BlockData,
+				NeighborXPos = BlockDataLookup[nXPos].BlockData,
+				ChunkSize = VoxelData.CHUNK_SIZE
+			};
+
+			var solidVertices = new NativeList<Vertex>(Allocator.Temp);
+			var solidIndices = new NativeList<int>(Allocator.Temp);
+			var fluidVertices = new NativeList<Vertex>(Allocator.Temp);
+			var fluidIndices = new NativeList<int>(Allocator.Temp);
+
+			GenerateMesh(ref accessor, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
+
+			var totalV = solidVertices.Length + fluidVertices.Length;
+			var totalI = solidIndices.Length + fluidIndices.Length;
+
+			var meshData = new ChunkMeshData
+			{
+				CombinedVertices = new NativeList<Vertex>(totalV, Allocator.Persistent),
+				CombinedIndices = new NativeList<int>(totalI, Allocator.Persistent),
+				SolidVertexCount = solidVertices.Length,
+				SolidIndexCount = solidIndices.Length
+			};
+
+			meshData.CombinedVertices.ResizeUninitialized(totalV);
+			meshData.CombinedIndices.ResizeUninitialized(totalI);
+
+			if (solidVertices.Length > 0)
+			{
+				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(), solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				UnsafeUtility.MemCpy(meshData.CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(), solidIndices.Length * sizeof(int));
+			}
+
+			if (fluidVertices.Length > 0)
+			{
+				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(), fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				var svCount  = solidVertices.Length;
+				var siCount  = solidIndices.Length;
+				var fIndices = fluidIndices.GetUnsafePtr();
+				var cIndices = meshData.CombinedIndices.GetUnsafePtr();
+				for (var i = 0; i < fluidIndices.Length; i++)
+					cIndices[siCount + i] = fIndices[i] + svCount;
+			}
+
+			ECB.AddComponent(index, entity, meshData);
+			
+			if (totalV > 0)
+				ECB.AddComponent<MeshRequiresUpload>(index, entity);
+			if (solidVertices.Length > 0)
+				ECB.AddComponent<NeedsColliderSync>(index, entity);
+
+			solidVertices.Dispose();
+			solidIndices.Dispose();
+			fluidVertices.Dispose();
+			fluidIndices.Dispose();
+		}
+
+		[BurstCompile]
+		private void GenerateMesh(ref ChunkAccessor accessor, ref NativeList<Vertex> solidVertices, ref NativeList<int> solidIndices, ref NativeList<Vertex> fluidVertices, ref NativeList<int> fluidIndices)
+		{
+			var chunkSize = accessor.ChunkSize;
 			var maskFront =
 				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 			var maskBack =
 				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 			Mask mFront = default;
 			Mask mBack  = default;
-
-			var solidVertices = new NativeList<Vertex>(Allocator.Temp);
-			var solidIndices  = new NativeList<int>(Allocator.Temp);
-			var fluidVertices = new NativeList<Vertex>(Allocator.Temp);
-			var fluidIndices  = new NativeList<int>(Allocator.Temp);
-
+			
 			// 1. GREEDY MESHING (Standard Cubes & Fluids)
 			for (var direction = 0; direction < 3; direction++)
 			{
@@ -64,8 +140,8 @@ namespace _Project.WorldGeneration.Jobs
 					for (chunkItr[axis2] = 0; chunkItr[axis2] < chunkSize; chunkItr[axis2]++)
 					for (chunkItr[axis1] = 0; chunkItr[axis1] < chunkSize; chunkItr[axis1]++)
 					{
-						BlockState current = Accessor.GetBlockState(chunkItr);
-						BlockState compare = Accessor.GetBlockState(chunkItr + directionMask);
+						BlockState current = accessor.GetBlockState(chunkItr);
+						BlockState compare = accessor.GetBlockState(chunkItr + directionMask);
 
 						var currentType = GetMeshType(current);
 						var compareType = GetMeshType(compare);
@@ -84,7 +160,7 @@ namespace _Project.WorldGeneration.Jobs
 								mFront.BlockID  = current.ID;
 								mFront.MeshType = currentType;
 								mFront.Normal   = -1;
-								mFront.AO       = ComputeAOMask(chunkItr + directionMask, axis1, axis2);
+								mFront.AO       = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
 							}
 							else
 							{
@@ -107,7 +183,7 @@ namespace _Project.WorldGeneration.Jobs
 								mBack.BlockID  = compare.ID;
 								mBack.MeshType = compareType;
 								mBack.Normal   = 1;
-								mBack.AO       = ComputeAOMask(chunkItr, axis1, axis2);
+								mBack.AO       = ComputeAOMask(ref accessor, chunkItr, axis1, axis2);
 							}
 							else
 							{
@@ -141,39 +217,14 @@ namespace _Project.WorldGeneration.Jobs
 			for (var y = 0; y < chunkSize; y++)
 			for (var z = 0; z < chunkSize; z++)
 			{
-				BlockState state = Accessor.GetBlockState(x, y, z);
+				BlockState state = accessor.GetBlockState(x, y, z);
 				if (state.IsEmpty || GetMeshType(state) != 3) continue;
 
-				RenderCustomMesh(x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
+				RenderCustomMesh(ref accessor, x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
 			}
 
-			// COMBINE MESHES INSIDE THE JOB (Bypass the main thread entirely!)
-			SolidCounts.Value = new int2(solidVertices.Length, solidIndices.Length);
-
-			var totalV = solidVertices.Length + fluidVertices.Length;
-			var totalI = solidIndices.Length + fluidIndices.Length;
-
-			CombinedVertices.ResizeUninitialized(totalV);
-			CombinedIndices.ResizeUninitialized(totalI);
-
-			if (solidVertices.Length > 0)
-			{
-				UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(),
-				                     solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-				UnsafeUtility.MemCpy(CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(),
-				                     solidIndices.Length * sizeof(int));
-			}
-
-			if (fluidVertices.Length <= 0) return;
-			UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(),
-			                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-
-			var svCount  = solidVertices.Length;
-			var siCount  = solidIndices.Length;
-			var fIndices = fluidIndices.GetUnsafePtr();
-			var cIndices = CombinedIndices.GetUnsafePtr();
-			for (var i = 0; i < fluidIndices.Length; i++)
-				cIndices[siCount + i] = fIndices[i] + svCount; // Rebase indexing
+            // FIX: Removed duplicated memory combination block. 
+            // `ChunkMeshBuilderSystem.cs` natively handles combined arrays in Execute() now!
 		}
 
 		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
@@ -309,7 +360,7 @@ namespace _Project.WorldGeneration.Jobs
 			}
 		}
 
-		private void RenderCustomMesh(int                    x,      int                 y, int z, BlockState blockState,
+		private void RenderCustomMesh(ref ChunkAccessor accessor, int x, int y, int z, BlockState blockState,
 		                              ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
 		                              ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
 		{
@@ -327,7 +378,7 @@ namespace _Project.WorldGeneration.Jobs
 				float3 rotatedNormal = math.round(math.mul(rot, FaceChecks[i]));
 				var    dir           = new int3(rotatedNormal);
 
-				if (NeighbourHidesFace(x, y, z, dir, block.IsTransparent)) continue;
+				if (NeighbourHidesFace(ref accessor, x, y, z, dir, block.IsTransparent)) continue;
 
 				float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f + wPos;
 				float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f + wPos;
@@ -373,9 +424,9 @@ namespace _Project.WorldGeneration.Jobs
 			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = tSpec };
 		}
 
-		private bool NeighbourHidesFace(int x, int y, int z, int3 dir, bool isTransparent)
+		private bool NeighbourHidesFace(ref ChunkAccessor accessor, int x, int y, int z, int3 dir, bool isTransparent)
 		{
-			BlockState nb = Accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
+			BlockState nb = accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
 			if (nb.IsEmpty || nb.ID == 0) return false;
 			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
 		}
@@ -392,7 +443,7 @@ namespace _Project.WorldGeneration.Jobs
 				            }
 			       };
 		}
-
+		
 		private static ushort GetTextureIndex(int normalIdx, in NativeTexturesIDLayer layer)
 		{
 			return normalIdx switch
@@ -424,7 +475,7 @@ namespace _Project.WorldGeneration.Jobs
 			       };
 		}
 
-		private int4 ComputeAOMask(int3 airPos, int axis1, int axis2)
+		private int4 ComputeAOMask(ref ChunkAccessor accessor, int3 airPos, int axis1, int axis2)
 		{
 			int3 l = airPos;
 			l[axis1] -= 1;
@@ -448,15 +499,15 @@ namespace _Project.WorldGeneration.Jobs
 			rtc[axis1] += 1;
 			rtc[axis2] += 1;
 
-			var lo = IsOpaque(l) ? 1 : 0;
-			var ro = IsOpaque(r) ? 1 : 0;
-			var bo = IsOpaque(b) ? 1 : 0;
-			var to = IsOpaque(T) ? 1 : 0;
+			var lo = IsOpaque(ref accessor, l) ? 1 : 0;
+			var ro = IsOpaque(ref accessor, r) ? 1 : 0;
+			var bo = IsOpaque(ref accessor, b) ? 1 : 0;
+			var to = IsOpaque(ref accessor, T) ? 1 : 0;
 
-			var lbco = IsOpaque(lbc) ? 1 : 0;
-			var rbco = IsOpaque(rbc) ? 1 : 0;
-			var ltco = IsOpaque(ltc) ? 1 : 0;
-			var rtco = IsOpaque(rtc) ? 1 : 0;
+			var lbco = IsOpaque(ref accessor, lbc) ? 1 : 0;
+			var rbco = IsOpaque(ref accessor, rbc) ? 1 : 0;
+			var ltco = IsOpaque(ref accessor, ltc) ? 1 : 0;
+			var rtco = IsOpaque(ref accessor, rtc) ? 1 : 0;
 
 			return new int4(
 			                ComputeAO(lo, bo, lbco),
@@ -466,9 +517,9 @@ namespace _Project.WorldGeneration.Jobs
 			               );
 		}
 
-		private bool IsOpaque(int3 pos)
+		private bool IsOpaque(ref ChunkAccessor accessor, int3 pos)
 		{
-			BlockState state = Accessor.GetBlockState(pos);
+			BlockState state = accessor.GetBlockState(pos);
 			if (state.IsEmpty || state.ID == 0) return false;
 			return !BlockPrototypes[state.ID].IsTransparent;
 		}

@@ -1,4 +1,5 @@
 ﻿using _Project.WorldGeneration.Components;
+using FastNoise2.Bindings;
 using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
@@ -32,7 +33,7 @@ namespace _Project.WorldGeneration
 				                    BiomeHeightCurve     = BiomeHeightCurve.ToNative(),
 				                    ErosionCurve         = ErosionCurve.ToNative(),
 				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
-				                    EncodedNodeTree      = new FixedString512Bytes(EncodedNodeTree),
+				                    Noise      = FastNoise.FromEncodedNodeTree(EncodedNodeTree),
 			                    };
 			
 			em.AddComponentData(settingsEntity, worldSettings);

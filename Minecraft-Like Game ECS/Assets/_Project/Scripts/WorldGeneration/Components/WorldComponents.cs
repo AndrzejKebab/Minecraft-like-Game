@@ -1,4 +1,5 @@
 ﻿using _Project.WorldGeneration.Blocks;
+using FastNoise2.Bindings;
 using Unity.Collections;
 using Unity.Entities;
 
@@ -15,7 +16,7 @@ namespace _Project.WorldGeneration.Components
 		public NativeCurve PeaksAndValleysCurve;
 
 		/// <summary>FastNoise2 encoded node tree string (copy from the FastNoise2 editor window).</summary>
-		public FixedString512Bytes EncodedNodeTree;
+		public FastNoise Noise;
 	}
 
 	/// <summary>

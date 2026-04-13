@@ -14,7 +14,6 @@ namespace _Project.WorldGeneration.Systems
         private          Material              solidMaterial;
         private          Material              waterMaterial;
         private          RenderParams          renderParams;
-        private          MaterialPropertyBlock mpb;
         private readonly Plane[]               frustumPlanes = new Plane[6]; // Added for culling
 
         private static readonly int verticesPid    = Shader.PropertyToID("vertices");
@@ -23,7 +22,6 @@ namespace _Project.WorldGeneration.Systems
 
         protected override void OnCreate()
         {
-            mpb = new MaterialPropertyBlock();
         }
 
         protected override void OnUpdate()
@@ -48,7 +46,6 @@ namespace _Project.WorldGeneration.Systems
                                        shadowCastingMode    = ShadowCastingMode.On,
                                        receiveShadows       = true,
                                        lightProbeUsage      = LightProbeUsage.BlendProbes,
-                                       matProps             = new MaterialPropertyBlock()
                                    };
                 }
                 else
@@ -65,7 +62,7 @@ namespace _Project.WorldGeneration.Systems
 
             foreach ((ChunkGfxBuffers gfx, RefRO<ChunkPositionComponent> pos) in
                      SystemAPI.Query<ChunkGfxBuffers, RefRO<ChunkPositionComponent>>()
-                              .WithAll<IsVisible, HasMesh>())
+                              .WithAll<IsInViewRange, HasMesh>())
             {
                 if (gfx.VertexBuffer == null) continue;
 
@@ -75,29 +72,25 @@ namespace _Project.WorldGeneration.Systems
                 var bounds = new Bounds(new Vector3(wPos.x + 16f, wPos.y + 16f, wPos.z + 16f),
                                         new Vector3(32f, 32f, 32f));
                 if (mainCam != null && !GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) continue;
-
-                mpb.SetInteger(vertexCountPid, gfx.VertexBuffer.count);
-                mpb.SetBuffer(verticesPid, gfx.VertexBuffer);
-                mpb.SetVector(chunkOriginPid, new Vector4(wPos.x, wPos.y, wPos.z, 0f));
-
+                
                 if (gfx.SolidIndexCount > 0)
                 {
                     RenderParams rp = renderParams;
                     rp.material    = solidMaterial;
-                    rp.matProps    = mpb;
+                    rp.matProps    = gfx.Mpb;          // <- per-chunk MPB
                     rp.worldBounds = bounds;
-                    Graphics.RenderPrimitivesIndexedIndirect(in rp, MeshTopology.Triangles, gfx.IndexBuffer,
-                                                             gfx.ArgsBuffer);
+                    Graphics.RenderPrimitivesIndexedIndirect(in rp, MeshTopology.Triangles,
+                                                             gfx.IndexBuffer, gfx.ArgsBuffer);
                 }
 
-                if (gfx.FluidIndexCount > 0)
+                if (gfx.FluidIndexCount <= 0) continue;
                 {
                     RenderParams rp = renderParams;
                     rp.material    = waterMaterial;
-                    rp.matProps    = mpb;
+                    rp.matProps    = gfx.Mpb;          // <- per-chunk MPB
                     rp.worldBounds = bounds;
-                    Graphics.RenderPrimitivesIndexedIndirect(in rp, MeshTopology.Triangles, gfx.IndexBuffer,
-                                                             gfx.ArgsBuffer, 1, 1);
+                    Graphics.RenderPrimitivesIndexedIndirect(in rp, MeshTopology.Triangles,
+                                                             gfx.IndexBuffer, gfx.ArgsBuffer, 1, 1);
                 }
             }
         }

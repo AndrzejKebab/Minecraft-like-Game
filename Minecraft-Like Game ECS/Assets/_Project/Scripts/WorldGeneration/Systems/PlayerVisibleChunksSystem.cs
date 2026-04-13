@@ -1,11 +1,13 @@
 ﻿using _Project.Character;
 using _Project.Tags;
+using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
+using MeshCollider = Unity.Physics.MeshCollider;
 
 namespace _Project.WorldGeneration.Systems
 {
@@ -27,9 +29,9 @@ namespace _Project.WorldGeneration.Systems
 			state.EntityManager.SetName(mapEntity, "ChunkMapSingleton");
 			state.EntityManager.AddComponentData(mapEntity, new ChunkMapSingleton
 			                                                {
-				                                                ChunkMap =
-					                                                new NativeHashMap<int3, Entity>(capacity,
-					                                                 Allocator.Persistent)
+				                                                ChunkMap = new NativeHashMap<int3, Entity>(capacity, Allocator.Persistent),
+				                                                // We add a lookup for the components here since ComponentLookup doesn't support nested NativeArrays
+				                                                ChunkDataLookup = new NativeHashMap<Entity, ChunkComponent>(capacity, Allocator.Persistent)
 			                                                });
 
 			lastPlayerChunk = new int3(int.MaxValue);
@@ -42,6 +44,7 @@ namespace _Project.WorldGeneration.Systems
 			{
 				var s = q.GetSingleton<ChunkMapSingleton>();
 				if (s.ChunkMap.IsCreated) s.ChunkMap.Dispose();
+				if (s.ChunkDataLookup.IsCreated) s.ChunkDataLookup.Dispose();
 			}
 
 			q.Dispose();
@@ -87,10 +90,12 @@ namespace _Project.WorldGeneration.Systems
 
 				em.AddComponentData(entity, new MarkedToDestroy());
 
-				em.RemoveComponent<IsVisible>(entity);
+				em.RemoveComponent<IsInViewRange>(entity);
 				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
 
 				mapSingleton.ChunkMap.Remove(coord);
+				// Note: We don't remove from BlockDataLookup here because ChunkManagerSystem 
+				// needs that data to dispose the NativeArray during the destruction cleanup.
 			}
 
 			foreach (KVPair<int3, bool> kvp in desired)
@@ -101,7 +106,7 @@ namespace _Project.WorldGeneration.Systems
 
 				if (mapSingleton.ChunkMap.TryGetValue(coord, out Entity existingEntity))
 				{
-					em.SetComponentData(existingEntity, new ChunkPriorityComponent { Distance = dist });
+					em.SetComponentData(existingEntity, new ChunkPriorityComponent { Distance = dist, Importance = 1 }); //* later introduce proper logic for assigning priority *//
 
 					if (isRender && !em.HasComponent<NeedsRender>(existingEntity))
 						em.AddComponentData(existingEntity, new NeedsRender());
@@ -111,8 +116,16 @@ namespace _Project.WorldGeneration.Systems
 				Entity entity = em.CreateEntity();
 				em.SetName(entity, "Chunk");
 				em.AddComponentData(entity, new ChunkPositionComponent { ChunkCoord = coord });
-				em.AddComponentData(entity, new ChunkComponent { BlockData          = default });
-				em.AddComponentData(entity, new IsVisible());
+				
+				var chunkComp = new ChunkComponent 
+				{ 
+					BlockData = new NativeArray<BlockState>(VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE, Allocator.Persistent) 
+				};
+
+				em.AddComponentData(entity, chunkComp);
+				mapSingleton.ChunkDataLookup.Add(entity, chunkComp);
+				
+				em.AddComponentData(entity, new IsInViewRange());
 				em.AddComponentData(entity, new ChunkPriorityComponent { Distance = dist });
 				em.AddComponentData(entity, LocalTransform.FromPosition(new float3(
 				                                                         coord.x * VoxelData.CHUNK_SIZE,
@@ -121,6 +134,8 @@ namespace _Project.WorldGeneration.Systems
 
 				if (isRender)
 					em.AddComponentData(entity, new NeedsRender());
+
+				em.AddComponentData(entity, new NeedsTerrainTag());
 
 				mapSingleton.ChunkMap.Add(coord, entity);
 			}
