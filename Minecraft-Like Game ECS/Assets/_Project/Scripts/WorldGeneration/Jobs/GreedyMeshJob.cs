@@ -36,7 +36,10 @@ namespace _Project.WorldGeneration.Jobs
 		public void Execute()
 		{
 			var chunkSize = Accessor.ChunkSize;
-
+			var maskFront = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var maskBack  = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			Mask mFront = default;
+			Mask mBack  = default;
 			// 1. GREEDY MESHING (Standard Cubes & Fluids)
 			for (var direction = 0; direction < 3; direction++)
 			{
@@ -47,8 +50,7 @@ namespace _Project.WorldGeneration.Jobs
 				int3 directionMask = int3.zero;
 				directionMask[direction] = 1;
 
-				var maskFront = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp);
-				var maskBack  = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp);
+
 
 				for (chunkItr[direction] = -1; chunkItr[direction] < chunkSize;)
 				{
@@ -65,8 +67,7 @@ namespace _Project.WorldGeneration.Jobs
 						var currentTransparent = IsTransparent(current);
 						var compareTransparent = IsTransparent(compare);
 
-						Mask mFront = default;
-						Mask mBack  = default;
+
 
 						// Face of current block (facing positive)
 						if (currentType != 0 && currentType != 3)
@@ -75,11 +76,12 @@ namespace _Project.WorldGeneration.Jobs
 							if (currentType == compareType && currentType == 2) faceVisible = false; // Water-Water cull
 
 							if (faceVisible)
-								mFront = new Mask
-								         {
-									         BlockID = current.ID, MeshType = currentType, Normal = -1,
-									         AO      = new int4(3, 3, 3, 3)
-								         };
+							{
+								mFront.BlockID  = current.ID;
+								mFront.MeshType = currentType;
+								mFront.Normal   = -1;
+								mFront.AO       = new int4(3, 3, 3, 3);
+							}
 						}
 
 						// Face of compare block (facing negative)
@@ -89,11 +91,12 @@ namespace _Project.WorldGeneration.Jobs
 							if (compareType == currentType && compareType == 2) faceVisible = false; // Water-Water cull
 
 							if (faceVisible)
-								mBack = new Mask
-								        {
-									        BlockID = compare.ID, MeshType = compareType, Normal = 1,
-									        AO      = new int4(3, 3, 3, 3)
-								        };
+							{
+								mBack.BlockID  = compare.ID;
+								mBack.MeshType = compareType;
+								mBack.Normal   = 1;
+								mBack.AO       = new int4(3, 3, 3, 3);
+							}
 						}
 
 						maskFront[n] = mFront;
@@ -106,11 +109,11 @@ namespace _Project.WorldGeneration.Jobs
 					ProcessMask(maskFront, direction, axis1, axis2, chunkSize, chunkItr);
 					ProcessMask(maskBack, direction, axis1, axis2, chunkSize, chunkItr);
 				}
-
-				maskFront.Dispose();
-				maskBack.Dispose();
 			}
-
+			
+			maskFront.Dispose();
+			maskBack.Dispose();
+			
 			// 2. CUSTOM MESHING (Slabs, Fences, Foliage)
 			for (var x = 0; x < chunkSize; x++)
 			for (var y = 0; y < chunkSize; y++)
@@ -422,6 +425,61 @@ namespace _Project.WorldGeneration.Jobs
 				                                     },
 				       _ => quaternion.identity
 			       };
+		}
+		
+		[BurstCompile]
+		private static int4 ComputeAOMask(ChunkAccessor accessor, int3 pos, int3 coord, int axis1, int axis2)
+		{
+			var L = coord;
+			var R = coord;
+			var B = coord;
+			var T = coord;
+
+			var LBC = coord;
+			var RBC = coord;
+			var LTC = coord;
+			var RTC = coord;
+
+			L[axis2] -= 1;
+			R[axis2] += 1;
+			B[axis1] -= 1;
+			T[axis1] += 1;
+
+			LBC[axis1] -= 1;
+			LBC[axis2] -= 1;
+			RBC[axis1] -= 1;
+			RBC[axis2] += 1;
+			LTC[axis1] += 1;
+			LTC[axis2] -= 1;
+			RTC[axis1] += 1;
+			RTC[axis2] += 1;
+
+			var LO = GetMeshIndex(accessor.GetBlockInChunk(pos, L)) != 9 ? 1 : 0;
+			var RO = GetMeshIndex(accessor.GetBlockInChunk(pos, R)) != 9 ? 1 : 0;
+			var BO = GetMeshIndex(accessor.GetBlockInChunk(pos, B)) != 9 ? 1 : 0;
+			var TO = GetMeshIndex(accessor.GetBlockInChunk(pos, T)) != 9 ? 1 : 0;
+
+			var LBCO = GetMeshIndex(accessor.GetBlockInChunk(pos, LBC)) != 9 ? 1 : 0;
+			var RBCO = GetMeshIndex(accessor.GetBlockInChunk(pos, RBC)) != 9 ? 1 : 0;
+			var LTCO = GetMeshIndex(accessor.GetBlockInChunk(pos, LTC)) != 9 ? 1 : 0;
+			var RTCO = GetMeshIndex(accessor.GetBlockInChunk(pos, RTC)) != 9 ? 1 : 0;
+
+			return new int4(
+			                ComputeAO(LO, BO, LBCO),
+			                ComputeAO(LO, TO, LTCO),
+			                ComputeAO(RO, BO, RBCO),
+			                ComputeAO(RO, TO, RTCO)
+			               );
+		}
+		
+		private static int ComputeAO(int s1, int s2, int c)
+		{
+			if (s1 == 1 && s2 == 1)
+			{
+				return 0;
+			}
+
+			return 3 - (s1 + s2 + c);
 		}
 	}
 }
