@@ -578,6 +578,22 @@ PrefabInstance:
       propertyPath: m_SizeDelta.y
       value: 20
       objectReference: {fileID: 0}
+    - target: {fileID: 1266171469330511127, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[0]'
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 1266171469330511127, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[1]'
+      value: 14
+      objectReference: {fileID: 0}
+    - target: {fileID: 1266171469952159372, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[0]'
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 1266171469952159372, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[1]'
+      value: 14
+      objectReference: {fileID: 0}
     - target: {fileID: 1266171470314134861, guid: dfb75feb680034648a142042ad4a327f, type: 3}
       propertyPath: m_LocalPosition.x
       value: -115.40262
@@ -626,9 +642,33 @@ PrefabInstance:
       propertyPath: m_Name
       value: Monitor
       objectReference: {fileID: 0}
+    - target: {fileID: 1266171470631235067, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: ToggleAction.m_Name
+      value: Toggle
+      objectReference: {fileID: 0}
+    - target: {fileID: 1572943224678352694, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: scale
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1572943224678352695, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[0]'
+      value: 144
+      objectReference: {fileID: 0}
+    - target: {fileID: 1572943224678352695, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: 'desktopThresholds.Array.data[1]'
+      value: 60
+      objectReference: {fileID: 0}
+    - target: {fileID: 6182863563915405315, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: ToggleAction.m_Name
+      value: Toggle
+      objectReference: {fileID: 0}
     - target: {fileID: 6304945718101464244, guid: dfb75feb680034648a142042ad4a327f, type: 3}
       propertyPath: ToggleAction.m_Name
       value: Toggle
+      objectReference: {fileID: 0}
+    - target: {fileID: 7474774342097409153, guid: dfb75feb680034648a142042ad4a327f, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
