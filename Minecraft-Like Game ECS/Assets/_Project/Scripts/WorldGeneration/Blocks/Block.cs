@@ -1,6 +1,5 @@
 ﻿using System;
 using Unity.Burst;
-using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -17,7 +16,6 @@ namespace _Project.WorldGeneration.Blocks
 		public Color32            TintColor;
 		public BlockDirectionType DirectionType;
 
-		public FixedString32Bytes    Name;
 		public NativeTexturesIDLayer BaseTextures;
 		public NativeTexturesIDLayer NormalTextures;
 		public NativeTexturesIDLayer SpecularTextures;

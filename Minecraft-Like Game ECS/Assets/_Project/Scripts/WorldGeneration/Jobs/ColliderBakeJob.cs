@@ -10,10 +10,8 @@ namespace _Project.WorldGeneration.Jobs
 	[BurstCompile]
 	public struct ColliderBakeJob : IJob
 	{
-		[ReadOnly] public NativeList<Vertex> SolidVertices;
-		[ReadOnly] public NativeList<int>    SolidIndices;
-
-		[WriteOnly] public NativeArray<BlobAssetReference<Collider>> Collider;
+		[ReadOnly] public NativeArray<Vertex> SolidVertices;
+		[ReadOnly] public NativeArray<int>    SolidIndices;[WriteOnly] public NativeArray<BlobAssetReference<Collider>> Collider;
 		[ReadOnly]  public CollisionFilter                           Filter;
 
 		public void Execute()
@@ -28,11 +26,9 @@ namespace _Project.WorldGeneration.Jobs
 			for (var j = 0; j < vertCount; j++)
 			{
 				var data1 = SolidVertices[j].Data1;
-				
-				// Decode the bit-packed position
-				var px = (data1 & 0x3FF) / 10f;
-				var py = ((data1 >> 10) & 0x3FF) / 10f;
-				var pz = ((data1 >> 20) & 0x3FF) / 10f;
+				var px    = (data1 & 0x3FF) / 10f;
+				var py    = ((data1 >> 10) & 0x3FF) / 10f;
+				var pz    = ((data1 >> 20) & 0x3FF) / 10f;
 				
 				verts[j] = new float3(px, py, pz);
 			}

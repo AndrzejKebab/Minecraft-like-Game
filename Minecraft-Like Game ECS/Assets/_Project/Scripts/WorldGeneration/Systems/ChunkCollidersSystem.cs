@@ -126,8 +126,12 @@ public void OnUpdate(ref SystemState state)
                 if (pendingBakes.Count >= GameSettings.MAX_CONCURRENT_JOBS) break;
                 if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
 
-                NativeMesh solid = meshData.ValueRO.SolidMesh;
-                if (!solid.IsCreated || solid.Vertices.Length == 0) continue;
+                var combinedV = meshData.ValueRO.CombinedVertices.AsArray();
+                var combinedI = meshData.ValueRO.CombinedIndices.AsArray();
+                var svCount   = meshData.ValueRO.SolidVertexCount;
+                var siCount   = meshData.ValueRO.SolidIndexCount;
+
+                if (!combinedV.IsCreated || svCount == 0 || siCount == 0) continue;
 
                 var alreadyPending = false;
                 foreach (PendingBake b in pendingBakes)
@@ -136,19 +140,19 @@ public void OnUpdate(ref SystemState state)
 
                 var collider = new NativeArray<BlobAssetReference<Collider>>(1, Allocator.Persistent);
                 var job = new ColliderBakeJob
-                {
-                    SolidVertices = solid.Vertices,
-                    SolidIndices  = solid.Triangles,
-                    Collider      = collider,
-                    Filter        = chunkFilter
-                };
+                          {
+                              SolidVertices = combinedV.GetSubArray(0, svCount),
+                              SolidIndices  = combinedI.GetSubArray(0, siCount),
+                              Collider      = collider,
+                              Filter        = chunkFilter
+                          };
 
                 pendingBakes.Add(new PendingBake
-                {
-                    Entity   = entity,
-                    Handle   = job.Schedule(),
-                    Collider = collider
-                });
+                                 {
+                                     Entity   = entity,
+                                     Handle   = job.Schedule(),
+                                     Collider = collider
+                                 });
 
                 ecb.RemoveComponent<NeedsColliderSync>(entity);
             }

@@ -1,7 +1,9 @@
 ﻿using _Project.WorldGeneration.Blocks;
+using _Project.WorldGeneration.Components;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -9,21 +11,21 @@ using UnityEngine;
 namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
-	public struct GreedyMeshJob : IJob
+	public unsafe struct GreedyMeshJob : IJob
 	{
 		[ReadOnly] public ChunkAccessor Accessor;
 
-		[NativeDisableContainerSafetyRestriction] 
+		[NativeDisableContainerSafetyRestriction]
 		[ReadOnly] public NativeArray<Block> BlockPrototypes;
-
+		
 		[NativeDisableContainerSafetyRestriction] 
 		[ReadOnly] public NativeArray<NativeVoxelMeshData> CustomMeshes;
 
 		[ReadOnly] public NativeArray<float3> FaceChecks;
-		[ReadOnly] public NativeArray<float3> FaceTangents;
 
-		public NativeMesh SolidMesh;
-		public NativeMesh FluidMesh;
+		public NativeList<Vertex>    CombinedVertices;
+		public NativeList<int>       CombinedIndices;
+		public NativeReference<int2> SolidCounts; // x = SolidVertices count, y = SolidIndices count
 
 		private struct Mask
 		{
@@ -36,10 +38,18 @@ namespace _Project.WorldGeneration.Jobs
 		public void Execute()
 		{
 			var chunkSize = Accessor.ChunkSize;
-			var maskFront = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var maskBack  = new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var maskFront =
+				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var maskBack =
+				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 			Mask mFront = default;
 			Mask mBack  = default;
+
+			var solidVertices = new NativeList<Vertex>(Allocator.Temp);
+			var solidIndices  = new NativeList<int>(Allocator.Temp);
+			var fluidVertices = new NativeList<Vertex>(Allocator.Temp);
+			var fluidIndices  = new NativeList<int>(Allocator.Temp);
+
 			// 1. GREEDY MESHING (Standard Cubes & Fluids)
 			for (var direction = 0; direction < 3; direction++)
 			{
@@ -49,8 +59,6 @@ namespace _Project.WorldGeneration.Jobs
 				int3 chunkItr      = int3.zero;
 				int3 directionMask = int3.zero;
 				directionMask[direction] = 1;
-
-
 
 				for (chunkItr[direction] = -1; chunkItr[direction] < chunkSize;)
 				{
@@ -67,36 +75,50 @@ namespace _Project.WorldGeneration.Jobs
 						var currentTransparent = IsTransparent(current);
 						var compareTransparent = IsTransparent(compare);
 
-
-
 						// Face of current block (facing positive)
 						if (currentType != 0 && currentType != 3)
 						{
 							var faceVisible                                                 = compareTransparent;
-							if (currentType == compareType && currentType == 2) faceVisible = false; // Water-Water cull
+							if (currentType == compareType && currentType == 2) faceVisible = false;
 
 							if (faceVisible)
 							{
 								mFront.BlockID  = current.ID;
 								mFront.MeshType = currentType;
 								mFront.Normal   = -1;
-								mFront.AO       = new int4(3, 3, 3, 3);
+								mFront.AO       = ComputeAOMask(chunkItr + directionMask, axis1, axis2);
 							}
+							else
+							{
+								mFront.MeshType = 0;
+							}
+						}
+						else
+						{
+							mFront.MeshType = 0;
 						}
 
 						// Face of compare block (facing negative)
 						if (compareType != 0 && compareType != 3)
 						{
 							var faceVisible                                                 = currentTransparent;
-							if (compareType == currentType && compareType == 2) faceVisible = false; // Water-Water cull
+							if (compareType == currentType && compareType == 2) faceVisible = false;
 
 							if (faceVisible)
 							{
 								mBack.BlockID  = compare.ID;
 								mBack.MeshType = compareType;
 								mBack.Normal   = 1;
-								mBack.AO       = new int4(3, 3, 3, 3);
+								mBack.AO       = ComputeAOMask(chunkItr, axis1, axis2);
 							}
+							else
+							{
+								mBack.MeshType = 0;
+							}
+						}
+						else
+						{
+							mBack.MeshType = 0;
 						}
 
 						maskFront[n] = mFront;
@@ -106,14 +128,16 @@ namespace _Project.WorldGeneration.Jobs
 
 					chunkItr[direction]++;
 
-					ProcessMask(maskFront, direction, axis1, axis2, chunkSize, chunkItr);
-					ProcessMask(maskBack, direction, axis1, axis2, chunkSize, chunkItr);
+					ProcessMask(maskFront, direction, axis1, axis2, chunkSize, chunkItr, ref solidVertices,
+					            ref solidIndices, ref fluidVertices, ref fluidIndices);
+					ProcessMask(maskBack, direction, axis1, axis2, chunkSize, chunkItr, ref solidVertices, ref solidIndices,
+					            ref fluidVertices, ref fluidIndices);
 				}
 			}
-			
+
 			maskFront.Dispose();
 			maskBack.Dispose();
-			
+
 			// 2. CUSTOM MESHING (Slabs, Fences, Foliage)
 			for (var x = 0; x < chunkSize; x++)
 			for (var y = 0; y < chunkSize; y++)
@@ -122,11 +146,43 @@ namespace _Project.WorldGeneration.Jobs
 				BlockState state = Accessor.GetBlockState(x, y, z);
 				if (state.IsEmpty || GetMeshType(state) != 3) continue;
 
-				RenderCustomMesh(x, y, z, state);
+				RenderCustomMesh(x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
+			}
+
+			// COMBINE MESHES INSIDE THE JOB (Bypass the main thread entirely!)
+			SolidCounts.Value = new int2(solidVertices.Length, solidIndices.Length);
+
+			var totalV = solidVertices.Length + fluidVertices.Length;
+			var totalI = solidIndices.Length + fluidIndices.Length;
+
+			CombinedVertices.ResizeUninitialized(totalV);
+			CombinedIndices.ResizeUninitialized(totalI);
+
+			if (solidVertices.Length > 0)
+			{
+				UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(),
+				                     solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				UnsafeUtility.MemCpy(CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(),
+				                     solidIndices.Length * sizeof(int));
+			}
+
+			if (fluidVertices.Length > 0)
+			{
+				UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(),
+				                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+
+				var svCount  = solidVertices.Length;
+				var siCount  = solidIndices.Length;
+				var fIndices = fluidIndices.GetUnsafePtr();
+				var cIndices = CombinedIndices.GetUnsafePtr();
+				for (var i = 0; i < fluidIndices.Length; i++)
+					cIndices[siCount + i] = fIndices[i] + svCount; // Rebase indexing
 			}
 		}
 
-		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr)
+		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
+		                         ref NativeList<Vertex> solidV, ref NativeList<int> solidI, ref NativeList<Vertex> fluidV,
+		                         ref NativeList<int> fluidI)
 		{
 			var n = 0;
 			for (var j = 0; j < chunkSize; j++)
@@ -157,7 +213,12 @@ namespace _Project.WorldGeneration.Jobs
 						if (done) break;
 					}
 
-					CreateGreedyQuad(currentMask, direction, axis1, axis2, width, height, basePos);
+					if (currentMask.MeshType == 2)
+						CreateGreedyQuad(currentMask, direction, axis1, axis2, width, height, basePos, ref fluidV,
+						                 ref fluidI);
+					else
+						CreateGreedyQuad(currentMask, direction, axis1, axis2, width, height, basePos, ref solidV,
+						                 ref solidI);
 
 					for (var l = 0; l < height; l++)
 					for (var k = 0; k < width; k++)
@@ -182,9 +243,8 @@ namespace _Project.WorldGeneration.Jobs
 		{
 			if (state.IsEmpty || state.ID == 0) return 0; // Air
 			Block block = BlockPrototypes[state.ID];
-			if (block.IsFluid) return 2;         // Fluid
-			return block.MeshID == 0 ?	(byte)1 : // Standard Solid Cube
-										(byte)3; // Custom Mesh (Fences, slabs, etc)
+			if (block.IsFluid) return 2; // Fluid
+			return block.MeshID == 0 ? (byte)1 : (byte)3;
 		}
 
 		private bool IsTransparent(BlockState state)
@@ -194,13 +254,13 @@ namespace _Project.WorldGeneration.Jobs
 			return block.IsTransparent || GetMeshType(state) == 3;
 		}
 
-		private void CreateGreedyQuad(Mask mask, int direction, int axis1, int axis2, int width, int height, int3 basePos)
+		private void CreateGreedyQuad(Mask mask, int direction, int axis1, int axis2, int width, int height, int3 basePos,
+		                              ref NativeList<Vertex> outVerts, ref NativeList<int> outTris)
 		{
-			NativeMesh mesh        = mask.MeshType == 1 ? SolidMesh : FluidMesh;
-			Block      block       = BlockPrototypes[mask.BlockID];
-			var        vertexCount = mesh.Vertices.Length;
+			Block block       = BlockPrototypes[mask.BlockID];
+			var   vertexCount = outVerts.Length;
 
-			int normalIdx = direction switch
+			var normalIdx = direction switch
 			                {
 				                0 => mask.Normal > 0 ? 4 : 5,
 				                1 => mask.Normal > 0 ? 3 : 2,
@@ -221,20 +281,17 @@ namespace _Project.WorldGeneration.Jobs
 
 			v1[axis1] = basePos[axis1];
 			v1[axis2] = basePos[axis2];
-
 			v2[axis1] = basePos[axis1] + width;
 			v2[axis2] = basePos[axis2];
-
 			v3[axis1] = basePos[axis1];
 			v3[axis2] = basePos[axis2] + height;
-
 			v4[axis1] = basePos[axis1] + width;
 			v4[axis2] = basePos[axis2] + height;
 
 			float v_1, u2, v_2, u3, v_3, u4, v_4;
-
 			float u1 = 0;
 			v_1 = 0;
+
 			if (direction is 0 or 1)
 			{
 				u2  = 0;
@@ -256,7 +313,6 @@ namespace _Project.WorldGeneration.Jobs
 
 			switch (direction)
 			{
-				// Flip UVs appropriately to prevent horizontal mirroring
 				case 0 when mask.Normal < 0:
 				case 1 when mask.Normal > 0:
 					u1 = height - u1;
@@ -272,40 +328,42 @@ namespace _Project.WorldGeneration.Jobs
 					break;
 			}
 
-			float3 tXYZ   = direction == 0 ? new float3(0, 0, 1) : new float3(1, 0, 0);
-			var    tangent = new float4(tXYZ, 1f);
-
-			mesh.Vertices.Add(PackVertex(v1, u1, v_1, block, normalIdx, mask.AO.x, tangent));
-			mesh.Vertices.Add(PackVertex(v2, u2, v_2, block, normalIdx, mask.AO.y, tangent));
-			mesh.Vertices.Add(PackVertex(v3, u3, v_3, block, normalIdx, mask.AO.z, tangent));
-			mesh.Vertices.Add(PackVertex(v4, u4, v_4, block, normalIdx, mask.AO.w, tangent));
+			outVerts.Add(PackVertex(v1, u1, v_1, block, normalIdx, mask.AO.x));
+			outVerts.Add(PackVertex(v2, u2, v_2, block, normalIdx, mask.AO.y));
+			outVerts.Add(PackVertex(v3, u3, v_3, block, normalIdx, mask.AO.z));
+			outVerts.Add(PackVertex(v4, u4, v_4, block, normalIdx, mask.AO.w));
 
 			if (mask.Normal > 0)
 			{
-				mesh.Triangles.Add(vertexCount);
-				mesh.Triangles.Add(vertexCount + 2);
-				mesh.Triangles.Add(vertexCount + 1);
-				mesh.Triangles.Add(vertexCount + 1);
-				mesh.Triangles.Add(vertexCount + 2);
-				mesh.Triangles.Add(vertexCount + 3);
+				outTris.Add(vertexCount);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 3);
 			}
 			else
 			{
-				mesh.Triangles.Add(vertexCount);
-				mesh.Triangles.Add(vertexCount + 1);
-				mesh.Triangles.Add(vertexCount + 2);
-				mesh.Triangles.Add(vertexCount + 1);
-				mesh.Triangles.Add(vertexCount + 3);
-				mesh.Triangles.Add(vertexCount + 2);
+				outTris.Add(vertexCount);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 3);
+				outTris.Add(vertexCount + 2);
 			}
 		}
 
-		private void RenderCustomMesh(int x, int y, int z, BlockState blockState)
+		private void RenderCustomMesh(int                    x,      int                 y, int z, BlockState blockState,
+		                              ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
+		                              ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
 		{
 			Block               block    = BlockPrototypes[blockState.ID];
 			NativeVoxelMeshData meshData = CustomMeshes[block.MeshID];
 			quaternion          rot      = GetRotation(block.DirectionType, blockState.Orientation);
 			var                 wPos     = new float3(x, y, z);
+
+			ref NativeList<Vertex> targetV = ref block.IsFluid ? ref fluidV : ref solidV;
+			ref NativeList<int>    targetI = ref block.IsFluid ? ref fluidI : ref solidI;
 
 			for (var i = 0; i < meshData.Triangles.Length; i++)
 			{
@@ -320,28 +378,20 @@ namespace _Project.WorldGeneration.Jobs
 				float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f + wPos;
 				float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
 
-				float3 rotatedTangent = math.round(math.mul(rot, FaceTangents[i]));
-				float3 originalBitangent = math.cross(FaceChecks[i], FaceTangents[i]);
-				float3 expectedBitangent = math.cross(rotatedNormal, rotatedTangent);
-				var tangentW = math.dot(math.round(math.mul(rot, originalBitangent)), expectedBitangent) >= 0f ? 1f : -1f;
-				var tangent4 = new float4(rotatedTangent, tangentW);
-
 				var normalIdx = (int)DirToIndex(rotatedNormal);
+				var b         = targetV.Length;
 
-				NativeMesh targetMesh = block.IsFluid ? FluidMesh : SolidMesh;
-				var        b          = targetMesh.Vertices.Length;
+				targetV.Add(PackVertex(v0, 0f, 0f, block, normalIdx, 3));
+				targetV.Add(PackVertex(v1, 0f, 1f, block, normalIdx, 3));
+				targetV.Add(PackVertex(v2, 1f, 0f, block, normalIdx, 3));
+				targetV.Add(PackVertex(v3, 1f, 1f, block, normalIdx, 3));
 
-				targetMesh.Vertices.Add(PackVertex(v0, 0f, 0f, block, normalIdx, 3, tangent4));
-				targetMesh.Vertices.Add(PackVertex(v1, 0f, 1f, block, normalIdx, 3, tangent4));
-				targetMesh.Vertices.Add(PackVertex(v2, 1f, 0f, block, normalIdx, 3, tangent4));
-				targetMesh.Vertices.Add(PackVertex(v3, 1f, 1f, block, normalIdx, 3, tangent4));
-
-				targetMesh.Triangles.Add(b);
-				targetMesh.Triangles.Add(b + 1);
-				targetMesh.Triangles.Add(b + 3);
-				targetMesh.Triangles.Add(b);
-				targetMesh.Triangles.Add(b + 3);
-				targetMesh.Triangles.Add(b + 2);
+				targetI.Add(b);
+				targetI.Add(b + 1);
+				targetI.Add(b + 3);
+				targetI.Add(b);
+				targetI.Add(b + 3);
+				targetI.Add(b + 2);
 			}
 		}
 
@@ -352,7 +402,7 @@ namespace _Project.WorldGeneration.Jobs
 			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
 		}
 
-		private static Vertex PackVertex(float3 pos, float u, float v, Block block, int normalIdx, int ao, float4 tangent)
+		private static Vertex PackVertex(float3 pos, float u, float v, Block block, int faceIdx, int ao)
 		{
 			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
 			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
@@ -362,21 +412,18 @@ namespace _Project.WorldGeneration.Jobs
 			var uPacked = (uint)math.round(math.clamp(u * 10f, 0f, 1023f));
 			var vPacked = (uint)math.round(math.clamp(v * 10f, 0f, 1023f));
 
-			var tanSign = tangent.w >= 0f ? 1u : 0u;
-			var data1   = px | (py << 10) | (pz << 20) | (aoPacked << 30);
+			var data1 = px | (py << 10) | (pz << 20) | (aoPacked << 30);
 
 			Color32 color = block.TintColor;
 			var     data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
 
-			uint tBase    = GetTextureIndex(normalIdx, block.BaseTextures);
-			uint tOverlay = GetTextureIndex(normalIdx, block.OverlayTextures);
-			uint tNorm    = GetTextureIndex(normalIdx, block.NormalTextures);
-			uint tSpec    = GetTextureIndex(normalIdx, block.SpecularTextures);
-			var  tanIdx   = DirToIndex(tangent.xyz);
+			uint tBase    = GetTextureIndex(faceIdx, block.BaseTextures);
+			uint tOverlay = GetTextureIndex(faceIdx, block.OverlayTextures);
+			uint tNorm    = GetTextureIndex(faceIdx, block.NormalTextures);
+			uint tSpec    = GetTextureIndex(faceIdx, block.SpecularTextures);
 
-			var data3 = (tBase & 0x1FFu) | ((tOverlay & 0x1FFu) << 9) | (uPacked << 18) | ((uint)normalIdx << 28) |
-			            (tanSign << 31);
-			var data4 = (tNorm & 0x1FFu) | ((tSpec & 0x1FFu) << 9) | (vPacked << 18) | (tanIdx << 28);
+			var data3 = (tBase & 0x1FFu) | ((tOverlay & 0x1FFu) << 9) | (uPacked << 18) | (((uint)faceIdx & 0x7u) << 28);
+			var data4 = (tNorm & 0x1FFu) | ((tSpec & 0x1FFu) << 9) | (vPacked << 18);
 
 			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = data4 };
 		}
@@ -385,13 +432,11 @@ namespace _Project.WorldGeneration.Jobs
 		{
 			return dir.z switch
 			       {
-				       < -0.5f => 0,
-				       > 0.5f  => 1,
+				       < -0.5f => 0, > 0.5f => 1,
 				       _ => dir.y switch
 				            {
-					            > 0.5f  => 2,
-					            < -0.5f => 3,
-					            _       => dir.x < -0.5f ? 4 : (uint)5
+					            > 0.5f => 2, < -0.5f => 3,
+					            _      => dir.x < -0.5f ? 4 : (uint)5
 				            }
 			       };
 		}
@@ -426,60 +471,60 @@ namespace _Project.WorldGeneration.Jobs
 				       _ => quaternion.identity
 			       };
 		}
-		
-		[BurstCompile]
-		private static int4 ComputeAOMask(ChunkAccessor accessor, int3 pos, int3 coord, int axis1, int axis2)
+
+		private int4 ComputeAOMask(int3 airPos, int axis1, int axis2)
 		{
-			var L = coord;
-			var R = coord;
-			var B = coord;
-			var T = coord;
+			int3 l = airPos;
+			l[axis1] -= 1;
+			int3 r = airPos;
+			r[axis1] += 1;
+			int3 b = airPos;
+			b[axis2] -= 1;
+			int3 T = airPos;
+			T[axis2] += 1;
 
-			var LBC = coord;
-			var RBC = coord;
-			var LTC = coord;
-			var RTC = coord;
+			int3 lbc = airPos;
+			lbc[axis1] -= 1;
+			lbc[axis2] -= 1;
+			int3 rbc = airPos;
+			rbc[axis1] += 1;
+			rbc[axis2] -= 1;
+			int3 ltc = airPos;
+			ltc[axis1] -= 1;
+			ltc[axis2] += 1;
+			int3 rtc = airPos;
+			rtc[axis1] += 1;
+			rtc[axis2] += 1;
 
-			L[axis2] -= 1;
-			R[axis2] += 1;
-			B[axis1] -= 1;
-			T[axis1] += 1;
+			var lo = IsOpaque(l) ? 1 : 0;
+			var ro = IsOpaque(r) ? 1 : 0;
+			var bo = IsOpaque(b) ? 1 : 0;
+			var to = IsOpaque(T) ? 1 : 0;
 
-			LBC[axis1] -= 1;
-			LBC[axis2] -= 1;
-			RBC[axis1] -= 1;
-			RBC[axis2] += 1;
-			LTC[axis1] += 1;
-			LTC[axis2] -= 1;
-			RTC[axis1] += 1;
-			RTC[axis2] += 1;
-
-			var LO = GetMeshIndex(accessor.GetBlockInChunk(pos, L)) != 9 ? 1 : 0;
-			var RO = GetMeshIndex(accessor.GetBlockInChunk(pos, R)) != 9 ? 1 : 0;
-			var BO = GetMeshIndex(accessor.GetBlockInChunk(pos, B)) != 9 ? 1 : 0;
-			var TO = GetMeshIndex(accessor.GetBlockInChunk(pos, T)) != 9 ? 1 : 0;
-
-			var LBCO = GetMeshIndex(accessor.GetBlockInChunk(pos, LBC)) != 9 ? 1 : 0;
-			var RBCO = GetMeshIndex(accessor.GetBlockInChunk(pos, RBC)) != 9 ? 1 : 0;
-			var LTCO = GetMeshIndex(accessor.GetBlockInChunk(pos, LTC)) != 9 ? 1 : 0;
-			var RTCO = GetMeshIndex(accessor.GetBlockInChunk(pos, RTC)) != 9 ? 1 : 0;
+			var lbco = IsOpaque(lbc) ? 1 : 0;
+			var rbco = IsOpaque(rbc) ? 1 : 0;
+			var ltco = IsOpaque(ltc) ? 1 : 0;
+			var rtco = IsOpaque(rtc) ? 1 : 0;
 
 			return new int4(
-			                ComputeAO(LO, BO, LBCO),
-			                ComputeAO(LO, TO, LTCO),
-			                ComputeAO(RO, BO, RBCO),
-			                ComputeAO(RO, TO, RTCO)
+			                ComputeAO(lo, bo, lbco),
+			                ComputeAO(ro, bo, rbco),
+			                ComputeAO(lo, to, ltco),
+			                ComputeAO(ro, to, rtco)
 			               );
 		}
-		
-		private static int ComputeAO(int s1, int s2, int c)
-		{
-			if (s1 == 1 && s2 == 1)
-			{
-				return 0;
-			}
 
-			return 3 - (s1 + s2 + c);
+		private bool IsOpaque(int3 pos)
+		{
+			BlockState state = Accessor.GetBlockState(pos);
+			if (state.IsEmpty || state.ID == 0) return false;
+			return !BlockPrototypes[state.ID].IsTransparent;
+		}
+
+		private static int ComputeAO(int side1, int side2, int corner)
+		{
+			if (side1 == 1 && side2 == 1) return 0;
+			return 3 - (side1 + side2 + corner);
 		}
 	}
 }

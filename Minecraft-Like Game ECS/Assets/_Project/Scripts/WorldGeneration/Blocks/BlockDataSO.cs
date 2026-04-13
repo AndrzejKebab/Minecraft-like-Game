@@ -22,7 +22,6 @@ namespace _Project.WorldGeneration.Blocks
 			EditorApplication.delayCall += AssignUniqueIdIfNeeded;
 			
 			Block.TintColor = TintColor;
-			Block.Name	  = new FixedString32Bytes(BlockName);
 		}
 
 		private void AssignUniqueIdIfNeeded()
