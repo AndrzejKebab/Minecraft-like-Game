@@ -29,7 +29,7 @@ namespace _Project.Character
 				lastSelectedBlockID = currentID;
 
 				if (currentID >= registry.Blocks.Length) continue;
-				var blockName = registry.Blocks[currentID].Name.ToString();
+				var blockName = registry.BlockNames[currentID].ToString();
                         
 				PlayerUIController.Instance.UpdateSelectedBlockText(blockName);
 			}

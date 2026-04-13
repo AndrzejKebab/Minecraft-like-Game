@@ -25,11 +25,12 @@ namespace _Project.WorldGeneration.Components
 	public struct WorldBlockRegistrySingleton : IComponentData
 	{
 		public NativeArray<Block>               Blocks;
+		public NativeArray<FixedString32Bytes>  BlockNames;
 		public NativeArray<NativeVoxelMeshData> Meshes;
 				
-		public float TreeDensity;    // 0–1, e.g. 0.015f
-		public int   MinTrunkHeight; // e.g. 4
-		public int   MaxTrunkHeight; // e.g. 8
+		public float TreeDensity;
+		public int   MinTrunkHeight;
+		public int   MaxTrunkHeight;
 		
 		public NativeArray<OreSettings> OreTypes;
 	}

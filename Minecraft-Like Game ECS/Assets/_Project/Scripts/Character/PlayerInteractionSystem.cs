@@ -73,7 +73,7 @@ namespace _Project.Character
 								if (newID < 1) newID = (ushort)maxBlockID;
 							}
 
-							if (!registry.Blocks[newID].Name.IsEmpty) break;
+							if (!registry.BlockNames[newID].IsEmpty) break;
 						}
 
 						interactState.ValueRW.SelectedBlockID = newID;

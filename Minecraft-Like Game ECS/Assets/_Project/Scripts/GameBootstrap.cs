@@ -58,10 +58,12 @@ namespace _Project
 				if (so.Block.ID > maxId) maxId = so.Block.ID;
 
 			var nativeBlocks = new NativeArray<Block>(maxId + 1, Allocator.Persistent);
+			var nativeNames  = new NativeArray<FixedString32Bytes>(maxId + 1, Allocator.Persistent);
+
 			foreach (BlockDataSo so in allBlocks)
 			{
 				Block b = so.Block;
-				b.MeshID = so.VoxelData != null ? meshToId[so.VoxelData] : (ushort)0;
+				b.MeshID    = so.VoxelData != null ? meshToId[so.VoxelData] : (ushort)0;
 				b.TintColor = so.TintColor;
 
 				if (textureMappings.TryGetValue(so, out TextureArrayGenerator.TextureMapping mapping))
@@ -73,6 +75,7 @@ namespace _Project
 				}
 
 				nativeBlocks[b.ID] = b;
+				nativeNames[b.ID]  = new FixedString32Bytes(so.BlockName);
 			}
 
 			var nativeMeshes = new NativeArray<NativeVoxelMeshData>(uniqueMeshes.Count, Allocator.Persistent);
@@ -85,17 +88,18 @@ namespace _Project
 				                  };
 			}
 
-			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
-
-			Entity regEntity = em.CreateEntity();
+			EntityManager em        = World.DefaultGameObjectInjectionWorld.EntityManager;
+			Entity        regEntity = em.CreateEntity();
 			var blockRegistrySingleton = new WorldBlockRegistrySingleton
-			        {
-				        Blocks = nativeBlocks,
-				        Meshes = nativeMeshes,
-				        TreeDensity = 0.015f,
-				        MinTrunkHeight = 4,
-				        MaxTrunkHeight = 12
-			        };
+			                             {
+				                             Blocks         = nativeBlocks,
+				                             BlockNames     = nativeNames,
+				                             Meshes         = nativeMeshes,
+				                             TreeDensity    = 0.015f,
+				                             MinTrunkHeight = 4,
+				                             MaxTrunkHeight = 12
+			                             };
+			
 			blockRegistrySingleton.OreTypes = CreateDefaultOres(blockRegistrySingleton);
 			em.AddComponentData(regEntity, blockRegistrySingleton);
 

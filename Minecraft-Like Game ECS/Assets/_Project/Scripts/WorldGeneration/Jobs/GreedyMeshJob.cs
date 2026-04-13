@@ -1,9 +1,7 @@
 ﻿using _Project.WorldGeneration.Blocks;
-using _Project.WorldGeneration.Components;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
-using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 using UnityEngine;
@@ -15,9 +13,9 @@ namespace _Project.WorldGeneration.Jobs
 	{
 		[ReadOnly] public ChunkAccessor Accessor;
 
-		[NativeDisableContainerSafetyRestriction]
+		[NativeDisableContainerSafetyRestriction] 
 		[ReadOnly] public NativeArray<Block> BlockPrototypes;
-		
+
 		[NativeDisableContainerSafetyRestriction] 
 		[ReadOnly] public NativeArray<NativeVoxelMeshData> CustomMeshes;
 
@@ -166,18 +164,16 @@ namespace _Project.WorldGeneration.Jobs
 				                     solidIndices.Length * sizeof(int));
 			}
 
-			if (fluidVertices.Length > 0)
-			{
-				UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(),
-				                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+			if (fluidVertices.Length <= 0) return;
+			UnsafeUtility.MemCpy(CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(),
+			                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
 
-				var svCount  = solidVertices.Length;
-				var siCount  = solidIndices.Length;
-				var fIndices = fluidIndices.GetUnsafePtr();
-				var cIndices = CombinedIndices.GetUnsafePtr();
-				for (var i = 0; i < fluidIndices.Length; i++)
-					cIndices[siCount + i] = fIndices[i] + svCount; // Rebase indexing
-			}
+			var svCount  = solidVertices.Length;
+			var siCount  = solidIndices.Length;
+			var fIndices = fluidIndices.GetUnsafePtr();
+			var cIndices = CombinedIndices.GetUnsafePtr();
+			for (var i = 0; i < fluidIndices.Length; i++)
+				cIndices[siCount + i] = fIndices[i] + svCount; // Rebase indexing
 		}
 
 		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
@@ -288,50 +284,10 @@ namespace _Project.WorldGeneration.Jobs
 			v4[axis1] = basePos[axis1] + width;
 			v4[axis2] = basePos[axis2] + height;
 
-			float v_1, u2, v_2, u3, v_3, u4, v_4;
-			float u1 = 0;
-			v_1 = 0;
-
-			if (direction is 0 or 1)
-			{
-				u2  = 0;
-				v_2 = width;
-				u3  = height;
-				v_3 = 0;
-				u4  = height;
-				v_4 = width;
-			}
-			else
-			{
-				u2  = width;
-				v_2 = 0;
-				u3  = 0;
-				v_3 = height;
-				u4  = width;
-				v_4 = height;
-			}
-
-			switch (direction)
-			{
-				case 0 when mask.Normal < 0:
-				case 1 when mask.Normal > 0:
-					u1 = height - u1;
-					u2 = height - u2;
-					u3 = height - u3;
-					u4 = height - u4;
-					break;
-				case 2 when mask.Normal < 0:
-					u1 = width - u1;
-					u2 = width - u2;
-					u3 = width - u3;
-					u4 = width - u4;
-					break;
-			}
-
-			outVerts.Add(PackVertex(v1, u1, v_1, block, normalIdx, mask.AO.x));
-			outVerts.Add(PackVertex(v2, u2, v_2, block, normalIdx, mask.AO.y));
-			outVerts.Add(PackVertex(v3, u3, v_3, block, normalIdx, mask.AO.z));
-			outVerts.Add(PackVertex(v4, u4, v_4, block, normalIdx, mask.AO.w));
+			outVerts.Add(PackVertex(v1, block, normalIdx, mask.AO.x));
+			outVerts.Add(PackVertex(v2, block, normalIdx, mask.AO.y));
+			outVerts.Add(PackVertex(v3, block, normalIdx, mask.AO.z));
+			outVerts.Add(PackVertex(v4, block, normalIdx, mask.AO.w));
 
 			if (mask.Normal > 0)
 			{
@@ -381,10 +337,10 @@ namespace _Project.WorldGeneration.Jobs
 				var normalIdx = (int)DirToIndex(rotatedNormal);
 				var b         = targetV.Length;
 
-				targetV.Add(PackVertex(v0, 0f, 0f, block, normalIdx, 3));
-				targetV.Add(PackVertex(v1, 0f, 1f, block, normalIdx, 3));
-				targetV.Add(PackVertex(v2, 1f, 0f, block, normalIdx, 3));
-				targetV.Add(PackVertex(v3, 1f, 1f, block, normalIdx, 3));
+				targetV.Add(PackVertex(v0, block, normalIdx, 3));
+				targetV.Add(PackVertex(v1, block, normalIdx, 3));
+				targetV.Add(PackVertex(v2, block, normalIdx, 3));
+				targetV.Add(PackVertex(v3, block, normalIdx, 3));
 
 				targetI.Add(b);
 				targetI.Add(b + 1);
@@ -395,37 +351,33 @@ namespace _Project.WorldGeneration.Jobs
 			}
 		}
 
-		private bool NeighbourHidesFace(int x, int y, int z, int3 dir, bool isTransparent)
-		{
-			BlockState nb = Accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
-			if (nb.IsEmpty || nb.ID == 0) return false;
-			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
-		}
-
-		private static Vertex PackVertex(float3 pos, float u, float v, Block block, int faceIdx, int ao)
+		private static Vertex PackVertex(float3 pos, Block block, int faceIdx, int ao)
 		{
 			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
 			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
 			var pz       = (uint)math.round(math.clamp(pos.z * 10f, 0f, 1023f));
 			var aoPacked = (uint)ao & 0x3;
 
-			var uPacked = (uint)math.round(math.clamp(u * 10f, 0f, 1023f));
-			var vPacked = (uint)math.round(math.clamp(v * 10f, 0f, 1023f));
-
 			var data1 = px | (py << 10) | (pz << 20) | (aoPacked << 30);
 
 			Color32 color = block.TintColor;
 			var     data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
 
-			uint tBase    = GetTextureIndex(faceIdx, block.BaseTextures);
-			uint tOverlay = GetTextureIndex(faceIdx, block.OverlayTextures);
-			uint tNorm    = GetTextureIndex(faceIdx, block.NormalTextures);
-			uint tSpec    = GetTextureIndex(faceIdx, block.SpecularTextures);
+			var tBase    = GetTextureIndex(faceIdx, block.BaseTextures) & 0x1FFu;
+			var tOverlay = GetTextureIndex(faceIdx, block.OverlayTextures) & 0x1FFu;
+			var tNorm    = GetTextureIndex(faceIdx, block.NormalTextures) & 0x1FFu;
+			var tSpec    = GetTextureIndex(faceIdx, block.SpecularTextures) & 0x1FFu;
 
-			var data3 = (tBase & 0x1FFu) | ((tOverlay & 0x1FFu) << 9) | (uPacked << 18) | (((uint)faceIdx & 0x7u) << 28);
-			var data4 = (tNorm & 0x1FFu) | ((tSpec & 0x1FFu) << 9) | (vPacked << 18);
+			var data3 = tBase | (tOverlay << 9) | (tNorm << 18) | (((uint)faceIdx & 0x7u) << 27);
 
-			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = data4 };
+			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = tSpec };
+		}
+
+		private bool NeighbourHidesFace(int x, int y, int z, int3 dir, bool isTransparent)
+		{
+			BlockState nb = Accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
+			if (nb.IsEmpty || nb.ID == 0) return false;
+			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
 		}
 
 		private static uint DirToIndex(float3 dir)

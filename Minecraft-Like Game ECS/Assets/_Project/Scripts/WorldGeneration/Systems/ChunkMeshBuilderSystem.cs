@@ -25,12 +25,10 @@ namespace _Project.WorldGeneration.Systems
 			activeJobs = new NativeList<ActiveJob>(Allocator.Persistent);
 			faceChecks = new NativeArray<float3>(6, Allocator.Persistent)
 			{
-				[0] = new float3(0, 0, -1),
-				[1] = new float3(0, 0, 1),
+				[0] = new float3(0, 0, -1),[1] = new float3(0, 0, 1),
 				[2] = new float3(0, 1, 0),
 				[3] = new float3(0, -1, 0),
-				[4] = new float3(-1, 0, 0),
-				[5] = new float3(1, 0, 0)
+				[4] = new float3(-1, 0, 0),[5] = new float3(1, 0, 0)
 			};
 		}
 
@@ -133,36 +131,45 @@ namespace _Project.WorldGeneration.Systems
 					var combinedIndices = new NativeList<int>(Allocator.Persistent);
 					var solidCounts = new NativeReference<int2>(Allocator.Persistent);
 
-					Entity nZNeg = chunkMap[pos + new int3(0, 0, -1)]; Entity nZPos = chunkMap[pos + new int3(0, 0, 1)];
-					Entity nYNeg = chunkMap[pos + new int3(0, -1, 0)]; Entity nYPos = chunkMap[pos + new int3(0, 1, 0)];
-					Entity nXNeg = chunkMap[pos + new int3(-1, 0, 0)]; Entity nXPos = chunkMap[pos + new int3(1, 0, 0)];
-
+					chunkMap.TryGetValue(pos + new int3(0, 0, -1), out Entity nZNeg);
+					chunkMap.TryGetValue(pos + new int3(0, 0, 1), out Entity nZPos);
+					chunkMap.TryGetValue(pos + new int3(0, -1, 0), out Entity nYNeg);
+					chunkMap.TryGetValue(pos + new int3(0, 1, 0), out Entity nYPos);
+					chunkMap.TryGetValue(pos + new int3(-1, 0, 0), out Entity nXNeg);
+					chunkMap.TryGetValue(pos + new int3(1, 0, 0), out Entity nXPos);
+					
 					var job = new GreedyMeshJob
-					{
-						Accessor = new ChunkAccessor 
-						{
-							Center       = blockDataLookup[entity].BlockData,
-							NeighborZNeg = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
-							NeighborZPos = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
-							NeighborYNeg = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
-							NeighborYPos = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
-							NeighborXNeg = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
-							NeighborXPos = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
-							ChunkSize    = VoxelData.CHUNK_SIZE
-						},
-						BlockPrototypes = registry.Blocks,
-						CustomMeshes    = registry.Meshes,
-						FaceChecks      = faceChecks,
-						CombinedVertices = combinedVertices,
-						CombinedIndices  = combinedIndices,
-						SolidCounts      = solidCounts
-					};
+					          {
+						          Accessor = new ChunkAccessor 
+						                     {
+							                     Center       = blockDataLookup[entity].BlockData,
+							                     NeighborZNeg = nZNeg != Entity.Null && blockDataLookup.HasComponent(nZNeg) && blockDataLookup[nZNeg].BlockData.IsCreated ? blockDataLookup[nZNeg].BlockData : default,
+							                     NeighborZPos = nZPos != Entity.Null && blockDataLookup.HasComponent(nZPos) && blockDataLookup[nZPos].BlockData.IsCreated ? blockDataLookup[nZPos].BlockData : default,
+							                     NeighborYNeg = nYNeg != Entity.Null && blockDataLookup.HasComponent(nYNeg) && blockDataLookup[nYNeg].BlockData.IsCreated ? blockDataLookup[nYNeg].BlockData : default,
+							                     NeighborYPos = nYPos != Entity.Null && blockDataLookup.HasComponent(nYPos) && blockDataLookup[nYPos].BlockData.IsCreated ? blockDataLookup[nYPos].BlockData : default,
+							                     NeighborXNeg = nXNeg != Entity.Null && blockDataLookup.HasComponent(nXNeg) && blockDataLookup[nXNeg].BlockData.IsCreated ? blockDataLookup[nXNeg].BlockData : default,
+							                     NeighborXPos = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
+							                     ChunkSize    = VoxelData.CHUNK_SIZE
+						                     },
+						          BlockPrototypes  = registry.Blocks,
+						          CustomMeshes     = registry.Meshes,
+						          FaceChecks       = faceChecks,
+						          CombinedVertices = combinedVertices,
+						          CombinedIndices  = combinedIndices,
+						          SolidCounts      = solidCounts
+					          };
 
 					JobHandle handle = job.ScheduleByRef(); 
 
 					activeJobs.Add(new ActiveJob
 					{
 						Entity    = entity,
+						NBack     = nZNeg,     // FIX: Bind safety handles
+						NFront    = nZPos,
+						NBottom   = nYNeg,
+						NTop      = nYPos,
+						NLeft     = nXNeg,
+						NRight    = nXPos,
 						Handle    = handle, 
 						CombinedVertices = combinedVertices,
 						CombinedIndices  = combinedIndices,
@@ -324,10 +331,13 @@ namespace _Project.WorldGeneration.Systems
 				var combinedIndices = new NativeList<int>(Allocator.Persistent);
 				var solidCounts = new NativeReference<int2>(Allocator.Persistent);
 
-                Entity nZNeg = chunkMap[pos + new int3(0, 0, -1)]; Entity nZPos = chunkMap[pos + new int3(0, 0, 1)];
-                Entity nYNeg = chunkMap[pos + new int3(0, -1, 0)]; Entity nYPos = chunkMap[pos + new int3(0, 1, 0)];
-                Entity nXNeg = chunkMap[pos + new int3(-1, 0, 0)]; Entity nXPos = chunkMap[pos + new int3(1, 0, 0)];
-
+				chunkMap.TryGetValue(pos + new int3(0, 0, -1), out Entity nZNeg);
+				chunkMap.TryGetValue(pos + new int3(0, 0, 1), out Entity nZPos);
+				chunkMap.TryGetValue(pos + new int3(0, -1, 0), out Entity nYNeg);
+				chunkMap.TryGetValue(pos + new int3(0, 1, 0), out Entity nYPos);
+				chunkMap.TryGetValue(pos + new int3(-1, 0, 0), out Entity nXNeg);
+				chunkMap.TryGetValue(pos + new int3(1, 0, 0), out Entity nXPos);
+                
                 var job = new GreedyMeshJob
                 {
 	                Accessor = new ChunkAccessor 
@@ -341,9 +351,9 @@ namespace _Project.WorldGeneration.Systems
 		                NeighborXPos = nXPos != Entity.Null && blockDataLookup.HasComponent(nXPos) && blockDataLookup[nXPos].BlockData.IsCreated ? blockDataLookup[nXPos].BlockData : default,
 		                ChunkSize    = VoxelData.CHUNK_SIZE
 	                },
-	                BlockPrototypes = registry.Blocks,
-	                CustomMeshes    = registry.Meshes,
-	                FaceChecks      = faceChecks,
+	                BlockPrototypes  = registry.Blocks,
+	                CustomMeshes     = registry.Meshes,
+	                FaceChecks       = faceChecks,
 					CombinedVertices = combinedVertices,
 					CombinedIndices  = combinedIndices,
 					SolidCounts      = solidCounts
@@ -354,6 +364,12 @@ namespace _Project.WorldGeneration.Systems
                 activeJobs.Add(new ActiveJob
                 {
                     Entity    = entity,
+                    NBack     = nZNeg,     // FIX: Bind safety handles
+                    NFront    = nZPos,
+                    NBottom   = nYNeg,
+                    NTop      = nYPos,
+                    NLeft     = nXNeg,
+                    NRight    = nXPos,
                     Handle    = handle, 
                     CombinedVertices = combinedVertices,
 					CombinedIndices  = combinedIndices,
