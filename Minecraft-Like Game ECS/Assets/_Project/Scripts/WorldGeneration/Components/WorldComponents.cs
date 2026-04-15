@@ -11,12 +11,15 @@ namespace _Project.WorldGeneration.Components
 	public struct WorldSettingsSingleton : IComponentData
 	{
 		public int         Seed;
-		public NativeCurve BiomeHeightCurve;
-		public NativeCurve ErosionCurve;
+		public NativeCurve ContinentalnessCurve;
 		public NativeCurve PeaksAndValleysCurve;
+		public NativeCurve ErosionCurve;
 
 		/// <summary>FastNoise2 encoded node tree string (copy from the FastNoise2 editor window).</summary>
-		public FastNoise Noise;
+		public FastNoise ContinentalnessNoise;
+		public FastNoise PeaksAndValleysNoise;
+		public FastNoise ErosionNoise;
+		public FastNoise CavesNoise;
 	}
 
 	/// <summary>

@@ -8,10 +8,18 @@ namespace _Project.WorldGeneration
 {
 	public class WorldSettings : MonoBehaviour
 	{
-		[Header("World Settings")] public int Seed = 1337;
+		[Header("World Settings")]
+		public int Seed = 1337;
 
-		[Header("FastNoise2 Settings")] public string EncodedNodeTree =
-			"E@BBZEG@BD8JFgokCMP1KD8JLgAB@BCQ0ABw@BgAACBACQc@BWRBA9Cle/GGZmZj8EA5qZGT8LAACAPxwDAABwQgQ=";
+		[Header("FastNoise2 Settings")] 
+		public string TerrainNodeTree =
+			"E@BHpEG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BekQEA5qZGT8LAACAPxQDAADIQgQ=";
+		public string PeaksAndValleysNodeTree =
+			"IwCPwnU/CD0K174QH4XrvgkuAAE@BJDQAE@BCQc@AB6RBw=";
+
+		public string ErosionNodeTree = "Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==";
+		public string CavesNodeTree =
+			"FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA==";
 
 		public AnimationCurve BiomeHeightCurve;
 		public AnimationCurve ErosionCurve;
@@ -30,11 +38,15 @@ namespace _Project.WorldGeneration
 			var worldSettings = new WorldSettingsSingleton
 			                    {
 				                    Seed                 = Seed,
-				                    BiomeHeightCurve     = BiomeHeightCurve.ToNative(),
+				                    ContinentalnessCurve     = BiomeHeightCurve.ToNative(),
 				                    ErosionCurve         = ErosionCurve.ToNative(),
 				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
-				                    Noise      = FastNoise.FromEncodedNodeTree(EncodedNodeTree),
+				                    ContinentalnessNoise      = FastNoise.FromEncodedNodeTree(TerrainNodeTree),
+				                    PeaksAndValleysNoise = FastNoise.FromEncodedNodeTree(PeaksAndValleysNodeTree),
+				                    ErosionNoise = FastNoise.FromEncodedNodeTree(ErosionNodeTree),
+				                    CavesNoise = FastNoise.FromEncodedNodeTree(CavesNodeTree)
 			                    };
+			
 			
 			em.AddComponentData(settingsEntity, worldSettings);
 

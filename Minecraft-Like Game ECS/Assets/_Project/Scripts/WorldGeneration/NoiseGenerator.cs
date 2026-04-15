@@ -11,25 +11,55 @@ namespace _Project.WorldGeneration
 	public static class NoiseGenerator
 	{
 		[BurstCompile]
-		public static void GenerateHeightMap(out NativeTexture2D<float> heightMap,
-		                                     ref FastNoise              noise,
-		                                     ref int3                   chunkWorldPos,
-		                                     int                        chunkSize,
-		                                     int                        seed)
+		public static void GenerateTerrainMap(out NativeTexture2D<int> heightMap,
+		                                     ref  FastNoise            continentalnessNoise,
+		                                     ref  FastNoise            peaksAndValleysNoise,
+		                                     ref  FastNoise            erosionNoise,
+		                                     ref  int3                 chunkWorldPos,
+		                                     int                       chunkSize,
+		                                     int                       seed,
+		                                     ref NativeCurve           continentalnessHeight,
+		                                     ref NativeCurve            erosionCurve,
+		                                     ref NativeCurve           peaksAndValleysCurve
+		                                     )
 		{
-			heightMap = new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.TempJob);
-			noise.GenUniformGrid2D(heightMap, out _, chunkWorldPos.x, chunkWorldPos.z, chunkSize,
-			                       chunkSize, 1, 1, seed);
-		}
+			heightMap = new NativeTexture2D<int>(new int2(chunkSize, chunkSize), Allocator.TempJob);
+			var continentalness = new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.TempJob);
+			var erosionMap =  new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.TempJob);
+			var peaksAndValleysMap =  new NativeTexture2D<float>(new int2(chunkSize, chunkSize), Allocator.TempJob);
+			
+			continentalnessNoise.GenUniformGrid2D(continentalness, out _, chunkWorldPos.x, chunkWorldPos.z, chunkSize,
+			                                      chunkSize, 1, 1, seed);
+			peaksAndValleysNoise.GenUniformGrid2D(erosionMap, out _, chunkWorldPos.x, chunkWorldPos.z, chunkSize,
+			                                      chunkSize, 1, 1, seed);
+			erosionNoise.GenUniformGrid2D(peaksAndValleysMap, out _, chunkWorldPos.x, chunkWorldPos.z, chunkSize,
+			                              chunkSize, 1, 1, seed);
 
+			for (var x = 0; x < heightMap.Height; x++)
+			{
+				for(var z = 0; z < heightMap.Width; z++)
+				{
+					heightMap[x, z] = HeightFromNoise(continentalness[x, z], erosionMap[x, z], peaksAndValleysMap[x, z], ref continentalnessHeight, ref peaksAndValleysCurve, ref erosionCurve);
+				}
+			}
+		}
+		
 		[BurstCompile]
-		public static int HeightFromNoise(float          rawNoise, in NativeCurve biomeHeight, in NativeCurve erosionCurve,
-		                                  in NativeCurve peaksAndValleysCurve)
+		public static void GenerateCaveMap(out NativeTexture3D<float> caveMap, ref FastNoise caveNoise, ref int3 chunkWorldPos, int chunkSize, int seed)
 		{
-			var baseHeight      = biomeHeight.Evaluate(rawNoise);
-			var erosion         = erosionCurve.Evaluate(-1 * rawNoise / 2);
-			var peaksAndValleys = peaksAndValleysCurve.Evaluate(1 - rawNoise / 3 * 2);
-			return (int)(baseHeight - erosion * peaksAndValleys);
+			caveMap = new NativeTexture3D<float>(new int3(chunkSize, chunkSize, chunkSize), Allocator.TempJob);
+			caveNoise.GenUniformGrid3D(caveMap,  out _ , chunkWorldPos.x, chunkWorldPos.y, chunkWorldPos.z, chunkSize, chunkSize, chunkSize, 1,1,1, seed);
+		}
+		
+		[BurstCompile]
+		private static int HeightFromNoise(float continentalnessMap, float peaksAndValleysMap, float erosionMap, ref NativeCurve biomeHeight, ref NativeCurve erosionCurve,
+		                                  ref NativeCurve peaksAndValleysCurve)
+		{
+			var baseHeight      = biomeHeight.Evaluate(continentalnessMap);
+			var peaksAndValleys = peaksAndValleysCurve.Evaluate(peaksAndValleysMap);
+			var erosion         = erosionCurve.Evaluate(erosionMap);
+			
+			return (int)math.mad(erosion * 0.4f, peaksAndValleys * .66f, baseHeight);
 		}
 
 		[BurstCompile]

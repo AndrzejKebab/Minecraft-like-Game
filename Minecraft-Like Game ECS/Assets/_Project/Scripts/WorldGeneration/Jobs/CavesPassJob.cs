@@ -1,6 +1,8 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
+using FastNoise2.Bindings;
+using NativeTexture;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -19,29 +21,23 @@ namespace _Project.WorldGeneration.Jobs
 		[NativeDisableContainerSafetyRestriction]
 		public NativeHashMap<Entity, ChunkComponent> ChunkDataLookup;
 
-		[ReadOnly] public NativeArray<Block> BlockPrototypes;
-		public            int                Seed,          ChunkSize, MaxCaveWorldY;
-		public            float              CaveFrequency, CaveThreshold;
-
-		public EntityCommandBuffer.ParallelWriter ECB;
+		[ReadOnly] public NativeArray<Block>                 BlockPrototypes;
+		public            int                                Seed, ChunkSize;
+		public            FastNoise                          CaveNoise;
+		public            EntityCommandBuffer.ParallelWriter ECB;
 
 		public void Execute(int index)
 		{
 			Entity                  entity        = Entities[index];
 			int3                    chunkWorldPos = Positions[index].WorldPosition;
 			NativeArray<BlockState> blockData     = ChunkDataLookup[entity].BlockData;
-
-			var seedShift = Seed * 0.0013f;
-			var offset    = new float3(31.7f, 17.3f, 53.1f);
-
+			
+			NoiseGenerator.GenerateCaveMap(out NativeTexture3D<float> caveMap, ref CaveNoise, ref chunkWorldPos, ChunkSize, Seed);
+			
 			for (var z = 0; z < ChunkSize; z++)
 			{
-				var pz = (chunkWorldPos.z + z) * CaveFrequency + seedShift;
 				for (var y = 0; y < ChunkSize; y++)
 				{
-					var worldY = chunkWorldPos.y + y;
-					if (worldY > MaxCaveWorldY) continue;
-					var py = worldY * CaveFrequency + seedShift;
 
 					for (var x = 0; x < ChunkSize; x++)
 					{
@@ -51,10 +47,8 @@ namespace _Project.WorldGeneration.Jobs
 						if (block.ID == 0 ||
 						    (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid)) continue;
 
-						var px = (chunkWorldPos.x + x) * CaveFrequency + seedShift;
-						var p  = new float3(px, py, pz);
 
-						if (Unity.Mathematics.noise.snoise(p) * Unity.Mathematics.noise.snoise(p + offset) > CaveThreshold)
+						if (caveMap[new int3(x, y, z)] > 0)
 							blockData[idx] = new BlockState { ID = 0, Orientation = 0 };
 					}
 				}

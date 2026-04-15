@@ -675,7 +675,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.World.WorldAuthoring
   Seed: 1337
-  EncodedNodeTree: E@BBZEG@BD8JFgokCMP1KD8JLgAB@BCQ0ABw@BgAACBACQc@BWRBA9Cle/GGZmZj8EA5qZGT8LAACAPxwDAABwQgQ=
+  TerrainNodeTree: E@BBZEG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BFkQEA5qZGT8LAACAPxQDAABwQgQ=
+  PeaksAndValleysNodeTree: IwCPwnU/CD0K174QH4XrvgkuAAE@BJDQAE@BCQcc
+  ErosionNodeTree: Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AEhDFA==
+  CavesNodeTree: FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA==
   BiomeHeightCurve:
     serializedVersion: 2
     m_Curve:
@@ -689,8 +692,8 @@ MonoBehaviour:
       inWeight: 0
       outWeight: 1
     - serializedVersion: 3
-      time: -0.9
-      value: -100
+      time: -0.90324247
+      value: 79.96588
       inSlope: 333.57886
       outSlope: 333.57886
       tangentMode: 0
@@ -767,8 +770,8 @@ MonoBehaviour:
       inWeight: 0.33333334
       outWeight: 0.33333334
     - serializedVersion: 3
-      time: 0.8085202
-      value: 0.37094545
+      time: 0.81417775
+      value: 0.5071744
       inSlope: -1.2501425
       outSlope: -1.2501425
       tangentMode: 0
@@ -777,7 +780,7 @@ MonoBehaviour:
       outWeight: 0.33333334
     - serializedVersion: 3
       time: 1
-      value: 0.1
+      value: 0
       inSlope: 0
       outSlope: 0
       tangentMode: 0

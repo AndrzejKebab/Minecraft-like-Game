@@ -17,8 +17,6 @@ namespace _Project.WorldGeneration.Systems
     [BurstCompile]
     public partial struct ChunkPopulateSystem : ISystem
     {
-        private FastNoise noise;
-        private bool      noiseInit;
         private int       decorationPhase;
 
         private const int MAX_TERRAIN_PER_FRAME = 128;
@@ -34,15 +32,10 @@ namespace _Project.WorldGeneration.Systems
             state.RequireForUpdate<ChunkMapSingleton>();
         }
 
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var settings = SystemAPI.GetSingleton<WorldSettingsSingleton>();
-            if (!noiseInit)
-            {
-                noise     = settings.Noise;
-                noiseInit = true;
-            }
-
             var registry  = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
             var map       = SystemAPI.GetSingleton<ChunkMapSingleton>();
             var ecbSystem = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
@@ -124,14 +117,17 @@ namespace _Project.WorldGeneration.Systems
                 Entities             = terrainEntities,
                 Positions            = terrainPositions,
                 ChunkDataLookup      = map.ChunkDataLookup,
-                Noise                = noise,
+                ContinentalnessNoise = settings.ContinentalnessNoise,
+                PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
+                ErosionNoise         = settings.ErosionNoise,
                 BlockPrototypes      = registry.Blocks,
-                BiomeHeight          = settings.BiomeHeightCurve,
+                BiomeHeight          = settings.ContinentalnessCurve,
                 ErosionCurve         = settings.ErosionCurve,
                 PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
                 Seed                 = settings.Seed,
                 ChunkSize            = VoxelData.CHUNK_SIZE,
             };
+            
             int batch = math.max(1, take / 16);
             state.Dependency = terrainJob.ScheduleParallelByRef(take, batch, state.Dependency);
 
@@ -144,9 +140,7 @@ namespace _Project.WorldGeneration.Systems
                 BlockPrototypes = registry.Blocks,
                 Seed            = settings.Seed,
                 ChunkSize       = VoxelData.CHUNK_SIZE,
-                MaxCaveWorldY   = 60,
-                CaveFrequency   = 0.04f,
-                CaveThreshold   = 0.2f,
+                CaveNoise       = settings.CavesNoise,
                 ECB             = cavesECB
             };
             state.Dependency = cavesJob.ScheduleParallelByRef(take, batch, state.Dependency);

@@ -16,10 +16,6 @@ namespace _Project.WorldGeneration.Systems
         private          RenderParams          renderParams;
         private readonly Plane[]               frustumPlanes = new Plane[6]; // Added for culling
 
-        private static readonly int verticesPid    = Shader.PropertyToID("vertices");
-        private static readonly int chunkOriginPid = Shader.PropertyToID("chunk_origin");
-        private static readonly int vertexCountPid = Shader.PropertyToID("vertex_count");
-
         protected override void OnCreate()
         {
         }
@@ -68,7 +64,6 @@ namespace _Project.WorldGeneration.Systems
 
                 int3 wPos = pos.ValueRO.WorldPosition;
 
-                // FRUSTUM CULLING: Skip drawing chunks behind the camera to save 4000+ draw calls!
                 var bounds = new Bounds(new Vector3(wPos.x + 16f, wPos.y + 16f, wPos.z + 16f),
                                         new Vector3(32f, 32f, 32f));
                 if (mainCam != null && !GeometryUtility.TestPlanesAABB(frustumPlanes, bounds)) continue;
