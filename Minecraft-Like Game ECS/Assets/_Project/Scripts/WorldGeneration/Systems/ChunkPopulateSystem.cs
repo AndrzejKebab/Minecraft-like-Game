@@ -113,20 +113,26 @@ namespace _Project.WorldGeneration.Systems
             sorted.Dispose();
 
             var terrainJob = new TerrainShapePassJob
-            {
-                Entities             = terrainEntities,
-                Positions            = terrainPositions,
-                ChunkDataLookup      = map.ChunkDataLookup,
-                ContinentalnessNoise = settings.ContinentalnessNoise,
-                PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
-                ErosionNoise         = settings.ErosionNoise,
-                BlockPrototypes      = registry.Blocks,
-                BiomeHeight          = settings.ContinentalnessCurve,
-                ErosionCurve         = settings.ErosionCurve,
-                PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
-                Seed                 = settings.Seed,
-                ChunkSize            = VoxelData.CHUNK_SIZE,
-            };
+                             {
+                                 Entities        = terrainEntities,
+                                 Positions       = terrainPositions,
+                                 ChunkDataLookup = map.ChunkDataLookup,
+ 
+                                 // Noise — pulled directly from singleton (no local _noise copy)
+                                 ContinentalnessNoise = settings.ContinentalnessNoise,
+                                 ErosionNoise         = settings.ErosionNoise,
+                                 PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
+                                 RiverNoise           = settings.RiverNoise,           // NEW field
+ 
+                                 // Splines
+                                 BiomeHeight = settings.ContinentalnessCurve, // was BiomeHeight/ContinentalnessCurve
+                                 PeaksAndValleysCurve  = settings.PeaksAndValleysCurve,  // was PeaksAndValleysCurve
+                                 ErosionCurve = settings.ErosionCurve, // was ErosionCurve
+ 
+                                 BlockPrototypes = registry.Blocks,
+                                 Seed            = settings.Seed,
+                                 ChunkSize       = VoxelData.CHUNK_SIZE,
+                             };
             
             int batch = math.max(1, take / 16);
             state.Dependency = terrainJob.ScheduleParallelByRef(take, batch, state.Dependency);

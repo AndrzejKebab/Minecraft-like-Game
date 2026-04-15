@@ -8,61 +8,68 @@ namespace _Project.WorldGeneration
 {
 	public class WorldSettings : MonoBehaviour
 	{
-		[Header("World Settings")]
+		[Header("World Settings")] 
 		public int Seed = 1337;
 
-		[Header("FastNoise2 Settings")] 
-		public string TerrainNodeTree =
-			"E@BHpEG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BekQEA5qZGT8LAACAPxQDAADIQgQ=";
-		public string PeaksAndValleysNodeTree =
-			"IwCPwnU/CD0K174QH4XrvgkuAAE@BJDQAE@BCQc@AB6RBw=";
+		[Header("FastNoise2 Node Trees")] 
+		public string ContinentalnessEncoded =
+			"E@BPpDG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BekQEA5qZGT8LAACAPxQDAADIQgQ=";
 
-		public string ErosionNodeTree = "Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==";
-		public string CavesNodeTree =
-			"FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA==";
+		public string PeaksAndValleysEncoded = "KQAB@BCQ8AB@CkH@BekQU";
+		public string ErosionEncoded = "Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==";
+		public string RiverEncoded = "KQAB@BCRkJE@BPpDMAE@BJDQAE@BCQY@AB6RCQ=";
 
-		public AnimationCurve BiomeHeightCurve;
+		public string CavesEncoded =
+			"FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA=="; // FractalRidged Simplex3D freq~0.02
+		
+		[Header("Terrain Splines")] 
+		public AnimationCurve ContinentalnessCurve;
 		public AnimationCurve ErosionCurve;
 		public AnimationCurve PeaksAndValleysCurve;
 
-		private void Start()
-		{
-			InitializeWorldInECS();
-		}
+		private void Start() => InitializeWorldInECS();
 
 		private void InitializeWorldInECS()
 		{
 			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
 
-			Entity settingsEntity = em.CreateEntity();
 			var worldSettings = new WorldSettingsSingleton
 			                    {
-				                    Seed                 = Seed,
-				                    ContinentalnessCurve     = BiomeHeightCurve.ToNative(),
+				                    Seed = Seed,
+
+				                    ContinentalnessNoise = CreateNoise(ContinentalnessEncoded),
+				                    PeaksAndValleysNoise = CreateNoise(PeaksAndValleysEncoded),
+				                    ErosionNoise         = CreateNoise(ErosionEncoded),
+				                    RiverNoise           = CreateNoise(RiverEncoded),
+				                    CavesNoise           = CreateNoise(CavesEncoded),
+				                    ContinentalnessCurve = ContinentalnessCurve.ToNative(),
 				                    ErosionCurve         = ErosionCurve.ToNative(),
 				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
-				                    ContinentalnessNoise      = FastNoise.FromEncodedNodeTree(TerrainNodeTree),
-				                    PeaksAndValleysNoise = FastNoise.FromEncodedNodeTree(PeaksAndValleysNodeTree),
-				                    ErosionNoise = FastNoise.FromEncodedNodeTree(ErosionNodeTree),
-				                    CavesNoise = FastNoise.FromEncodedNodeTree(CavesNodeTree)
 			                    };
-			
-			
-			em.AddComponentData(settingsEntity, worldSettings);
 
-			Debug.Log($"[WorldSettings] World loaded with seed: {Seed} and injected into ECS.");
+			em.AddComponentData(em.CreateEntity(), worldSettings);
+			Debug.Log($"[WorldSettings] Loaded seed={Seed}");
+		}
+
+		/// <summary>
+		/// Creates FastNoise from encoded string. Falls back to plain Simplex if empty
+		/// so chunks generate something visible while node trees aren't set yet.
+		/// </summary>
+		private static FastNoise CreateNoise(string encoded)
+		{
+			if (!string.IsNullOrWhiteSpace(encoded))
+				return FastNoise.FromEncodedNodeTree(encoded);
+
+			Debug.LogWarning("[WorldSettings] Empty encoded noise string — falling back to Simplex. Set node trees in Inspector.");
+			return new FastNoise("Simplex");
 		}
 
 		private void OnDestroy()
 		{
 			if (World.DefaultGameObjectInjectionWorld is null) return;
-			EntityManager em = World.DefaultGameObjectInjectionWorld.EntityManager;
-
-			Entity settingsEntity = em.CreateEntity();
-
-			em.RemoveComponent(settingsEntity, typeof(WorldSettingsSingleton));
-
-			Debug.Log("[WorldSettings] WorldSettingsSingleton removed from ECS.");
+			EntityManager em    = World.DefaultGameObjectInjectionWorld.EntityManager;
+			EntityQuery           query = em.CreateEntityQuery(typeof(WorldSettingsSingleton));
+			if (!query.IsEmpty) em.DestroyEntity(query.GetSingletonEntity());
 		}
 	}
 }
