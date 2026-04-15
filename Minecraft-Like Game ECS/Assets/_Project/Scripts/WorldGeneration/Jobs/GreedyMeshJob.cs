@@ -104,8 +104,6 @@ namespace _Project.WorldGeneration.Jobs
 			
 			if (totalV > 0)
 				ECB.AddComponent<MeshRequiresUpload>(index, entity);
-			if (solidVertices.Length > 0)
-				ECB.AddComponent<NeedsColliderSync>(index, entity);
 
 			solidVertices.Dispose();
 			solidIndices.Dispose();

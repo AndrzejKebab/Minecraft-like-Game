@@ -1,8 +1,6 @@
-﻿using _Project.Character;
-using _Project.Tags;
+﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
-using FastNoise2.Bindings;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -12,260 +10,146 @@ using Unity.Transforms;
 
 namespace _Project.WorldGeneration.Systems
 {
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(PlayerVisibleChunksSystem))]
-    [BurstCompile]
-    public partial struct ChunkPopulateSystem : ISystem
-    {
-        private int       decorationPhase;
+	[UpdateInGroup(typeof(SimulationSystemGroup))]
+	[UpdateAfter(typeof(PlayerVisibleChunksSystem))]
+	public partial struct ChunkPopulateSystem : ISystem
+	{
+		private EntityQuery candidateQuery;
 
-        private const int MAX_TERRAIN_PER_FRAME = 128;
-        private const int MAX_DECOR_PER_FRAME   = 64;
-        private const int CRITICAL_RADIUS       = 2; // Chebyshev chunks around player
+		public void OnCreate(ref SystemState state)
+		{
+			state.RequireForUpdate<Player>();
+			state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+			state.RequireForUpdate<WorldBlockRegistrySingleton>();
+			state.RequireForUpdate<WorldSettingsSingleton>();
+			state.RequireForUpdate<ChunkMapSingleton>();
 
-        public void OnCreate(ref SystemState state)
-        {
-            state.RequireForUpdate<Player>();
-            state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
-            state.RequireForUpdate<WorldBlockRegistrySingleton>();
-            state.RequireForUpdate<WorldSettingsSingleton>();
-            state.RequireForUpdate<ChunkMapSingleton>();
-        }
+			candidateQuery = SystemAPI.QueryBuilder()
+				.WithAll<NeedsPopulation, ChunkPositionComponent>()
+				.WithNone<MarkedToDestroy>()
+				.Build();
+		}
 
-        [BurstCompile]
-        public void OnUpdate(ref SystemState state)
-        {
-            var settings = SystemAPI.GetSingleton<WorldSettingsSingleton>();
-            var registry  = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-            var map       = SystemAPI.GetSingleton<ChunkMapSingleton>();
-            var ecbSystem = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+		public void OnUpdate(ref SystemState state)
+		{
+			if (candidateQuery.IsEmpty) return;
 
-            float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
-                SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
-            int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
+			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
+				SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
+			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 
-            // =====================================================================
-            // 1. TERRAIN + CAVES — priority sorted
-            // =====================================================================
-            ScheduleTerrainPass(ref state, playerChunk, map, registry, settings, ecbSystem);
+			int budget = GameSettings.CHUNKS_PER_POPULATE_JOB;
 
-            // =====================================================================
-            // 2. DECORATION — priority sorted
-            // =====================================================================
-            ScheduleDecorationPass(ref state, playerChunk, map, registry, settings, ecbSystem);
-        }
+			var entities  = candidateQuery.ToEntityArray(Allocator.Temp);
+			var positions = candidateQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
-        private void ScheduleTerrainPass(
-            ref SystemState state, int3 playerChunk,
-            ChunkMapSingleton map, WorldBlockRegistrySingleton registry,
-            WorldSettingsSingleton settings,
-            EndSimulationEntityCommandBufferSystem.Singleton ecbSystem)
-        {
-            // Collect all candidates
-            var query = SystemAPI.QueryBuilder()
-                .WithAll<NeedsTerrainTag, ChunkPositionComponent>()
-                .WithNone<MarkedToDestroy>()
-                .Build();
+			var urgent = new NativeList<Cand>(64, Allocator.Temp);
+			var normal = new NativeList<Cand>(entities.Length, Allocator.Temp);
 
-            int candidateCount = query.CalculateEntityCount();
-            if (candidateCount == 0) return;
+			for (int i = 0; i < entities.Length; i++)
+			{
+				int3 d  = positions[i].ChunkCoord - playerChunk;
+				int  ds = d.x * d.x + d.y * d.y + d.z * d.z;
+				bool isUrgent = math.cmax(math.abs(d)) <= GameSettings.URGENT_RADIUS;
 
-            var candEntities  = query.ToEntityArray(Allocator.TempJob);
-            var candPositions = query.ToComponentDataArray<ChunkPositionComponent>(Allocator.TempJob);
+				var c = new Cand { Entity = entities[i], Position = positions[i], DistSq = ds };
+				if (isUrgent) urgent.Add(c); else normal.Add(c);
+			}
+			entities.Dispose();
+			positions.Dispose();
 
-            // Sort by squared distance to player chunk
-            var sorted = new NativeArray<ChunkCandidate>(candidateCount, Allocator.TempJob);
-            for (int i = 0; i < candidateCount; i++)
-            {
-                int3 d = candPositions[i].ChunkCoord - playerChunk;
-                sorted[i] = new ChunkCandidate
-                {
-                    Entity   = candEntities[i],
-                    Position = candPositions[i],
-                    DistSq   = d.x * d.x + d.y * d.y + d.z * d.z
-                };
-            }
+			urgent.Sort();
+			normal.Sort();
 
-            sorted.Sort();
+			int take = math.min(budget, urgent.Length + normal.Length);
+			var batchEntities  = new NativeArray<Entity>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			var batchPositions = new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
-            candEntities.Dispose();
-            candPositions.Dispose();
+			int written = 0;
+			for (int i = 0; i < urgent.Length && written < take; i++, written++)
+			{
+				batchEntities[written]  = urgent[i].Entity;
+				batchPositions[written] = urgent[i].Position;
+			}
+			for (int i = 0; i < normal.Length && written < take; i++, written++)
+			{
+				batchEntities[written]  = normal[i].Entity;
+				batchPositions[written] = normal[i].Position;
+			}
 
-            // Count critical chunks (within CRITICAL_RADIUS) — no budget cap on these
-            int criticalCount = 0;
-            for (int i = 0; i < sorted.Length; i++)
-            {
-                int3 d = math.abs(sorted[i].Position.ChunkCoord - playerChunk);
-                if (math.cmax(d) > CRITICAL_RADIUS) break; // sorted, so rest are farther
-                criticalCount++;
-            }
+			urgent.Dispose();
+			normal.Dispose();
 
-            int take = math.max(criticalCount, math.min(MAX_TERRAIN_PER_FRAME, sorted.Length));
-            take = math.min(take, sorted.Length);
+			if (take == 0)
+			{
+				batchEntities.Dispose();
+				batchPositions.Dispose();
+				return;
+			}
 
-            var terrainEntities  = new NativeArray<Entity>(take, Allocator.TempJob);
-            var terrainPositions = new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob);
-            for (int i = 0; i < take; i++)
-            {
-                terrainEntities[i]  = sorted[i].Entity;
-                terrainPositions[i] = sorted[i].Position;
-            }
-            sorted.Dispose();
+			JobHandle inputDeps = default;
+			for (int i = 0; i < take; i++)
+			{
+				if (!SystemAPI.HasComponent<ChunkActiveJob>(batchEntities[i])) continue;
+				var h = SystemAPI.GetComponent<ChunkActiveJob>(batchEntities[i]).Handle;
+				inputDeps = JobHandle.CombineDependencies(inputDeps, h);
+			}
 
-            var terrainJob = new TerrainShapePassJob
-                             {
-                                 Entities        = terrainEntities,
-                                 Positions       = terrainPositions,
-                                 ChunkDataLookup = map.ChunkDataLookup,
- 
-                                 // Noise — pulled directly from singleton (no local _noise copy)
-                                 ContinentalnessNoise = settings.ContinentalnessNoise,
-                                 ErosionNoise         = settings.ErosionNoise,
-                                 PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
-                                 RiverNoise           = settings.RiverNoise,           // NEW field
- 
-                                 // Splines
-                                 BiomeHeight = settings.ContinentalnessCurve, // was BiomeHeight/ContinentalnessCurve
-                                 PeaksAndValleysCurve  = settings.PeaksAndValleysCurve,  // was PeaksAndValleysCurve
-                                 ErosionCurve = settings.ErosionCurve, // was ErosionCurve
- 
-                                 BlockPrototypes = registry.Blocks,
-                                 Seed            = settings.Seed,
-                                 ChunkSize       = VoxelData.CHUNK_SIZE,
-                             };
-            
-            int batch = math.max(1, take / 16);
-            state.Dependency = terrainJob.ScheduleParallelByRef(take, batch, state.Dependency);
+			var settings = SystemAPI.GetSingleton<WorldSettingsSingleton>();
+			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			var map      = SystemAPI.GetSingleton<ChunkMapSingleton>();
+			var ecb      = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
+				.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
-            var cavesECB = ecbSystem.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
-            var cavesJob = new CavesPassJob
-            {
-                Entities        = terrainEntities,
-                Positions       = terrainPositions,
-                ChunkDataLookup = map.ChunkDataLookup,
-                BlockPrototypes = registry.Blocks,
-                Seed            = settings.Seed,
-                ChunkSize       = VoxelData.CHUNK_SIZE,
-                CaveNoise       = settings.CavesNoise,
-                ECB             = cavesECB
-            };
-            state.Dependency = cavesJob.ScheduleParallelByRef(take, batch, state.Dependency);
+			var job = new ChunkPopulateJob
+			{
+				Entities             = batchEntities,
+				Positions            = batchPositions,
+				ChunkDataLookup      = map.ChunkDataLookup,
+				BlockPrototypes      = registry.Blocks,
+				OreTypes             = registry.OreTypes,
+				Seed                 = settings.Seed,
+				ChunkSize            = VoxelData.CHUNK_SIZE,
+				AirID                = registry.Blocks[0].ID,
+				GrassID              = registry.Blocks[3].ID,
+				LogID                = registry.Blocks[7].ID,
+				LeavesID             = registry.Blocks[10].ID,
+				TreeDensity          = registry.TreeDensity,
+				MinTrunkHeight       = registry.MinTrunkHeight,
+				MaxTrunkHeight       = registry.MaxTrunkHeight,
+				ContinentalnessNoise = settings.ContinentalnessNoise,
+				PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
+				ErosionNoise         = settings.ErosionNoise,
+				RiverNoise           = settings.RiverNoise,
+				CavesNoise           = settings.CavesNoise,
+				ContinentalnessCurve = settings.ContinentalnessCurve,
+				ErosionCurve         = settings.ErosionCurve,
+				PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
+				ECB                  = ecb,
+			};
 
-            terrainEntities.Dispose(state.Dependency);
-            terrainPositions.Dispose(state.Dependency);
-        }
+			JobHandle handle = job.ScheduleByRef(take, 1, inputDeps);
+			for (int i = 0; i < take; i++)
+			{
+				if (!SystemAPI.HasComponent<ChunkActiveJob>(batchEntities[i])) continue;
+				SystemAPI.SetComponent(batchEntities[i], new ChunkActiveJob { Handle = handle });
+			}
+			
+			// Tell ECB system to wait for handle before playback.
+			state.Dependency = JobHandle.CombineDependencies(state.Dependency, handle);
+			
+			batchEntities.Dispose(handle);
+			batchPositions.Dispose(handle);
 
-        private void ScheduleDecorationPass(
-            ref SystemState state, int3 playerChunk,
-            ChunkMapSingleton map, WorldBlockRegistrySingleton registry,
-            WorldSettingsSingleton settings,
-            EndSimulationEntityCommandBufferSystem.Singleton ecbSystem)
-        {
-            var query = SystemAPI.QueryBuilder()
-                .WithAll<NeedsDecorationTag, ChunkPositionComponent>()
-                .WithNone<NeedsTerrainTag, MarkedToDestroy>()
-                .Build();
+			JobHandle.ScheduleBatchedJobs();
+		}
 
-            int candidateCount = query.CalculateEntityCount();
-            if (candidateCount == 0) return;
-
-            var candEntities  = query.ToEntityArray(Allocator.TempJob);
-            var candPositions = query.ToComponentDataArray<ChunkPositionComponent>(Allocator.TempJob);
-
-            var sorted = new NativeArray<ChunkCandidate>(candidateCount, Allocator.TempJob);
-            for (int i = 0; i < candidateCount; i++)
-            {
-                int3 d = candPositions[i].ChunkCoord - playerChunk;
-                sorted[i] = new ChunkCandidate
-                {
-                    Entity   = candEntities[i],
-                    Position = candPositions[i],
-                    DistSq   = d.x * d.x + d.y * d.y + d.z * d.z
-                };
-            }
-            
-            sorted.Sort();
-
-            candEntities.Dispose();
-            candPositions.Dispose();
-
-            int criticalCount = 0;
-            for (int i = 0; i < sorted.Length; i++)
-            {
-                int3 d = math.abs(sorted[i].Position.ChunkCoord - playerChunk);
-                if (math.cmax(d) > CRITICAL_RADIUS) break;
-                criticalCount++;
-            }
-
-            int take = math.max(criticalCount, math.min(MAX_DECOR_PER_FRAME, sorted.Length));
-            take = math.min(take, sorted.Length);
-
-            var decorEntities  = new NativeArray<Entity>(take, Allocator.TempJob);
-            var decorPositions = new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob);
-            for (int i = 0; i < take; i++)
-            {
-                decorEntities[i]  = sorted[i].Entity;
-                decorPositions[i] = sorted[i].Position;
-            }
-            sorted.Dispose();
-
-            var decorECB         = ecbSystem.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
-            var dirtiedNeighbors = new NativeQueue<Entity>(Allocator.TempJob);
-            var terrainTags      = SystemAPI.GetComponentLookup<NeedsTerrainTag>(true);
-
-            var decorJob = new DecorationJobFor
-            {
-                ColorPhase       = decorationPhase,
-                Entities         = decorEntities,
-                Positions        = decorPositions,
-                ChunkMap         = map.ChunkMap,
-                ChunkDataLookup  = map.ChunkDataLookup,
-                OreTypes         = registry.OreTypes,
-                Seed             = settings.Seed,
-                ChunkSize        = VoxelData.CHUNK_SIZE,
-                AirID            = registry.Blocks[0].ID,
-                GrassID          = registry.Blocks[3].ID,
-                LogID            = registry.Blocks[7].ID,
-                LeavesID         = registry.Blocks[10].ID,
-                TreeDensity      = registry.TreeDensity,
-                MinTrunkHeight   = registry.MinTrunkHeight,
-                MaxTrunkHeight   = registry.MaxTrunkHeight,
-                DirtiedNeighbors = dirtiedNeighbors.AsParallelWriter(),
-                TerrainTagLookup = terrainTags,
-                ECB              = decorECB
-            };
-
-            decorationPhase = (decorationPhase + 1) & 3;
-
-            int batch = math.max(1, take / 16);
-            state.Dependency = decorJob.ScheduleParallelByRef(take, batch, state.Dependency);
-
-            var dirtySyncJob = new ApplyDirtyNeighborsJob { Queue = dirtiedNeighbors, ECB = decorECB };
-            state.Dependency = dirtySyncJob.ScheduleByRef(state.Dependency);
-
-            dirtiedNeighbors.Dispose(state.Dependency);
-            decorEntities.Dispose(state.Dependency);
-            decorPositions.Dispose(state.Dependency);
-        }
-
-        private struct ChunkCandidate : System.IComparable<ChunkCandidate>
-        {
-            public Entity                 Entity;
-            public ChunkPositionComponent Position;
-            public int                    DistSq;
-            public int CompareTo(ChunkCandidate other) => DistSq.CompareTo(other.DistSq);
-        }
-        
-        [BurstCompile]
-        public struct ApplyDirtyNeighborsJob : IJob
-        {
-            public NativeQueue<Entity>                Queue;
-            public EntityCommandBuffer.ParallelWriter ECB;
-            public void Execute()
-            {
-                while (Queue.TryDequeue(out Entity e))
-                    ECB.AddComponent<NeedsMeshSync>(0, e);
-            }
-        }
-    }
+		private struct Cand : System.IComparable<Cand>
+		{
+			public Entity                 Entity;
+			public ChunkPositionComponent Position;
+			public int                    DistSq;
+			public int CompareTo(Cand other) => DistSq.CompareTo(other.DistSq);
+		}
+	}
 }

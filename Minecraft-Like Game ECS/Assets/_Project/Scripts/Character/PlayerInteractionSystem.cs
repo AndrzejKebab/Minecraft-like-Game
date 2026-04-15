@@ -22,7 +22,7 @@ namespace _Project.Character
 	public partial struct PlayerInteractionSystem : ISystem
 	{
 		private CollisionFilter raycastFilter;
-		
+
 		[BurstDiscard]
 		public void OnCreate(ref SystemState state)
 		{
@@ -37,7 +37,7 @@ namespace _Project.Character
 				                CollidesWith = chunkLayer
 			                };
 		}
-		
+
 		[BurstCompile]
 		public void OnUpdate(ref SystemState state)
 		{
@@ -77,16 +77,20 @@ namespace _Project.Character
 
 				if (interactState.ValueRO is { BreakPressed: false, PlacePressed: false }) continue;
 
-				if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)) continue;
+				if (!SystemAPI.HasComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter))
+					continue;
 				if (!SystemAPI.HasComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter)) continue;
 
-				Entity viewEntity = SystemAPI.GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter).ViewEntity;
+				Entity viewEntity = SystemAPI
+				                    .GetComponent<FirstPersonCharacterComponent>(player.ValueRO.ControlledCharacter)
+				                    .ViewEntity;
 				if (!SystemAPI.HasComponent<LocalToWorld>(viewEntity)) continue;
 
 				var charTransform = SystemAPI.GetComponent<LocalTransform>(player.ValueRO.ControlledCharacter);
 				var charCollider  = SystemAPI.GetComponent<PhysicsCollider>(player.ValueRO.ControlledCharacter);
-				var viewLtw = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
-				CollisionWorld collisionWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
+				var viewLtw       = SystemAPI.GetComponent<LocalToWorld>(viewEntity);
+				CollisionWorld collisionWorld =
+					SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld.CollisionWorld;
 
 				var input = new RaycastInput()
 				            {
@@ -104,10 +108,13 @@ namespace _Project.Character
 				else if (interactState.ValueRO.PlacePressed)
 				{
 					float3 blockPos = hit.Position + hit.SurfaceNormal * 0.01f;
-					var worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y), (int)math.floor(blockPos.z));
+					var worldInt = new int3((int)math.floor(blockPos.x), (int)math.floor(blockPos.y),
+					                        (int)math.floor(blockPos.z));
 					var blockAabb = new Aabb { Min = worldInt + new float3(0.05f), Max = worldInt + new float3(0.95f) };
 
-					Aabb charAabb = charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation, charTransform.Position));
+					Aabb charAabb =
+						charCollider.Value.Value.CalculateAabb(new RigidTransform(charTransform.Rotation,
+						                                        charTransform.Position));
 
 					var intersectsPlayer = blockAabb.Max.x > charAabb.Min.x && blockAabb.Min.x < charAabb.Max.x &&
 					                       blockAabb.Max.y > charAabb.Min.y && blockAabb.Min.y < charAabb.Max.y &&
@@ -121,18 +128,28 @@ namespace _Project.Character
 					{
 						case BlockDirectionType.YAxis:
 							float3 forward = viewLtw.Forward;
-							if (math.abs(forward.x) > math.abs(forward.z)) orientation = forward.x > 0 ? (byte)5 : (byte)4;
+							if (math.abs(forward.x) > math.abs(forward.z))
+								orientation  = forward.x > 0 ? (byte)5 : (byte)4;
 							else orientation = forward.z > 0 ? (byte)3 : (byte)2;
 							break;
 						case BlockDirectionType.AllAxes:
 							float3 n = hit.SurfaceNormal;
-							orientation = n.y switch { > 0.5f => 0, < -0.5f => 1, _ => n.z switch { > 0.5f => 2, < -0.5f => 3, _ => n.x switch { > 0.5f => 4, < -0.5f => 5, _ => orientation } } };
+							orientation = n.y switch
+							              {
+								              > 0.5f => 0, < -0.5f => 1,
+								              _ => n.z switch
+								                   {
+									                   > 0.5f => 2, < -0.5f => 3,
+									                   _ => n.x switch { > 0.5f => 4, < -0.5f => 5, _ => orientation }
+								                   }
+							              };
 							break;
 						case BlockDirectionType.None: break;
-						default: throw new ArgumentOutOfRangeException();
+						default:                      throw new ArgumentOutOfRangeException();
 					}
 
-					var placedState = new BlockState { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
+					var placedState = new BlockState
+					                  { ID = interactState.ValueRO.SelectedBlockID, Orientation = orientation };
 					ModifyBlock(ref state, blockPos, placedState, ecb);
 				}
 			}
@@ -140,12 +157,25 @@ namespace _Project.Character
 			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 		}
-		
+
+		[BurstCompile]
+		private void SafeCompleteChunkJob(ref SystemState state, int3 coord)
+		{
+			if (SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(coord, out Entity chunkEntity))
+			{
+				if (state.EntityManager.HasComponent<ChunkActiveJob>(chunkEntity))
+				{
+					state.EntityManager.GetComponentData<ChunkActiveJob>(chunkEntity).Handle.Complete();
+				}
+			}
+		}
+
 		[BurstCompile]
 		private void ModifyBlock(ref SystemState state, float3 worldPos, BlockState newBlock, EntityCommandBuffer ecb)
 		{
 			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
-			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y), (int)math.floor(worldPos.z));
+			var worldInt = new int3((int)math.floor(worldPos.x), (int)math.floor(worldPos.y),
+			                        (int)math.floor(worldPos.z));
 			int3 localPos = worldInt - chunkCoord * VoxelData.CHUNK_SIZE;
 
 			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
@@ -155,8 +185,11 @@ namespace _Project.Character
 			    localPos.y < 0 || localPos.y >= VoxelData.CHUNK_SIZE ||
 			    localPos.z < 0 || localPos.z >= VoxelData.CHUNK_SIZE) return;
 
-            // This single line tells ECS to freeze all jobs globally so you can securely write to the chunk
-            state.Dependency.Complete(); 
+			// Safely block only for the chunk & its neighbors instead of the entire background generation world pipeline
+			for (int x = -1; x <= 1; x++)
+			for (int y = -1; y <= 1; y++)
+			for (int z = -1; z <= 1; z++)
+				SafeCompleteChunkJob(ref state, chunkCoord + new int3(x, y, z));
 
 			var chunkComp = SystemAPI.GetComponent<ChunkComponent>(chunkEntity);
 			chunkComp.BlockData.SetAtIndex(localPos.x, localPos.y, localPos.z, newBlock);
@@ -164,33 +197,40 @@ namespace _Project.Character
 			if (newBlock.ID != 0 && state.EntityManager.HasComponent<IsEmpty>(chunkEntity))
 				ecb.RemoveComponent<IsEmpty>(chunkEntity);
 
-			if (!state.EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
-				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<UrgentColliderSync>(chunkEntity))
+				ecb.AddComponent<UrgentColliderSync>(chunkEntity);
 
 			switch (localPos.x)
 			{
 				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(-1, 0, 0), ecb); break;
 				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(1, 0, 0), ecb); break;
 			}
+
 			switch (localPos.y)
 			{
 				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, -1, 0), ecb); break;
 				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 1, 0), ecb); break;
 			}
+
 			switch (localPos.z)
 			{
 				case 0:                        TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, -1), ecb); break;
 				case VoxelData.CHUNK_SIZE - 1: TryMarkNeighbor(ref state, chunkCoord + new int3(0, 0, 1), ecb); break;
 			}
 		}
-		
+
 		[BurstCompile]
 		private void TryMarkNeighbor(ref SystemState state, int3 neighborCoord, EntityCommandBuffer ecb)
 		{
-			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap.TryGetValue(neighborCoord, out Entity chunkEntity)) return;
+			if (!SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap
+			              .TryGetValue(neighborCoord, out Entity chunkEntity)) return;
 
-			if (!state.EntityManager.HasComponent<NeedsMeshSync>(chunkEntity))
-				ecb.AddComponent<NeedsMeshSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<UrgentMeshSync>(chunkEntity))
+				ecb.AddComponent<UrgentMeshSync>(chunkEntity);
+			if (!state.EntityManager.HasComponent<UrgentColliderSync>(chunkEntity))
+				ecb.AddComponent<UrgentColliderSync>(chunkEntity);
 		}
 	}
 }

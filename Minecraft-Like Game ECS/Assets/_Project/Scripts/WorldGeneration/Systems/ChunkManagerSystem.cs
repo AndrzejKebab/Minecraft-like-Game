@@ -2,6 +2,7 @@
 using _Project.WorldGeneration.Components;
 using Unity.Entities;
 using Unity.Physics;
+using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Systems
 {
@@ -18,25 +19,40 @@ namespace _Project.WorldGeneration.Systems
 
 		public void OnUpdate(ref SystemState state)
 		{
-			// Only sync jobs that actually touch ChunkComponent / ChunkMeshData / PhysicsCollider
-			state.EntityManager.CompleteDependencyBeforeRW<ChunkComponent>();
-			state.EntityManager.CompleteDependencyBeforeRW<ChunkMeshData>();
-			// PhysicsCollider sync handled by physics group already
-
 			var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
-			// Access the singleton to remove entries from the manual lookup
 			var mapSingleton = SystemAPI.GetSingletonRW<ChunkMapSingleton>();
 
 			foreach (var (_, entity) in SystemAPI.Query<RefRO<ChunkPositionComponent>>().WithAll<MarkedToDestroy>()
 			                                     .WithEntityAccess())
 			{
+				// Localized wait: Ensure no job is using this chunk or its neighbors before disposing memory structures
+				int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
+
+				if (SystemAPI.HasComponent<ChunkActiveJob>(entity))
+					SystemAPI.GetComponent<ChunkActiveJob>(entity).Handle.Complete();
+
+				var map = mapSingleton.ValueRO.ChunkMap;
+				for (int x = -1; x <= 1; x++)
+				{
+					for (int y = -1; y <= 1; y++)
+					{
+						for (int z = -1; z <= 1; z++)
+						{
+							if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
+							{
+								if (SystemAPI.HasComponent<ChunkActiveJob>(neighbor))
+									SystemAPI.GetComponent<ChunkActiveJob>(neighbor).Handle.Complete();
+							}
+						}
+					}
+				}
+
 				if (SystemAPI.HasComponent<ChunkComponent>(entity))
 				{
 					var comp = SystemAPI.GetComponent<ChunkComponent>(entity);
 					if (comp.BlockData.IsCreated) comp.BlockData.Dispose();
 
-					// Cleanup our manual lookup
 					mapSingleton.ValueRW.ChunkDataLookup.Remove(entity);
 				}
 
