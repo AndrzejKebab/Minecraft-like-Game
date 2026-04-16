@@ -1,5 +1,6 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
+using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
@@ -27,6 +28,12 @@ public static class Utility
 	public static T GetAtPosition<T>(this NativeArray<T> array, int posX, int posY, int posZ) where T : struct
 	{
 		return array[FlattenIndex(posX, posY, posZ)];
+	}
+
+	public static void TryAddComponent<T>(this EntityCommandBuffer ecb, ref SystemState state, Entity entity) where T : unmanaged, IComponentData
+	{
+		if (!state.EntityManager.HasComponent<T>(entity)) 
+			ecb.AddComponent<T>(entity);
 	}
 
 	public static Vector3 ToVector3(this ref int3 v)
