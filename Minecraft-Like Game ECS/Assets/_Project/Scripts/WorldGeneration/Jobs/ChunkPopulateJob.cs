@@ -66,7 +66,7 @@ namespace _Project.WorldGeneration.Jobs
 			NativeArray<BlockState> blockData     = ChunkDataLookup[entity].BlockData;
 
 			// ── 1. Halo heightmap ──────────────────────────────────────────────
-			NoiseGeneratorHalo.GenerateHaloHeightmap(
+			NoiseGenerator.GenerateHaloHeightmap(
 			                                         out NativeArray<int> haloHeights,
 			                                         ref ContinentalnessNoise, ref PeaksAndValleysNoise,
 			                                         ref ErosionNoise, ref RiverNoise,

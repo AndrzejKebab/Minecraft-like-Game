@@ -64,15 +64,15 @@ namespace _Project.WorldGeneration.Systems
 			NativeArray<ChunkPositionComponent> positions =
 				meshQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
-			var urgent = new NativeList<Cand>(64, Allocator.Temp);
-			var normal = new NativeList<Cand>(entities.Length, Allocator.Temp);
+			var urgent = new NativeList<Candidate>(64, Allocator.Temp);
+			var normal = new NativeList<Candidate>(entities.Length, Allocator.Temp);
 
 			for (var i = 0; i < entities.Length; i++)
 			{
 				int3 d  = positions[i].ChunkCoord - playerChunk;
 				var  ds = d.x * d.x + d.y * d.y + d.z * d.z;
 				var  u  = urgentLookup.HasComponent(entities[i]);
-				var  c  = new Cand { Entity = entities[i], Coord = positions[i].ChunkCoord, DistSq = ds };
+				var  c  = new Candidate { Entity = entities[i], Coord = positions[i].ChunkCoord, DistSq = ds };
 				if (u) urgent.Add(c);
 				else normal.Add(c);
 			}
@@ -167,7 +167,7 @@ namespace _Project.WorldGeneration.Systems
 		}
 
 		private int TryEnqueue(
-			NativeList<Cand>             src,           int               count, int budget,
+			NativeList<Candidate>             src,           int               count, int budget,
 			NativeArray<Entity>          validEntities, NativeArray<int3> validPositions,
 			EntityCommandBuffer          ecbPre,
 			NativeHashMap<int3, Entity>  chunkMap,
@@ -201,27 +201,25 @@ namespace _Project.WorldGeneration.Systems
 				ecbPre.RemoveComponent<NeedsMeshSync>(ent);
 				ecbPre.RemoveComponent<UrgentMeshSync>(ent);
 
-				if (state.EntityManager.HasComponent<ChunkMeshData>(ent))
-				{
-					// Old mesh data must be disposed BEFORE new job overwrites field.
-					// Complete prior handle first to avoid disposing while consumer reads.
-					if (state.EntityManager.HasComponent<ChunkActiveJob>(ent))
-						state.EntityManager.GetComponentData<ChunkActiveJob>(ent).Handle.Complete();
-					state.EntityManager.GetComponentData<ChunkMeshData>(ent).Dispose();
-					ecbPre.RemoveComponent<ChunkMeshData>(ent);
-				}
+				if (!state.EntityManager.HasComponent<ChunkMeshData>(ent)) continue;
+				// Old mesh data must be disposed BEFORE new job overwrites field.
+				// Complete prior handle first to avoid disposing while consumer reads.
+				if (state.EntityManager.HasComponent<ChunkActiveJob>(ent))
+					state.EntityManager.GetComponentData<ChunkActiveJob>(ent).Handle.Complete();
+				state.EntityManager.GetComponentData<ChunkMeshData>(ent).Dispose();
+				ecbPre.RemoveComponent<ChunkMeshData>(ent);
 			}
 
 			return count;
 		}
 
-		private struct Cand : IComparable<Cand>
+		private struct Candidate : IComparable<Candidate>
 		{
 			public Entity Entity;
 			public int3   Coord;
 			public int    DistSq;
 
-			public int CompareTo(Cand other)
+			public int CompareTo(Candidate other)
 			{
 				return DistSq.CompareTo(other.DistSq);
 			}

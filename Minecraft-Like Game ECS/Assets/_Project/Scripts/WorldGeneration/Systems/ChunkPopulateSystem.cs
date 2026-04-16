@@ -45,8 +45,8 @@ namespace _Project.WorldGeneration.Systems
 			NativeArray<ChunkPositionComponent> positions =
 				candidateQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
-			var urgent = new NativeList<Cand>(64, Allocator.Temp);
-			var normal = new NativeList<Cand>(entities.Length, Allocator.Temp);
+			var urgent = new NativeList<Candidate>(64, Allocator.Temp);
+			var normal = new NativeList<Candidate>(entities.Length, Allocator.Temp);
 
 			for (var i = 0; i < entities.Length; i++)
 			{
@@ -54,7 +54,7 @@ namespace _Project.WorldGeneration.Systems
 				var  ds       = d.x * d.x + d.y * d.y + d.z * d.z;
 				var  isUrgent = math.cmax(math.abs(d)) <= GameSettings.URGENT_RADIUS;
 
-				var c = new Cand { Entity = entities[i], Position = positions[i], DistSq = ds };
+				var c = new Candidate { Entity = entities[i], Position = positions[i], DistSq = ds };
 				if (isUrgent) urgent.Add(c);
 				else normal.Add(c);
 			}
@@ -151,13 +151,13 @@ namespace _Project.WorldGeneration.Systems
 			JobHandle.ScheduleBatchedJobs();
 		}
 
-		private struct Cand : IComparable<Cand>
+		private struct Candidate : IComparable<Candidate>
 		{
 			public Entity                 Entity;
 			public ChunkPositionComponent Position;
 			public int                    DistSq;
 
-			public int CompareTo(Cand other)
+			public int CompareTo(Candidate other)
 			{
 				return DistSq.CompareTo(other.DistSq);
 			}
