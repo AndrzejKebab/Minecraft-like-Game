@@ -34,6 +34,7 @@ namespace _Project.WorldGeneration.Jobs
 		{
 			public ushort BlockID;
 			public byte   MeshType;
+			public byte   Orientation;
 			public sbyte  Normal;
 			public int4   AO;
 		}
@@ -155,10 +156,11 @@ namespace _Project.WorldGeneration.Jobs
 
 							if (faceVisible)
 							{
-								mFront.BlockID  = current.ID;
-								mFront.MeshType = currentType;
-								mFront.Normal   = -1;
-								mFront.AO       = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
+								mFront.BlockID      = current.ID;
+								mFront.Orientation  = current.Orientation;
+								mFront.MeshType     = currentType;
+								mFront.Normal       = -1;
+								mFront.AO           = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
 							}
 							else
 							{
@@ -178,10 +180,11 @@ namespace _Project.WorldGeneration.Jobs
 
 							if (faceVisible)
 							{
-								mBack.BlockID  = compare.ID;
-								mBack.MeshType = compareType;
-								mBack.Normal   = 1;
-								mBack.AO       = ComputeAOMask(ref accessor, chunkItr, axis1, axis2);
+								mBack.BlockID     = compare.ID;
+								mBack.Orientation = compare.Orientation;
+								mBack.MeshType    = compareType;
+								mBack.Normal      = 1;
+								mBack.AO          = ComputeAOMask(ref accessor, chunkItr, axis1, axis2);
 							}
 							else
 							{
@@ -281,7 +284,8 @@ namespace _Project.WorldGeneration.Jobs
 
 		private static bool CompareMask(Mask a, Mask b)
 		{
-			return a.MeshType == b.MeshType && a.BlockID == b.BlockID && a.Normal == b.Normal && a.AO.Equals(b.AO);
+			return a.MeshType == b.MeshType && a.BlockID == b.BlockID && a.Normal == b.Normal
+			    && a.AO.Equals(b.AO) && a.Orientation == b.Orientation;
 		}
 
 		private byte GetMeshType(BlockState state)
@@ -312,6 +316,8 @@ namespace _Project.WorldGeneration.Jobs
 				                _ => mask.Normal > 0 ? 0 : 1
 			                };
 
+			int textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, mask.Orientation);
+
 			float faceCoord = basePos[direction];
 
 			var v1 = new float3();
@@ -333,10 +339,10 @@ namespace _Project.WorldGeneration.Jobs
 			v4[axis1] = basePos[axis1] + width;
 			v4[axis2] = basePos[axis2] + height;
 
-			outVerts.Add(new Vertex(v1, block, normalIdx, mask.AO.x));
-			outVerts.Add(new Vertex(v2, block, normalIdx, mask.AO.y));
-			outVerts.Add(new Vertex(v3, block, normalIdx, mask.AO.z));
-			outVerts.Add(new Vertex(v4, block, normalIdx, mask.AO.w));
+			outVerts.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, mask.AO.x));
+			outVerts.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, mask.AO.y));
+			outVerts.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, mask.AO.z));
+			outVerts.Add(new Vertex(v4, block, normalIdx, textureFaceIdx, mask.AO.w));
 
 			if (mask.Normal > 0)
 			{
@@ -418,6 +424,63 @@ namespace _Project.WorldGeneration.Jobs
 					            _      => dir.x < -0.5f ? 4 : (uint)5
 				            }
 			       };
+		}
+
+		/// <summary>
+		/// Maps a geometric face index (0-5) to the logical texture-slot face index, accounting for
+		/// block orientation. Top (2) and Bottom (3) are never remapped for YAxis blocks.
+		///
+		/// Face index conventions (matches DirToIndex / GetTextureIndex):
+		///   0 = Back  (-Z)   1 = Front (+Z)   2 = Top   (+Y)
+		///   3 = Bottom(-Y)   4 = Left  (-X)   5 = Right (+X)
+		///
+		/// YAxis orientation encoding (matches PlayerInteractionSystem assignment):
+		///   2 = identity (block front → +Z)   3 = 180° Y (block front → -Z)
+		///   4 = +90° Y   (block front → +X)   5 = -90° Y (block front → -X)
+		/// </summary>
+		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation)
+		{
+			if (dirType == BlockDirectionType.None) return normalIdx;
+
+			if (dirType == BlockDirectionType.YAxis)
+			{
+				if (normalIdx == 2 || normalIdx == 3) return normalIdx; // Top/Bottom unchanged
+				return orientation switch
+				{
+					// identity: no remap
+					2 => normalIdx,
+					// 180° Y: front↔back, left↔right
+					3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
+					// +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
+					4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
+					// -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
+					5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
+					_ => normalIdx
+				};
+			}
+
+			if (dirType == BlockDirectionType.AllAxes)
+			{
+				// AllAxes orientations (matches GetRotation):
+				// 0=identity, 1=180°X, 2=+90°X, 3=-90°X, 4=-90°Z, 5=+90°Z
+				return orientation switch
+				{
+					0 => normalIdx,
+					// 180° X: top↔bottom, front↔back
+					1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
+					// +90° X: top→front, front→bottom, bottom→back, back→top
+					2 => normalIdx switch { 2 => 1, 1 => 3, 3 => 0, 0 => 2, _ => normalIdx },
+					// -90° X: top→back, back→bottom, bottom→front, front→top
+					3 => normalIdx switch { 2 => 0, 0 => 3, 3 => 1, 1 => 2, _ => normalIdx },
+					// -90° Z: top→right, right→bottom, bottom→left, left→top
+					4 => normalIdx switch { 2 => 5, 5 => 3, 3 => 4, 4 => 2, _ => normalIdx },
+					// +90° Z: top→left, left→bottom, bottom→right, right→top
+					5 => normalIdx switch { 2 => 4, 4 => 3, 3 => 5, 5 => 2, _ => normalIdx },
+					_ => normalIdx
+				};
+			}
+
+			return normalIdx;
 		}
 
 		private static quaternion GetRotation(BlockDirectionType type, byte orientation)

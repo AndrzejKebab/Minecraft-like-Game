@@ -144,12 +144,11 @@ namespace _Project.Character
 					switch (blockProto.DirectionType)
 					{
 						case BlockDirectionType.YAxis:
-							float3 forward = viewLtw.Forward;
-							orientation = math.abs(forward.x) > math.abs(forward.z)
-								              ? forward.x > 0 ? (byte)5 : (byte)4
-								              : forward.z > 0
-									              ? (byte)3
-									              : (byte)2;
+							float3 rawFwd = viewLtw.Forward;
+							float3 hFwd   = math.normalizesafe(new float3(rawFwd.x, 0f, rawFwd.z), new float3(0f, 0f, 1f));
+							orientation = math.abs(hFwd.x) > math.abs(hFwd.z)
+								              ? hFwd.x > 0 ? (byte)5 : (byte)4
+								              : hFwd.z > 0 ? (byte)3 : (byte)2;
 							break;
 						case BlockDirectionType.AllAxes:
 							float3 n = hit.SurfaceNormal;

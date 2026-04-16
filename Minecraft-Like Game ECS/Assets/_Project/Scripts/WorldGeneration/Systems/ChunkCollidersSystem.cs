@@ -65,6 +65,7 @@ namespace _Project.WorldGeneration.Systems
 
 			var ecb          = new EntityCommandBuffer(Allocator.Temp);
 			var oldToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);
+			var justBaked    = new NativeHashSet<Entity>(8, Allocator.Temp);
 
 			// ── 1. Complete active job if ready or urgent ──────────────────────
 			if (isJobActive)
@@ -89,6 +90,8 @@ namespace _Project.WorldGeneration.Systems
 
 				if (forceComplete)
 				{
+					for (var i = 0; i < activeEntities.Length; i++)
+						justBaked.Add(activeEntities[i]);
 					activeJobHandle.Complete();
 					ApplyBatch(ref state, ecb, oldToDispose);
 					isJobActive = false;
@@ -102,6 +105,7 @@ namespace _Project.WorldGeneration.Systems
 			                  .WithEntityAccess())
 			{
 				if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+				if (justBaked.Contains(entity)) continue; // blob already swapped in ApplyBatch — don't double-dispose
 
 				if (state.EntityManager.HasComponent<PhysicsCollider>(entity))
 				{
@@ -155,6 +159,7 @@ namespace _Project.WorldGeneration.Systems
 				candPositions.Dispose();
 			}
 
+			justBaked.Dispose();
 			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 

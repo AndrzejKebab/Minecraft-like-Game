@@ -163,6 +163,8 @@ namespace _Project.WorldGeneration.Systems
 					Entity solidEnt = EntityManager.CreateEntity();
 					EntityManager.SetName(solidEnt, "ChunkSolid");
 					EntityManager.AddComponentData(solidEnt, LocalTransform.FromPosition(wPosF3));
+					EntityManager.AddComponentData(solidEnt, new PerInstanceCullingTag());
+					EntityManager.AddComponentData(solidEnt, new DepthSorted_Tag());
 					RenderMeshUtility.AddComponents(solidEnt, EntityManager, RenderDesc, solidMMI);
 					managed.SolidEntity = solidEnt;
 				}
@@ -183,6 +185,8 @@ namespace _Project.WorldGeneration.Systems
 						Entity fluidEnt = EntityManager.CreateEntity();
 						EntityManager.SetName(fluidEnt, "ChunkFluid");
 						EntityManager.AddComponentData(fluidEnt, LocalTransform.FromPosition(wPosF3));
+						EntityManager.AddComponentData(fluidEnt, new PerInstanceCullingTag());
+						EntityManager.AddComponentData(fluidEnt, new DepthSorted_Tag());
 						RenderMeshUtility.AddComponents(fluidEnt, EntityManager, RenderDesc, fluidMMI);
 						managed.FluidEntity = fluidEnt;
 					}
