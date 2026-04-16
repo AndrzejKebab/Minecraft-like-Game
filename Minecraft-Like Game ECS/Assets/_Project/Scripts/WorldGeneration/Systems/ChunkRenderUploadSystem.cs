@@ -119,7 +119,7 @@ namespace _Project.WorldGeneration.Systems
 					md.SetVertexBufferParams(totalV, k_VertexLayout);
 					md.SetIndexBufferParams(totalI, IndexFormat.UInt32);
 
-					NativeArray<Vertex> dstV = md.GetVertexData<Vertex>(0);
+					NativeArray<Vertex> dstV = md.GetVertexData<Vertex>();
 					NativeArray<Vertex>.Copy(meshData.CombinedVertices.AsArray(), dstV, totalV);
 
 					NativeArray<int> dstI = md.GetIndexData<int>();
@@ -156,7 +156,7 @@ namespace _Project.WorldGeneration.Systems
 				managed.MeshBatchID = m_EGS.RegisterMesh(managed.Mesh);
 
 				// ── solid render entity (sub-mesh 0) ───────────────────────────
-				var solidMMI = new MaterialMeshInfo(m_SolidMatID, managed.MeshBatchID, 0);
+				var solidMMI = new MaterialMeshInfo(m_SolidMatID, managed.MeshBatchID);
 
 				if (managed.SolidEntity == Entity.Null || !EntityManager.Exists(managed.SolidEntity))
 				{
