@@ -21,16 +21,20 @@ namespace _Project.WorldGeneration.Systems
 		{
 			state.RequireForUpdate<Player>();
 
-			int diameter = (GameSettings.ViewDistanceInChunks + 2) * 2 + 1;
-			int capacity = diameter * diameter * diameter;
+			var diameter = (GameSettings.ViewDistanceInChunks + 2) * 2 + 1;
+			var capacity = diameter * diameter * diameter;
 
 			Entity mapEntity = state.EntityManager.CreateEntity();
 			state.EntityManager.SetName(mapEntity, "ChunkMapSingleton");
 			state.EntityManager.AddComponentData(mapEntity, new ChunkMapSingleton
-			{
-				ChunkMap        = new NativeHashMap<int3, Entity>(capacity, Allocator.Persistent),
-				ChunkDataLookup = new NativeHashMap<Entity, ChunkComponent>(capacity, Allocator.Persistent)
-			});
+			                                                {
+				                                                ChunkMap =
+					                                                new NativeHashMap<int3, Entity>(capacity,
+					                                                 Allocator.Persistent),
+				                                                ChunkDataLookup =
+					                                                new NativeHashMap<Entity, ChunkComponent>(capacity,
+					                                                 Allocator.Persistent)
+			                                                });
 
 			lastPlayerChunk = new int3(int.MaxValue);
 		}
@@ -44,6 +48,7 @@ namespace _Project.WorldGeneration.Systems
 				if (s.ChunkMap.IsCreated) s.ChunkMap.Dispose();
 				if (s.ChunkDataLookup.IsCreated) s.ChunkDataLookup.Dispose();
 			}
+
 			q.Dispose();
 		}
 
@@ -59,25 +64,26 @@ namespace _Project.WorldGeneration.Systems
 			ref ChunkMapSingleton mapSingleton = ref SystemAPI.GetSingletonRW<ChunkMapSingleton>().ValueRW;
 
 			int viewDist     = GameSettings.ViewDistanceInChunks;
-			int populateDist = viewDist + 1;
-			int diameter     = populateDist * 2 + 1;
+			var populateDist = viewDist + 1;
+			var diameter     = populateDist * 2 + 1;
 
 			EntityManager em = state.EntityManager;
 
 			var desired = new NativeHashMap<int3, bool>(diameter * diameter * diameter, Allocator.Temp);
 
-			for (int y = -populateDist; y <= populateDist; y++)
-			for (int x = -populateDist; x <= populateDist; x++)
-			for (int z = -populateDist; z <= populateDist; z++)
+			for (var y = -populateDist; y <= populateDist; y++)
+			for (var x = -populateDist; x <= populateDist; x++)
+			for (var z = -populateDist; z <= populateDist; z++)
 			{
 				int3 c        = playerChunk + new int3(x, y, z);
-				bool isRender = math.abs(x) < viewDist && math.abs(y) < viewDist && math.abs(z) < viewDist;
+				var  isRender = math.abs(x) < viewDist && math.abs(y) < viewDist && math.abs(z) < viewDist;
 				desired.TryAdd(c, isRender);
 			}
 
 			var toRemove = new NativeList<int3>(64, Allocator.Temp);
 			foreach (KVPair<int3, Entity> kvp in mapSingleton.ChunkMap)
-				if (!desired.ContainsKey(kvp.Key)) toRemove.Add(kvp.Key);
+				if (!desired.ContainsKey(kvp.Key))
+					toRemove.Add(kvp.Key);
 
 			foreach (int3 coord in toRemove)
 			{
@@ -90,9 +96,9 @@ namespace _Project.WorldGeneration.Systems
 
 			foreach (KVPair<int3, bool> kvp in desired)
 			{
-				int3  coord    = kvp.Key;
-				bool  isRender = kvp.Value;
-				float dist     = math.distance(playerChunk, coord);
+				int3 coord    = kvp.Key;
+				var  isRender = kvp.Value;
+				var  dist     = math.distance(playerChunk, coord);
 
 				if (mapSingleton.ChunkMap.TryGetValue(coord, out Entity existingEntity))
 				{
@@ -107,11 +113,13 @@ namespace _Project.WorldGeneration.Systems
 				em.AddComponentData(entity, new ChunkPositionComponent { ChunkCoord = coord });
 
 				var chunkComp = new ChunkComponent
-				{
-					BlockData = new NativeArray<BlockState>(
-						VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE * VoxelData.CHUNK_SIZE,
-						Allocator.Persistent, NativeArrayOptions.UninitializedMemory)
-				};
+				                {
+					                BlockData = new NativeArray<BlockState>(
+					                                                        ChunkData.CHUNK_SIZE * ChunkData.CHUNK_SIZE *
+					                                                        ChunkData.CHUNK_SIZE,
+					                                                        Allocator.Persistent,
+					                                                        NativeArrayOptions.UninitializedMemory)
+				                };
 
 				em.AddComponentData(entity, chunkComp);
 				mapSingleton.ChunkDataLookup.Add(entity, chunkComp);
@@ -120,9 +128,9 @@ namespace _Project.WorldGeneration.Systems
 				em.AddComponentData(entity, new IsInViewRange());
 				em.AddComponentData(entity, new ChunkPriorityComponent { Distance = dist, Importance = 1 });
 				em.AddComponentData(entity, LocalTransform.FromPosition(new float3(
-					coord.x * VoxelData.CHUNK_SIZE,
-					coord.y * VoxelData.CHUNK_SIZE,
-					coord.z * VoxelData.CHUNK_SIZE)));
+				                                                         coord.x * ChunkData.CHUNK_SIZE,
+				                                                         coord.y * ChunkData.CHUNK_SIZE,
+				                                                         coord.z * ChunkData.CHUNK_SIZE)));
 
 				if (isRender) em.AddComponentData(entity, new NeedsRender());
 
@@ -136,9 +144,12 @@ namespace _Project.WorldGeneration.Systems
 			desired.Dispose();
 		}
 
-		public static int3 WorldToChunkCoord(float3 worldPos) => new int3(
-			Mathf.FloorToInt(worldPos.x / VoxelData.CHUNK_SIZE),
-			Mathf.FloorToInt(worldPos.y / VoxelData.CHUNK_SIZE),
-			Mathf.FloorToInt(worldPos.z / VoxelData.CHUNK_SIZE));
+		public static int3 WorldToChunkCoord(float3 worldPos)
+		{
+			return new int3(
+			                Mathf.FloorToInt(worldPos.x / ChunkData.CHUNK_SIZE),
+			                Mathf.FloorToInt(worldPos.y / ChunkData.CHUNK_SIZE),
+			                Mathf.FloorToInt(worldPos.z / ChunkData.CHUNK_SIZE));
+		}
 	}
 }

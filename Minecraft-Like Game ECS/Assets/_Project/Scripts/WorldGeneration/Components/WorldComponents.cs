@@ -6,14 +6,12 @@ using Unity.Entities;
 namespace _Project.WorldGeneration.Components
 {
 	/// <summary>
-	/// Global terrain + noise singleton. Populated once by WorldSettings on startup.
-	///
-	/// Curve field → job field mapping:
-	///   ContinentalnessCurve  → TerrainShapePassJob.BiomeHeight
-	///   ErosionCurve          → TerrainShapePassJob.ErosionCurve
-	///   PeaksAndValleysCurve  → TerrainShapePassJob.PeaksAndValleysCurve
-	///
-	/// ChunkPopulateSystem must assign RiverNoise to TerrainShapePassJob.RiverNoise.
+	///     Global terrain + noise singleton. Populated once by WorldSettings on startup.
+	///     Curve field → job field mapping:
+	///     ContinentalnessCurve  → TerrainShapePassJob.BiomeHeight
+	///     ErosionCurve          → TerrainShapePassJob.ErosionCurve
+	///     PeaksAndValleysCurve  → TerrainShapePassJob.PeaksAndValleysCurve
+	///     ChunkPopulateSystem must assign RiverNoise to TerrainShapePassJob.RiverNoise.
 	/// </summary>
 	public struct WorldSettingsSingleton : IComponentData
 	{
@@ -23,7 +21,7 @@ namespace _Project.WorldGeneration.Components
 		public FastNoise ContinentalnessNoise;
 		public FastNoise PeaksAndValleysNoise;
 		public FastNoise ErosionNoise;
-		public FastNoise RiverNoise;     // new — abs(FBm) river carving
+		public FastNoise RiverNoise; // new — abs(FBm) river carving
 		public FastNoise CavesNoise;
 
 		// ── Terrain splines ───────────────────────────────────────────────────
@@ -33,7 +31,7 @@ namespace _Project.WorldGeneration.Components
 	}
 
 	/// <summary>
-	/// All block prototypes indexed by prototype index (0 = air).
+	///     All block prototypes indexed by prototype index (0 = air).
 	/// </summary>
 	public struct WorldBlockRegistrySingleton : IComponentData
 	{

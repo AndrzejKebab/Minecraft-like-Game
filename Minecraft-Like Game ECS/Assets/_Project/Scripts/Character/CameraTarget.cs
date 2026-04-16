@@ -4,5 +4,5 @@ using Unity.Entities;
 [Serializable]
 public struct CameraTarget : IComponentData
 {
-    public Entity TargetEntity;
+	public Entity TargetEntity;
 }

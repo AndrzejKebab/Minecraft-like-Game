@@ -1,14 +1,16 @@
 ﻿using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using UnityEngine;[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+using UnityEngine;
+
+[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 public static class Utility
 {
 	public static int FlattenIndex(int x, int y, int z)
 	{
 		return x | (y << 5) | (z << 10);
 	}
-	
+
 	[BurstCompile]
 	public static void SetAtIndex<T>(this NativeArray<T> array, int posX, int posY, int posZ, T data) where T : struct
 	{

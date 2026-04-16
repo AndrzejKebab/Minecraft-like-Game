@@ -1,7 +1,7 @@
-﻿using Unity.Burst;
+﻿using _Project.WorldGeneration.Blocks;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using _Project.WorldGeneration.Blocks;
 
 namespace _Project.WorldGeneration
 {
@@ -10,55 +10,55 @@ namespace _Project.WorldGeneration
 	/// <summary>Blittable ore configuration.  Store in a NativeArray.</summary>
 	public struct OreSettings
 	{
-		public ushort BlockID;        // Block to place
-		public ushort TargetBlockID;  // Only replace this block (e.g. stone)
+		public ushort BlockID;       // Block to place
+		public ushort TargetBlockID; // Only replace this block (e.g. stone)
 		public int    MinWorldY;
 		public int    MaxWorldY;
 		public int    VeinsPerChunk;
 		public int    MaxVeinSize;
-		public float  VeinRadius;     // Keep ≤ 2 to stay within the chunk
+		public float  VeinRadius; // Keep ≤ 2 to stay within the chunk
 	}
 
-	// ── Generator ────────────────────────────────────────────────────────────
+// ── Generator ────────────────────────────────────────────────────────────
 
 	/// <summary>
-	/// Burst-compiled ore vein generation.
-	/// Like <see cref="TreeGenerator"/>, writes directly into the shared chunk
-	/// map — no intermediate buffers needed.
-	/// Vein radii are intentionally kept small (≤ 2) so individual ore blocks
-	/// stay within the owning chunk, meaning ores are safe to generate in
-	/// parallel without the checkerboard constraint (they don't cross borders).
-	/// If you ever increase <see cref="OreSettings.VeinRadius"/> beyond ~6,
-	/// apply the same checkerboard scheduling used for trees.
+	///     Burst-compiled ore vein generation.
+	///     Like <see cref="TreeGenerator" />, writes directly into the shared chunk
+	///     map — no intermediate buffers needed.
+	///     Vein radii are intentionally kept small (≤ 2) so individual ore blocks
+	///     stay within the owning chunk, meaning ores are safe to generate in
+	///     parallel without the checkerboard constraint (they don't cross borders).
+	///     If you ever increase <see cref="OreSettings.VeinRadius" /> beyond ~6,
+	///     apply the same checkerboard scheduling used for trees.
 	/// </summary>
-	[BurstCompile(OptimizeFor    = OptimizeFor.Performance,
-	              FloatMode      = FloatMode.Fast,
-	              FloatPrecision = FloatPrecision.Low)]
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance,
+		             FloatMode = FloatMode.Fast,
+		             FloatPrecision = FloatPrecision.Low)]
 	public static class OreGenerator
 	{
 		[BurstCompile]
 		public static void Generate(
-			ref NativeParallelHashMap<int3, ChunkBlockDataRef>       chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter          dirtyWriter,
-			ref  NativeArray<OreSettings>                             oreTypes,
-			ref int3 chunkWorldPos,
-			int  chunkSize,
-			int  seed)
+			ref NativeParallelHashMap<int3, ChunkBlockDataRef>   chunkMap,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter dirtyWriter,
+			ref NativeArray<OreSettings>                         oreTypes,
+			ref int3                                             chunkWorldPos,
+			int                                                  chunkSize,
+			int                                                  seed)
 		{
 			for (var o = 0; o < oreTypes.Length; o++)
-				GenerateOreType(ref chunkMap,ref dirtyWriter, ref oreTypes,
+				GenerateOreType(ref chunkMap, ref dirtyWriter, ref oreTypes,
 				                o, ref chunkWorldPos, chunkSize, seed);
 		}
 
 		[BurstCompile]
 		private static void GenerateOreType(
-			ref NativeParallelHashMap<int3, ChunkBlockDataRef>       chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter          dirtyWriter,
-			ref  NativeArray<OreSettings>                             oreTypes,
-			int  oreIdx,
-			ref int3 chunkWorldPos,
-			int  chunkSize,
-			int  seed)
+			ref NativeParallelHashMap<int3, ChunkBlockDataRef>   chunkMap,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter dirtyWriter,
+			ref NativeArray<OreSettings>                         oreTypes,
+			int                                                  oreIdx,
+			ref int3                                             chunkWorldPos,
+			int                                                  chunkSize,
+			int                                                  seed)
 		{
 			OreSettings ore = oreTypes[oreIdx];
 
@@ -83,14 +83,14 @@ namespace _Project.WorldGeneration
 				var cy = rng.NextInt(yMin, yMax + 1);
 				var cz = chunkWorldPos.z + rng.NextInt(0, chunkSize);
 
-				var veinSize = rng.NextInt(1, ore.MaxVeinSize + 1);
+				var veinSize    = rng.NextInt(1, ore.MaxVeinSize + 1);
 				var veinDirtied = false;
 
 				for (var b = 0; b < veinSize; b++)
 				{
 					float3 offset = rng.NextFloat3(
-						new float3(-ore.VeinRadius),
-						new float3( ore.VeinRadius));
+					                               new float3(-ore.VeinRadius),
+					                               new float3(ore.VeinRadius));
 
 					// Clamp each ore block to remain in this chunk
 					var bx = math.clamp(cx + (int)math.round(offset.x),
@@ -117,11 +117,11 @@ namespace _Project.WorldGeneration
 		{
 			unchecked
 			{
-				var h = (uint)(pos.x * 1376312589
-				               ^ pos.y * 1664525
-				               ^ pos.z * 22695477
-				               ^ seed  * 1013904223
-				               ^ oreIdx * 134775813);
+				var h = (uint)((pos.x * 1376312589)
+				               ^ (pos.y * 1664525)
+				               ^ (pos.z * 22695477)
+				               ^ (seed * 1013904223)
+				               ^ (oreIdx * 134775813));
 				h ^= h >> 16;
 				h *= 0x45d9f3b;
 				h ^= h >> 16;

@@ -18,14 +18,6 @@ namespace _Project
 
 		[SerializeField] private bool generateMipMaps = true;
 
-		public class TextureMapping
-		{
-			public NativeTexturesIDLayer Base;
-			public NativeTexturesIDLayer Normal;
-			public NativeTexturesIDLayer Specular;
-			public NativeTexturesIDLayer Overlay;
-		}
-
 		public Dictionary<BlockDataSo, TextureMapping> GenerateTextureArrays(
 			BlockDataSo[] allBlocks, Material chunkMaterial)
 		{
@@ -180,6 +172,14 @@ namespace _Project
 
 			array.Apply(false, true);
 			return array;
+		}
+
+		public class TextureMapping
+		{
+			public NativeTexturesIDLayer Base;
+			public NativeTexturesIDLayer Normal;
+			public NativeTexturesIDLayer Overlay;
+			public NativeTexturesIDLayer Specular;
 		}
 	}
 }

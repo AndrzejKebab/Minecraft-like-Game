@@ -8,7 +8,7 @@ namespace _Project.WorldGeneration.Components
 	{
 		public NativeList<Vertex> CombinedVertices;
 		public NativeList<int>    CombinedIndices;
-		
+
 		public int SolidVertexCount;
 		public int SolidIndexCount;
 

@@ -1,6 +1,5 @@
 ﻿using _Project.WorldGeneration.Components;
 using FastNoise2.Bindings;
-using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -8,26 +7,35 @@ namespace _Project.WorldGeneration
 {
 	public class WorldSettings : MonoBehaviour
 	{
-		[Header("World Settings")] 
-		public int Seed = 1337;
+		[Header("World Settings")] public int Seed = 1337;
 
-		[Header("FastNoise2 Node Trees")] 
-		public string ContinentalnessEncoded =
+		[Header("FastNoise2 Node Trees")] public string ContinentalnessEncoded =
 			"E@BPpDG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BekQEA5qZGT8LAACAPxQDAADIQgQ=";
 
 		public string PeaksAndValleysEncoded = "KQAB@BCQ8AB@CkH@BekQU";
-		public string ErosionEncoded = "Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==";
-		public string RiverEncoded = "KQAB@BCRkJE@BPpDMAE@BJDQAE@BCQY@AB6RCQ=";
+		public string ErosionEncoded         = "Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==";
+		public string RiverEncoded           = "KQAB@BCRkJE@BPpDMAE@BJDQAE@BCQY@AB6RCQ=";
 
 		public string CavesEncoded =
 			"FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA=="; // FractalRidged Simplex3D freq~0.02
-		
-		[Header("Terrain Splines")] 
-		public AnimationCurve ContinentalnessCurve;
+
+		[Header("Terrain Splines")] public AnimationCurve ContinentalnessCurve;
+
 		public AnimationCurve ErosionCurve;
 		public AnimationCurve PeaksAndValleysCurve;
 
-		private void Start() => InitializeWorldInECS();
+		private void Start()
+		{
+			InitializeWorldInECS();
+		}
+
+		private void OnDestroy()
+		{
+			if (World.DefaultGameObjectInjectionWorld is null) return;
+			EntityManager em    = World.DefaultGameObjectInjectionWorld.EntityManager;
+			EntityQuery   query = em.CreateEntityQuery(typeof(WorldSettingsSingleton));
+			if (!query.IsEmpty) em.DestroyEntity(query.GetSingletonEntity());
+		}
 
 		private void InitializeWorldInECS()
 		{
@@ -44,7 +52,7 @@ namespace _Project.WorldGeneration
 				                    CavesNoise           = CreateNoise(CavesEncoded),
 				                    ContinentalnessCurve = ContinentalnessCurve.ToNative(),
 				                    ErosionCurve         = ErosionCurve.ToNative(),
-				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative(),
+				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative()
 			                    };
 
 			em.AddComponentData(em.CreateEntity(), worldSettings);
@@ -52,8 +60,8 @@ namespace _Project.WorldGeneration
 		}
 
 		/// <summary>
-		/// Creates FastNoise from encoded string. Falls back to plain Simplex if empty
-		/// so chunks generate something visible while node trees aren't set yet.
+		///     Creates FastNoise from encoded string. Falls back to plain Simplex if empty
+		///     so chunks generate something visible while node trees aren't set yet.
 		/// </summary>
 		private static FastNoise CreateNoise(string encoded)
 		{
@@ -62,14 +70,6 @@ namespace _Project.WorldGeneration
 
 			Debug.LogWarning("[WorldSettings] Empty encoded noise string — falling back to Simplex. Set node trees in Inspector.");
 			return new FastNoise("Simplex");
-		}
-
-		private void OnDestroy()
-		{
-			if (World.DefaultGameObjectInjectionWorld is null) return;
-			EntityManager em    = World.DefaultGameObjectInjectionWorld.EntityManager;
-			EntityQuery           query = em.CreateEntityQuery(typeof(WorldSettingsSingleton));
-			if (!query.IsEmpty) em.DestroyEntity(query.GetSingletonEntity());
 		}
 	}
 }

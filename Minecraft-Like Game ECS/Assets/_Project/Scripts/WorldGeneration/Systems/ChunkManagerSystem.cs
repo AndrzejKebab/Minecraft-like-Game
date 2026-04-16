@@ -1,8 +1,9 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using Unity.Collections;
 using Unity.Entities;
-using Unity.Physics;
 using Unity.Mathematics;
+using Unity.Physics;
 using Unity.Rendering;
 using UnityEngine;
 
@@ -21,12 +22,14 @@ namespace _Project.WorldGeneration.Systems
 
 		public void OnUpdate(ref SystemState state)
 		{
-			var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-			var mapSingleton = SystemAPI.GetSingletonRW<ChunkMapSingleton>();
+			RefRW<ChunkMapSingleton> mapSingleton = SystemAPI.GetSingletonRW<ChunkMapSingleton>();
 
-			foreach (var (_, entity) in SystemAPI.Query<RefRO<ChunkPositionComponent>>().WithAll<MarkedToDestroy>()
-			                                     .WithEntityAccess())
+			foreach ((RefRO<ChunkPositionComponent> _, Entity entity) in SystemAPI
+			                                                             .Query<RefRO<ChunkPositionComponent>>()
+			                                                             .WithAll<MarkedToDestroy>()
+			                                                             .WithEntityAccess())
 			{
 				// Localized wait: Ensure no job is using this chunk or its neighbors before disposing memory structures
 				int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
@@ -34,21 +37,13 @@ namespace _Project.WorldGeneration.Systems
 				if (SystemAPI.HasComponent<ChunkActiveJob>(entity))
 					SystemAPI.GetComponent<ChunkActiveJob>(entity).Handle.Complete();
 
-				var map = mapSingleton.ValueRO.ChunkMap;
-				for (int x = -1; x <= 1; x++)
-				{
-					for (int y = -1; y <= 1; y++)
-					{
-						for (int z = -1; z <= 1; z++)
-						{
-							if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
-							{
-								if (SystemAPI.HasComponent<ChunkActiveJob>(neighbor))
-									SystemAPI.GetComponent<ChunkActiveJob>(neighbor).Handle.Complete();
-							}
-						}
-					}
-				}
+				NativeHashMap<int3, Entity> map = mapSingleton.ValueRO.ChunkMap;
+				for (var x = -1; x <= 1; x++)
+				for (var y = -1; y <= 1; y++)
+				for (var z = -1; z <= 1; z++)
+					if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
+						if (SystemAPI.HasComponent<ChunkActiveJob>(neighbor))
+							SystemAPI.GetComponent<ChunkActiveJob>(neighbor).Handle.Complete();
 
 				if (SystemAPI.HasComponent<ChunkComponent>(entity))
 				{
@@ -86,7 +81,7 @@ namespace _Project.WorldGeneration.Systems
 					if (managed.FluidEntity != Entity.Null &&
 					    state.EntityManager.Exists(managed.FluidEntity))
 						ecb.DestroyEntity(managed.FluidEntity);
-					
+
 					// Release the Mesh asset.
 					if (managed.Mesh != null)
 						Object.Destroy(managed.Mesh);

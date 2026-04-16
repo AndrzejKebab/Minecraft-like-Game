@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using _Project.WorldGeneration;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
@@ -28,8 +29,8 @@ namespace _Project
 
 			BlockDataSo[] allBlocks = Resources.LoadAll<BlockDataSo>("Blocks");
 			GameDatabase.Instance.AllBlocks = allBlocks;
-			
-			System.Array.Sort(allBlocks, (a, b) => a.Block.ID.CompareTo(b.Block.ID));
+
+			Array.Sort(allBlocks, (a, b) => a.Block.ID.CompareTo(b.Block.ID));
 
 			if (allBlocks.Length == 0)
 			{
@@ -41,7 +42,8 @@ namespace _Project
 			Material waterMaterial = GameDatabase.Instance.WaterMaterial;
 
 			Debug.Log("[GameBootstrap] Found all blocks. Generating texture arrays...");
-			Dictionary<BlockDataSo, TextureArrayGenerator.TextureMapping> textureMappings = textureGenerator.GenerateTextureArrays(allBlocks, chunkMaterial);
+			Dictionary<BlockDataSo, TextureArrayGenerator.TextureMapping> textureMappings =
+				textureGenerator.GenerateTextureArrays(allBlocks, chunkMaterial);
 			Debug.Log("[GameBootstrap] Texture arrays generated. Preparing ECS data...");
 			var uniqueMeshes = new List<MeshDataSO>();
 			var meshToId     = new Dictionary<MeshDataSO, ushort>();
@@ -55,7 +57,8 @@ namespace _Project
 
 			var maxId = 0;
 			foreach (BlockDataSo so in allBlocks)
-				if (so.Block.ID > maxId) maxId = so.Block.ID;
+				if (so.Block.ID > maxId)
+					maxId = so.Block.ID;
 
 			var nativeBlocks = new NativeArray<Block>(maxId + 1, Allocator.Persistent);
 			var nativeNames  = new NativeArray<FixedString32Bytes>(maxId + 1, Allocator.Persistent);
@@ -80,13 +83,13 @@ namespace _Project
 
 			var nativeMeshes = new NativeArray<NativeVoxelMeshData>(uniqueMeshes.Count, Allocator.Persistent);
 			for (var i = 0; i < uniqueMeshes.Count; i++)
-			{
 				nativeMeshes[i] = new NativeVoxelMeshData
 				                  {
-					                  Vertices = new NativeArray<float3>(uniqueMeshes[i].MeshData.Vertices, Allocator.Persistent),
-					                  Triangles = new NativeArray<int4>(uniqueMeshes[i].MeshData.Triangles, Allocator.Persistent)
+					                  Vertices = new NativeArray<float3>(uniqueMeshes[i].MeshData.Vertices,
+					                                                     Allocator.Persistent),
+					                  Triangles = new NativeArray<int4>(uniqueMeshes[i].MeshData.Triangles,
+					                                                    Allocator.Persistent)
 				                  };
-			}
 
 			EntityManager em        = World.DefaultGameObjectInjectionWorld.EntityManager;
 			Entity        regEntity = em.CreateEntity();
@@ -99,7 +102,7 @@ namespace _Project
 				                             MinTrunkHeight = 4,
 				                             MaxTrunkHeight = 12
 			                             };
-			
+
 			blockRegistrySingleton.OreTypes = CreateDefaultOres(blockRegistrySingleton);
 			em.AddComponentData(regEntity, blockRegistrySingleton);
 
@@ -111,27 +114,27 @@ namespace _Project
 
 			Debug.Log($"[GameBootstrap] Game Data Ready! Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");
 		}
-		
+
 		private static NativeArray<OreSettings> CreateDefaultOres(WorldBlockRegistrySingleton reg)
 		{
 			var stone = reg.Blocks[1].ID;
-			var    ores  = new NativeArray<OreSettings>(3, Allocator.Persistent);
- 
-			ores[0] = new OreSettings   // Coal  — common, wide Y range
+			var ores  = new NativeArray<OreSettings>(3, Allocator.Persistent);
+
+			ores[0] = new OreSettings // Coal  — common, wide Y range
 			          {
 				          BlockID       = reg.Blocks[13].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY  = 128,
 				          VeinsPerChunk = 20, MaxVeinSize = 17, VeinRadius = 2f
 			          };
-			ores[1] = new OreSettings   // Iron  — medium rarity
+			ores[1] = new OreSettings // Iron  — medium rarity
 			          {
 				          BlockID       = reg.Blocks[11].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY = 64,
 				          VeinsPerChunk = 9, MaxVeinSize = 9, VeinRadius = 1.5f
 			          };
-			ores[2] = new OreSettings   // Diamond — rare, deep only
+			ores[2] = new OreSettings // Diamond — rare, deep only
 			          {
 				          BlockID       = reg.Blocks[12].ID,
 				          TargetBlockID = stone,

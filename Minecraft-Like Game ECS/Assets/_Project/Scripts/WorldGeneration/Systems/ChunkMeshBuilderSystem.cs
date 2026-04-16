@@ -1,7 +1,7 @@
-﻿using _Project.Tags;
+﻿using System;
+using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -25,50 +25,56 @@ namespace _Project.WorldGeneration.Systems
 			state.RequireForUpdate<ChunkMapSingleton>();
 
 			faceChecks = new NativeArray<int3>(6, Allocator.Persistent)
-			{
-				[0] = new int3(0, 0, -1), [1] = new int3(0, 0, 1),
-				[2] = new int3(0, 1, 0),  [3] = new int3(0, -1, 0),
-				[4] = new int3(-1, 0, 0), [5] = new int3(1, 0, 0)
-			};
+			             {
+				             [0] = new int3(0, 0, -1), [1] = new int3(0, 0, 1),
+				             [2] = new int3(0, 1, 0), [3]  = new int3(0, -1, 0),
+				             [4] = new int3(-1, 0, 0), [5] = new int3(1, 0, 0)
+			             };
 
 			meshQuery = SystemAPI.QueryBuilder()
-				.WithAll<NeedsMeshSync, IsPopulated, ChunkPositionComponent, ChunkComponent>()
-				.WithNone<MarkedToDestroy, IsEmpty>()
-				.Build();
+			                     .WithAll<NeedsMeshSync, IsPopulated, ChunkPositionComponent, ChunkComponent>()
+			                     .WithNone<MarkedToDestroy, IsEmpty>()
+			                     .Build();
 		}
 
-		public void OnDestroy(ref SystemState state) => faceChecks.Dispose();
+		public void OnDestroy(ref SystemState state)
+		{
+			faceChecks.Dispose();
+		}
 
 		public void OnUpdate(ref SystemState state)
 		{
 			if (meshQuery.IsEmpty) return;
 
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
-				SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
+			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
+			                            .Position;
 			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 
 			int budget = GameSettings.CHUNKS_PER_MESH_JOB;
 
-			var chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
-			var chunkLookup     = SystemAPI.GetSingleton<ChunkMapSingleton>();
-			var populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
-			var urgentLookup    = SystemAPI.GetComponentLookup<UrgentMeshSync>(true);
-			var activeJobLookup = SystemAPI.GetComponentLookup<ChunkActiveJob>(true);
+			NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+			var                             chunkLookup     = SystemAPI.GetSingleton<ChunkMapSingleton>();
+			ComponentLookup<IsPopulated>    populatedLookup = SystemAPI.GetComponentLookup<IsPopulated>(true);
+			ComponentLookup<UrgentMeshSync> urgentLookup    = SystemAPI.GetComponentLookup<UrgentMeshSync>(true);
+			ComponentLookup<ChunkActiveJob> activeJobLookup = SystemAPI.GetComponentLookup<ChunkActiveJob>(true);
 
 			// 1) Pull all candidates, partition into urgent/normal, sort each by distance.
-			var entities  = meshQuery.ToEntityArray(Allocator.Temp);
-			var positions = meshQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+			NativeArray<Entity> entities = meshQuery.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> positions =
+				meshQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
 			var urgent = new NativeList<Cand>(64, Allocator.Temp);
 			var normal = new NativeList<Cand>(entities.Length, Allocator.Temp);
 
-			for (int i = 0; i < entities.Length; i++)
+			for (var i = 0; i < entities.Length; i++)
 			{
 				int3 d  = positions[i].ChunkCoord - playerChunk;
-				int  ds = d.x * d.x + d.y * d.y + d.z * d.z;
-				bool u  = urgentLookup.HasComponent(entities[i]);
+				var  ds = d.x * d.x + d.y * d.y + d.z * d.z;
+				var  u  = urgentLookup.HasComponent(entities[i]);
 				var  c  = new Cand { Entity = entities[i], Coord = positions[i].ChunkCoord, DistSq = ds };
-				if (u) urgent.Add(c); else normal.Add(c);
+				if (u) urgent.Add(c);
+				else normal.Add(c);
 			}
 
 			entities.Dispose();
@@ -81,13 +87,13 @@ namespace _Project.WorldGeneration.Systems
 			var validPositions = new NativeArray<int3>(budget, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 
 			var ecbPre = new EntityCommandBuffer(Allocator.Temp);
-			int count  = 0;
+			var count  = 0;
 
 			// 2) Drain urgent first, then normal. Skip if any of 6 neighbors not populated.
 			count = TryEnqueue(urgent, count, budget, validEntities, validPositions,
-				ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
 			count = TryEnqueue(normal, count, budget, validEntities, validPositions,
-				ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
 
 			urgent.Dispose();
 			normal.Dispose();
@@ -105,16 +111,16 @@ namespace _Project.WorldGeneration.Systems
 			//    De-dup via a small set so we don't combine the same handle multiple times.
 			activeJobLookup.Update(ref state);
 			JobHandle inputDeps = default;
-			var depSet = new NativeHashSet<Entity>(count * 7, Allocator.Temp);
+			var       depSet    = new NativeHashSet<Entity>(count * 7, Allocator.Temp);
 
-			for (int i = 0; i < count; i++)
+			for (var i = 0; i < count; i++)
 			{
 				Entity self = validEntities[i];
 				if (depSet.Add(self) && activeJobLookup.HasComponent(self))
 					inputDeps = JobHandle.CombineDependencies(inputDeps, activeJobLookup[self].Handle);
 
 				int3 pos = validPositions[i];
-				for (int f = 0; f < 6; f++)
+				for (var f = 0; f < 6; f++)
 				{
 					int3 nPos = pos + faceChecks[f];
 					if (!chunkMap.TryGetValue(nPos, out Entity n)) continue;
@@ -123,30 +129,32 @@ namespace _Project.WorldGeneration.Systems
 						inputDeps = JobHandle.CombineDependencies(inputDeps, activeJobLookup[n].Handle);
 				}
 			}
+
 			depSet.Dispose();
 
 			// 4) Schedule mesh job.
 			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-			var ecb      = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
-				.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
+			EntityCommandBuffer.ParallelWriter ecb = SystemAPI
+			                                         .GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
+			                                         .CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
 			var job = new GreedyMeshJob
-			{
-				Entities        = validEntities.GetSubArray(0, count),
-				Positions       = validPositions.GetSubArray(0, count),
-				ChunkMap        = chunkMap,
-				BlockDataLookup = chunkLookup.ChunkDataLookup,
-				BlockPrototypes = registry.Blocks,
-				CustomMeshes    = registry.Meshes,
-				FaceChecks      = faceChecks,
-				ECB             = ecb
-			};
+			          {
+				          Entities        = validEntities.GetSubArray(0, count),
+				          Positions       = validPositions.GetSubArray(0, count),
+				          ChunkMap        = chunkMap,
+				          BlockDataLookup = chunkLookup.ChunkDataLookup,
+				          BlockPrototypes = registry.Blocks,
+				          CustomMeshes    = registry.Meshes,
+				          FaceChecks      = faceChecks,
+				          ECB             = ecb
+			          };
 
 			JobHandle handle = job.ScheduleParallelByRef(count, 1, inputDeps);
 			state.Dependency = JobHandle.CombineDependencies(state.Dependency, handle);
 			// 5) Write output handle to per-entity slot for the chunks BEING MESHED.
 			//    Neighbors weren't written, so don't touch their handles.
-			for (int i = 0; i < count; i++)
+			for (var i = 0; i < count; i++)
 			{
 				if (!SystemAPI.HasComponent<ChunkActiveJob>(validEntities[i])) continue;
 				SystemAPI.SetComponent(validEntities[i], new ChunkActiveJob { Handle = handle });
@@ -159,21 +167,21 @@ namespace _Project.WorldGeneration.Systems
 		}
 
 		private int TryEnqueue(
-			NativeList<Cand> src, int count, int budget,
-			NativeArray<Entity> validEntities, NativeArray<int3> validPositions,
-			EntityCommandBuffer ecbPre,
-			NativeHashMap<int3, Entity> chunkMap,
-			ChunkMapSingleton chunkLookup,
+			NativeList<Cand>             src,           int               count, int budget,
+			NativeArray<Entity>          validEntities, NativeArray<int3> validPositions,
+			EntityCommandBuffer          ecbPre,
+			NativeHashMap<int3, Entity>  chunkMap,
+			ChunkMapSingleton            chunkLookup,
 			ComponentLookup<IsPopulated> populatedLookup,
-			ref SystemState state)
+			ref SystemState              state)
 		{
-			for (int i = 0; i < src.Length && count < budget; i++)
+			for (var i = 0; i < src.Length && count < budget; i++)
 			{
 				int3   pos = src[i].Coord;
 				Entity ent = src[i].Entity;
 
-				bool ready = true;
-				for (int f = 0; f < 6; f++)
+				var ready = true;
+				for (var f = 0; f < 6; f++)
 				{
 					int3 nPos = pos + faceChecks[f];
 					if (chunkMap.TryGetValue(nPos, out Entity n) &&
@@ -183,6 +191,7 @@ namespace _Project.WorldGeneration.Systems
 					ready = false;
 					break;
 				}
+
 				if (!ready) continue;
 
 				validEntities[count]  = ent;
@@ -202,15 +211,20 @@ namespace _Project.WorldGeneration.Systems
 					ecbPre.RemoveComponent<ChunkMeshData>(ent);
 				}
 			}
+
 			return count;
 		}
 
-		private struct Cand : System.IComparable<Cand>
+		private struct Cand : IComparable<Cand>
 		{
 			public Entity Entity;
 			public int3   Coord;
 			public int    DistSq;
-			public int CompareTo(Cand other) => DistSq.CompareTo(other.DistSq);
+
+			public int CompareTo(Cand other)
+			{
+				return DistSq.CompareTo(other.DistSq);
+			}
 		}
 	}
 }

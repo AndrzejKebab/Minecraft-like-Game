@@ -1,5 +1,5 @@
-﻿using _Project.WorldGeneration.Blocks;
-using _Project.Tags;
+﻿using _Project.Tags;
+using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using Unity.Burst;
 using Unity.Collections;
@@ -8,28 +8,28 @@ using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
 
-
 namespace _Project.WorldGeneration.Jobs
 {
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public unsafe struct GreedyMeshJob : IJobFor
 	{
-		[ReadOnly] public NativeArray<Entity>           Entities;
-		[ReadOnly] public NativeArray<int3>             Positions;
-		[ReadOnly] public NativeHashMap<int3, Entity>   ChunkMap;
-		[NativeDisableContainerSafetyRestriction]
-		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
+		[ReadOnly] public NativeArray<Entity>         Entities;
+		[ReadOnly] public NativeArray<int3>           Positions;
+		[ReadOnly] public NativeHashMap<int3, Entity> ChunkMap;
 
-		[NativeDisableContainerSafetyRestriction] 
-		[ReadOnly] public NativeArray<Block> BlockPrototypes;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction] 
-		[ReadOnly] public NativeArray<NativeVoxelMeshData> CustomMeshes;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<Block> BlockPrototypes;
+
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<NativeVoxelMeshData> CustomMeshes;
 
 		[ReadOnly] public NativeArray<int3> FaceChecks;
 
 		public EntityCommandBuffer.ParallelWriter ECB;
-		
+
 		private struct Mask
 		{
 			public ushort BlockID;
@@ -42,7 +42,7 @@ namespace _Project.WorldGeneration.Jobs
 		public void Execute(int index)
 		{
 			Entity entity = Entities[index];
-			int3 pos = Positions[index];
+			int3   pos    = Positions[index];
 
 			ChunkMap.TryGetValue(pos + new int3(0, 0, -1), out Entity nZNeg);
 			ChunkMap.TryGetValue(pos + new int3(0, 0, 1), out Entity nZPos);
@@ -52,21 +52,21 @@ namespace _Project.WorldGeneration.Jobs
 			ChunkMap.TryGetValue(pos + new int3(1, 0, 0), out Entity nXPos);
 
 			var accessor = new ChunkAccessor
-			{
-				Center = BlockDataLookup[entity].BlockData,
-				NeighborZNeg = BlockDataLookup[nZNeg].BlockData,
-				NeighborZPos = BlockDataLookup[nZPos].BlockData,
-				NeighborYNeg = BlockDataLookup[nYNeg].BlockData,
-				NeighborYPos = BlockDataLookup[nYPos].BlockData,
-				NeighborXNeg = BlockDataLookup[nXNeg].BlockData,
-				NeighborXPos = BlockDataLookup[nXPos].BlockData,
-				ChunkSize = VoxelData.CHUNK_SIZE
-			};
+			               {
+				               Center       = BlockDataLookup[entity].BlockData,
+				               NeighborZNeg = BlockDataLookup[nZNeg].BlockData,
+				               NeighborZPos = BlockDataLookup[nZPos].BlockData,
+				               NeighborYNeg = BlockDataLookup[nYNeg].BlockData,
+				               NeighborYPos = BlockDataLookup[nYPos].BlockData,
+				               NeighborXNeg = BlockDataLookup[nXNeg].BlockData,
+				               NeighborXPos = BlockDataLookup[nXPos].BlockData,
+				               ChunkSize    = ChunkData.CHUNK_SIZE
+			               };
 
 			var solidVertices = new NativeList<Vertex>(Allocator.Temp);
-			var solidIndices = new NativeList<int>(Allocator.Temp);
+			var solidIndices  = new NativeList<int>(Allocator.Temp);
 			var fluidVertices = new NativeList<Vertex>(Allocator.Temp);
-			var fluidIndices = new NativeList<int>(Allocator.Temp);
+			var fluidIndices  = new NativeList<int>(Allocator.Temp);
 
 			GenerateMesh(ref accessor, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
 
@@ -74,25 +74,28 @@ namespace _Project.WorldGeneration.Jobs
 			var totalI = solidIndices.Length + fluidIndices.Length;
 
 			var meshData = new ChunkMeshData
-			{
-				CombinedVertices = new NativeList<Vertex>(totalV, Allocator.Persistent),
-				CombinedIndices = new NativeList<int>(totalI, Allocator.Persistent),
-				SolidVertexCount = solidVertices.Length,
-				SolidIndexCount = solidIndices.Length
-			};
+			               {
+				               CombinedVertices = new NativeList<Vertex>(totalV, Allocator.Persistent),
+				               CombinedIndices  = new NativeList<int>(totalI, Allocator.Persistent),
+				               SolidVertexCount = solidVertices.Length,
+				               SolidIndexCount  = solidIndices.Length
+			               };
 
 			meshData.CombinedVertices.ResizeUninitialized(totalV);
 			meshData.CombinedIndices.ResizeUninitialized(totalI);
 
 			if (solidVertices.Length > 0)
 			{
-				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(), solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-				UnsafeUtility.MemCpy(meshData.CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(), solidIndices.Length * sizeof(int));
+				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(),
+				                     solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				UnsafeUtility.MemCpy(meshData.CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(),
+				                     solidIndices.Length * sizeof(int));
 			}
 
 			if (fluidVertices.Length > 0)
 			{
-				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr() + solidVertices.Length, fluidVertices.GetUnsafePtr(), fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr() + solidVertices.Length,
+				                     fluidVertices.GetUnsafePtr(), fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
 				var svCount  = solidVertices.Length;
 				var siCount  = solidIndices.Length;
 				var fIndices = fluidIndices.GetUnsafePtr();
@@ -102,7 +105,7 @@ namespace _Project.WorldGeneration.Jobs
 			}
 
 			ECB.AddComponent(index, entity, meshData);
-			
+
 			if (totalV > 0)
 				ECB.AddComponent<MeshRequiresUpload>(index, entity);
 
@@ -113,7 +116,9 @@ namespace _Project.WorldGeneration.Jobs
 		}
 
 		[BurstCompile]
-		private void GenerateMesh(ref ChunkAccessor accessor, ref NativeList<Vertex> solidVertices, ref NativeList<int> solidIndices, ref NativeList<Vertex> fluidVertices, ref NativeList<int> fluidIndices)
+		private void GenerateMesh(ref ChunkAccessor   accessor,     ref NativeList<Vertex> solidVertices,
+		                          ref NativeList<int> solidIndices, ref NativeList<Vertex> fluidVertices,
+		                          ref NativeList<int> fluidIndices)
 		{
 			var chunkSize = accessor.ChunkSize;
 			var maskFront =
@@ -122,7 +127,7 @@ namespace _Project.WorldGeneration.Jobs
 				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 			Mask mFront = default;
 			Mask mBack  = default;
-			
+
 			// 1. GREEDY MESHING (Standard Cubes & Fluids)
 			for (var direction = 0; direction < 3; direction++)
 			{
@@ -156,11 +161,11 @@ namespace _Project.WorldGeneration.Jobs
 
 							if (faceVisible)
 							{
-								mFront.BlockID      = current.ID;
-								mFront.Orientation  = current.Orientation;
-								mFront.MeshType     = currentType;
-								mFront.Normal       = -1;
-								mFront.AO           = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
+								mFront.BlockID     = current.ID;
+								mFront.Orientation = current.Orientation;
+								mFront.MeshType    = currentType;
+								mFront.Normal      = -1;
+								mFront.AO          = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
 							}
 							else
 							{
@@ -221,11 +226,12 @@ namespace _Project.WorldGeneration.Jobs
 				BlockState state = accessor.GetBlockState(x, y, z);
 				if (state.IsEmpty || GetMeshType(state) != 3) continue;
 
-				RenderCustomMesh(ref accessor, x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
+				RenderCustomMesh(ref accessor, x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices,
+				                 ref fluidIndices);
 			}
 
-            // FIX: Removed duplicated memory combination block. 
-            // `ChunkMeshBuilderSystem.cs` natively handles combined arrays in Execute() now!
+			// FIX: Removed duplicated memory combination block. 
+			// `ChunkMeshBuilderSystem.cs` natively handles combined arrays in Execute() now!
 		}
 
 		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
@@ -285,7 +291,7 @@ namespace _Project.WorldGeneration.Jobs
 		private static bool CompareMask(Mask a, Mask b)
 		{
 			return a.MeshType == b.MeshType && a.BlockID == b.BlockID && a.Normal == b.Normal
-			    && a.AO.Equals(b.AO) && a.Orientation == b.Orientation;
+			       && a.AO.Equals(b.AO) && a.Orientation == b.Orientation;
 		}
 
 		private byte GetMeshType(BlockState state)
@@ -316,7 +322,7 @@ namespace _Project.WorldGeneration.Jobs
 				                _ => mask.Normal > 0 ? 0 : 1
 			                };
 
-			int textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, mask.Orientation);
+			var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, mask.Orientation);
 
 			float faceCoord = basePos[direction];
 
@@ -364,9 +370,9 @@ namespace _Project.WorldGeneration.Jobs
 			}
 		}
 
-		private void RenderCustomMesh(ref ChunkAccessor accessor, int x, int y, int z, BlockState blockState,
-		                              ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
-		                              ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
+		private void RenderCustomMesh(ref ChunkAccessor      accessor, int x, int y, int z, BlockState blockState,
+		                              ref NativeList<Vertex> solidV,   ref NativeList<int> solidI,
+		                              ref NativeList<Vertex> fluidV,   ref NativeList<int> fluidI)
 		{
 			Block               block    = BlockPrototypes[blockState.ID];
 			NativeVoxelMeshData meshData = CustomMeshes[block.MeshID];
@@ -427,16 +433,14 @@ namespace _Project.WorldGeneration.Jobs
 		}
 
 		/// <summary>
-		/// Maps a geometric face index (0-5) to the logical texture-slot face index, accounting for
-		/// block orientation. Top (2) and Bottom (3) are never remapped for YAxis blocks.
-		///
-		/// Face index conventions (matches DirToIndex / GetTextureIndex):
-		///   0 = Back  (-Z)   1 = Front (+Z)   2 = Top   (+Y)
-		///   3 = Bottom(-Y)   4 = Left  (-X)   5 = Right (+X)
-		///
-		/// YAxis orientation encoding (matches PlayerInteractionSystem assignment):
-		///   2 = identity (block front → +Z)   3 = 180° Y (block front → -Z)
-		///   4 = +90° Y   (block front → +X)   5 = -90° Y (block front → -X)
+		///     Maps a geometric face index (0-5) to the logical texture-slot face index, accounting for
+		///     block orientation. Top (2) and Bottom (3) are never remapped for YAxis blocks.
+		///     Face index conventions (matches DirToIndex / GetTextureIndex):
+		///     0 = Back  (-Z)   1 = Front (+Z)   2 = Top   (+Y)
+		///     3 = Bottom(-Y)   4 = Left  (-X)   5 = Right (+X)
+		///     YAxis orientation encoding (matches PlayerInteractionSystem assignment):
+		///     2 = identity (block front → +Z)   3 = 180° Y (block front → -Z)
+		///     4 = +90° Y   (block front → +X)   5 = -90° Y (block front → -X)
 		/// </summary>
 		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation)
 		{
@@ -446,39 +450,37 @@ namespace _Project.WorldGeneration.Jobs
 			{
 				if (normalIdx == 2 || normalIdx == 3) return normalIdx; // Top/Bottom unchanged
 				return orientation switch
-				{
-					// identity: no remap
-					2 => normalIdx,
-					// 180° Y: front↔back, left↔right
-					3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
-					// +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
-					4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
-					// -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
-					5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
-					_ => normalIdx
-				};
+				       {
+					       // identity: no remap
+					       2 => normalIdx,
+					       // 180° Y: front↔back, left↔right
+					       3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
+					       // +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
+					       4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
+					       // -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
+					       5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
+					       _ => normalIdx
+				       };
 			}
 
 			if (dirType == BlockDirectionType.AllAxes)
-			{
 				// AllAxes orientations (matches GetRotation):
 				// 0=identity, 1=180°X, 2=+90°X, 3=-90°X, 4=-90°Z, 5=+90°Z
 				return orientation switch
-				{
-					0 => normalIdx,
-					// 180° X: top↔bottom, front↔back
-					1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
-					// +90° X: top→front, front→bottom, bottom→back, back→top
-					2 => normalIdx switch { 2 => 1, 1 => 3, 3 => 0, 0 => 2, _ => normalIdx },
-					// -90° X: top→back, back→bottom, bottom→front, front→top
-					3 => normalIdx switch { 2 => 0, 0 => 3, 3 => 1, 1 => 2, _ => normalIdx },
-					// -90° Z: top→right, right→bottom, bottom→left, left→top
-					4 => normalIdx switch { 2 => 5, 5 => 3, 3 => 4, 4 => 2, _ => normalIdx },
-					// +90° Z: top→left, left→bottom, bottom→right, right→top
-					5 => normalIdx switch { 2 => 4, 4 => 3, 3 => 5, 5 => 2, _ => normalIdx },
-					_ => normalIdx
-				};
-			}
+				       {
+					       0 => normalIdx,
+					       // 180° X: top↔bottom, front↔back
+					       1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
+					       // +90° X: top→front, front→bottom, bottom→back, back→top
+					       2 => normalIdx switch { 2 => 1, 1 => 3, 3 => 0, 0 => 2, _ => normalIdx },
+					       // -90° X: top→back, back→bottom, bottom→front, front→top
+					       3 => normalIdx switch { 2 => 0, 0 => 3, 3 => 1, 1 => 2, _ => normalIdx },
+					       // -90° Z: top→right, right→bottom, bottom→left, left→top
+					       4 => normalIdx switch { 2 => 5, 5 => 3, 3 => 4, 4 => 2, _ => normalIdx },
+					       // +90° Z: top→left, left→bottom, bottom→right, right→top
+					       5 => normalIdx switch { 2 => 4, 4 => 3, 3 => 5, 5 => 2, _ => normalIdx },
+					       _ => normalIdx
+				       };
 
 			return normalIdx;
 		}

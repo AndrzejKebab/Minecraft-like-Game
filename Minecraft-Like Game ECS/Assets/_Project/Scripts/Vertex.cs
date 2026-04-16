@@ -15,7 +15,7 @@ namespace _Project
 		// Color (32-bit RGBA)
 		// TexBase(9), TexOverlay(9), TexNorm(9), FaceIndex(3), Padding(2) = 32 bits
 		// TexSpec(9), Padding(23) = 32 bits
-		
+
 		/// <param name="faceIdx">Geometric face index — drives shader normal, tangent, UV reconstruction.</param>
 		/// <param name="ao">Ambient occlusion value (0-3).</param>
 		public Vertex(float3 pos, Block block, int faceIdx, int ao)
@@ -65,7 +65,7 @@ namespace _Project
 
 			Data1234 = new uint4(data1, data2, data3, tSpec);
 		}
-		
+
 		private static ushort GetTextureIndex(int normalIdx, in NativeTexturesIDLayer layer)
 		{
 			return normalIdx switch

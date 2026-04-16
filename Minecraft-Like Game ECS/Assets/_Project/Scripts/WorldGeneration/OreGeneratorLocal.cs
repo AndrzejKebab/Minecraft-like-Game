@@ -1,18 +1,18 @@
-﻿using Unity.Burst;
+﻿using _Project.WorldGeneration.Blocks;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using _Project.WorldGeneration.Blocks;
 
 namespace _Project.WorldGeneration
 {
 	/// <summary>
-	/// Chunk-local ore generation.  Replaces OreGenerator's hashmap-based API.
-	/// Writes directly into ownData NativeArray.  Vein radius ≤ 2 ensures all
-	/// ore blocks land in own chunk — same constraint as original.
+	///     Chunk-local ore generation.  Replaces OreGenerator's hashmap-based API.
+	///     Writes directly into ownData NativeArray.  Vein radius ≤ 2 ensures all
+	///     ore blocks land in own chunk — same constraint as original.
 	/// </summary>
-	[BurstCompile(OptimizeFor    = OptimizeFor.Performance,
-	              FloatMode      = FloatMode.Fast,
-	              FloatPrecision = FloatPrecision.Low)]
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance,
+		             FloatMode = FloatMode.Fast,
+		             FloatPrecision = FloatPrecision.Low)]
 	public static class OreGeneratorLocal
 	{
 		[BurstCompile]
@@ -23,7 +23,7 @@ namespace _Project.WorldGeneration
 			int                          chunkSize,
 			int                          seed)
 		{
-			for (int o = 0; o < oreTypes.Length; o++)
+			for (var o = 0; o < oreTypes.Length; o++)
 				GenerateOreType(ref ownData, ref oreTypes, o, ref chunkWorldPos, chunkSize, seed);
 		}
 
@@ -38,37 +38,37 @@ namespace _Project.WorldGeneration
 		{
 			OreSettings ore = oreTypes[oreIdx];
 
-			int chunkMinY = chunkWorldPos.y;
-			int chunkMaxY = chunkWorldPos.y + chunkSize - 1;
-			int yMin      = math.max(ore.MinWorldY, chunkMinY);
-			int yMax      = math.min(ore.MaxWorldY, chunkMaxY);
+			var chunkMinY = chunkWorldPos.y;
+			var chunkMaxY = chunkWorldPos.y + chunkSize - 1;
+			var yMin      = math.max(ore.MinWorldY, chunkMinY);
+			var yMax      = math.min(ore.MaxWorldY, chunkMaxY);
 			if (yMin > yMax) return;
 
 			var rng = Random.CreateFromIndex(VeinHash(ref chunkWorldPos, seed, oreIdx));
 
-			for (int v = 0; v < ore.VeinsPerChunk; v++)
+			for (var v = 0; v < ore.VeinsPerChunk; v++)
 			{
-				int cx       = chunkWorldPos.x + rng.NextInt(0, chunkSize);
-				int cy       = rng.NextInt(yMin, yMax + 1);
-				int cz       = chunkWorldPos.z + rng.NextInt(0, chunkSize);
-				int veinSize = rng.NextInt(1, ore.MaxVeinSize + 1);
+				var cx       = chunkWorldPos.x + rng.NextInt(0, chunkSize);
+				var cy       = rng.NextInt(yMin, yMax + 1);
+				var cz       = chunkWorldPos.z + rng.NextInt(0, chunkSize);
+				var veinSize = rng.NextInt(1, ore.MaxVeinSize + 1);
 
-				for (int b = 0; b < veinSize; b++)
+				for (var b = 0; b < veinSize; b++)
 				{
 					float3 offset = rng.NextFloat3(new float3(-ore.VeinRadius), new float3(ore.VeinRadius));
 
-					int bx = math.clamp(cx + (int)math.round(offset.x),
+					var bx = math.clamp(cx + (int)math.round(offset.x),
 					                    chunkWorldPos.x, chunkWorldPos.x + chunkSize - 1);
-					int by = math.clamp(cy + (int)math.round(offset.y), yMin, yMax);
-					int bz = math.clamp(cz + (int)math.round(offset.z),
+					var by = math.clamp(cy + (int)math.round(offset.y), yMin, yMax);
+					var bz = math.clamp(cz + (int)math.round(offset.z),
 					                    chunkWorldPos.z, chunkWorldPos.z + chunkSize - 1);
 
-					int lx  = bx - chunkWorldPos.x;
-					int ly  = by - chunkWorldPos.y;
-					int lz  = bz - chunkWorldPos.z;
-					int idx = Utility.FlattenIndex(lx, ly, lz);
+					var lx  = bx - chunkWorldPos.x;
+					var ly  = by - chunkWorldPos.y;
+					var lz  = bz - chunkWorldPos.z;
+					var idx = Utility.FlattenIndex(lx, ly, lz);
 
-					var existing = ownData[idx];
+					BlockState existing = ownData[idx];
 					if (existing.ID != ore.TargetBlockID) continue;
 					ownData[idx] = new BlockState { ID = ore.BlockID, Orientation = 0 };
 				}
@@ -80,11 +80,11 @@ namespace _Project.WorldGeneration
 		{
 			unchecked
 			{
-				uint h = (uint)(pos.x * 1376312589
-				                ^ pos.y * 1664525
-				                ^ pos.z * 22695477
-				                ^ seed  * 1013904223
-				                ^ oreIdx * 134775813);
+				var h = (uint)((pos.x * 1376312589)
+				               ^ (pos.y * 1664525)
+				               ^ (pos.z * 22695477)
+				               ^ (seed * 1013904223)
+				               ^ (oreIdx * 134775813));
 				h ^= h >> 16;
 				h *= 0x45d9f3b;
 				h ^= h >> 16;

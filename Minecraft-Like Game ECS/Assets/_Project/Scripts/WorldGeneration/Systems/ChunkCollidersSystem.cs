@@ -31,8 +31,8 @@ namespace _Project.WorldGeneration.Systems
 			state.RequireForUpdate<ChunkMapSingleton>();
 			state.RequireForUpdate<WorldBlockRegistrySingleton>();
 
-			var  layer     = LayerMask.NameToLayer("Chunk");
-			uint chunkMask = layer == -1 ? (1u << 3) : (1u << layer);
+			var layer     = LayerMask.NameToLayer("Chunk");
+			var chunkMask = layer == -1 ? 1u << 3 : 1u << layer;
 			chunkFilter = new CollisionFilter { BelongsTo = chunkMask, CollidesWith = ~0u };
 
 			faceChecks = new NativeArray<int3>(6, Allocator.Persistent)
@@ -60,7 +60,8 @@ namespace _Project.WorldGeneration.Systems
 		public void OnUpdate(ref SystemState state)
 		{
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
-				SystemAPI.GetSingletonEntity<Player>()).ValueRO.Position;
+			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
+			                            .Position;
 			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
 
 			var ecb          = new EntityCommandBuffer(Allocator.Temp);
@@ -70,7 +71,7 @@ namespace _Project.WorldGeneration.Systems
 			// ── 1. Complete active job if ready or urgent ──────────────────────
 			if (isJobActive)
 			{
-				bool forceComplete = activeJobHandle.IsCompleted;
+				var forceComplete = activeJobHandle.IsCompleted;
 
 				if (!forceComplete)
 					for (var i = 0; i < activeEntities.Length; i++)
@@ -210,7 +211,7 @@ namespace _Project.WorldGeneration.Systems
 				          BlockDataLookup = map.ChunkDataLookup,
 				          ChunkMap        = map.ChunkMap,
 				          BlockPrototypes = registry.Blocks,
-				          ChunkSize       = VoxelData.CHUNK_SIZE,
+				          ChunkSize       = ChunkData.CHUNK_SIZE,
 				          Filter          = chunkFilter,
 				          OutColliders    = activeBlobs
 			          };
@@ -242,7 +243,7 @@ namespace _Project.WorldGeneration.Systems
 
 				if (blob.IsCreated)
 				{
-					var chunkWorldPos = new float3(activePositions[i] * VoxelData.CHUNK_SIZE);
+					var chunkWorldPos = new float3(activePositions[i] * ChunkData.CHUNK_SIZE);
 					if (!state.EntityManager.HasComponent<LocalTransform>(e))
 						ecb.AddComponent(e, LocalTransform.FromPosition(chunkWorldPos));
 					if (!state.EntityManager.HasComponent<LocalToWorld>(e))

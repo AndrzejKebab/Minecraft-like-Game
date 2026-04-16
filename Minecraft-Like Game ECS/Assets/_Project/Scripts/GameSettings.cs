@@ -8,7 +8,7 @@
 		public const byte COLLIDER_BAKES_PER_FRAME = 8;
 
 		// Player-radius (Chebyshev) inside which work is forced through urgent queue.
-		public const  byte URGENT_RADIUS              = 2;
+		public const byte URGENT_RADIUS = 2;
 
 		public static readonly byte ViewDistanceInChunks = 8;
 	}

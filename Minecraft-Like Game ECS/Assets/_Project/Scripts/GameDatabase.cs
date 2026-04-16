@@ -10,17 +10,16 @@ namespace _Project
 {
 	public class GameDatabase : MonoBehaviour
 	{
-		public static GameDatabase Instance { get; private set; }
-
 		[Header("Block Registry")]
 		[Tooltip("Automatically finds all BlockDataSo assets in the project and sorts them by ID.")]
 		public bool AutoCollectBlocks = true;
 
 		public BlockDataSo[] AllBlocks;
 
-		[Header("Materials")] 
-		public Material ChunkMaterial;
-		public Material WaterMaterial;
+		[Header("Materials")] public Material ChunkMaterial;
+
+		public        Material     WaterMaterial;
+		public static GameDatabase Instance { get; private set; }
 
 		private void Awake()
 		{

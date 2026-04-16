@@ -30,7 +30,7 @@ namespace _Project.Character
 
 				if (currentID >= registry.Blocks.Length) continue;
 				var blockName = registry.BlockNames[currentID].ToString();
-                        
+
 				PlayerUIController.Instance.UpdateSelectedBlockText(blockName);
 			}
 		}

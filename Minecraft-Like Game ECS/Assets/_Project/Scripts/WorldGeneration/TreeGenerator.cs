@@ -1,51 +1,49 @@
-﻿using Unity.Burst;
+﻿using _Project.WorldGeneration.Blocks;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using _Project.WorldGeneration.Blocks;
 
 namespace _Project.WorldGeneration
 {
 	/// <summary>
-	/// Burst-compiled tree generation.
-	/// Writes logs and leaves directly into the shared
-	/// <c>NativeParallelHashMap&lt;int3, ChunkBlockDataRef&gt;</c>
-	/// so trees that cross chunk borders are handled without any intermediate
-	/// VoxelMod buffer or main-thread routing pass.
-	///
-	/// THREAD SAFETY
-	/// ─────────────
-	/// Safe to call from concurrent jobs ONLY when the calling jobs are in the
-	/// same checkerboard colour group (guaranteed ≥2 chunks apart in XZ),
-	/// which ensures their write zones never overlap.
-	///
-	/// SURFACE DETECTION
-	/// ─────────────────
-	/// <see cref="FindSurface"/> searches specifically for a grass block rather
-	/// than the first non-air block.  This prevents canopy leaves written into
-	/// a neighbour by an earlier checkerboard wave from being mistaken for the
-	/// ground surface, which would cause tree trunks to sprout mid-air above
-	/// the existing canopy.
+	///     Burst-compiled tree generation.
+	///     Writes logs and leaves directly into the shared
+	///     <c>NativeParallelHashMap&lt;int3, ChunkBlockDataRef&gt;</c>
+	///     so trees that cross chunk borders are handled without any intermediate
+	///     VoxelMod buffer or main-thread routing pass.
+	///     THREAD SAFETY
+	///     ─────────────
+	///     Safe to call from concurrent jobs ONLY when the calling jobs are in the
+	///     same checkerboard colour group (guaranteed ≥2 chunks apart in XZ),
+	///     which ensures their write zones never overlap.
+	///     SURFACE DETECTION
+	///     ─────────────────
+	///     <see cref="FindSurface" /> searches specifically for a grass block rather
+	///     than the first non-air block.  This prevents canopy leaves written into
+	///     a neighbour by an earlier checkerboard wave from being mistaken for the
+	///     ground surface, which would cause tree trunks to sprout mid-air above
+	///     the existing canopy.
 	/// </summary>
-	[BurstCompile(OptimizeFor    = OptimizeFor.Performance,
-	              FloatMode      = FloatMode.Fast,
-	              FloatPrecision = FloatPrecision.Low)]
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance,
+		             FloatMode = FloatMode.Fast,
+		             FloatPrecision = FloatPrecision.Low)]
 	public static class TreeGenerator
 	{
 		[BurstCompile]
 		public static void Generate(
-			ref  NativeArray<BlockState>                               ownBlockData,
-			ref NativeParallelHashMap<int3, ChunkBlockDataRef>        chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter      dirtyWriter,
-			ref int3   chunkWorldPos,
-			int    chunkSize,
-			int    seed,
-			float  treeDensity,
-			int    minTrunkHeight,
-			int    maxTrunkHeight,
-			ushort airID,
-			ushort grassID,
-			ushort logID,
-			ushort leavesID)
+			ref NativeArray<BlockState>                          ownBlockData,
+			ref NativeParallelHashMap<int3, ChunkBlockDataRef>   chunkMap,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter dirtyWriter,
+			ref int3                                             chunkWorldPos,
+			int                                                  chunkSize,
+			int                                                  seed,
+			float                                                treeDensity,
+			int                                                  minTrunkHeight,
+			int                                                  maxTrunkHeight,
+			ushort                                               airID,
+			ushort                                               grassID,
+			ushort                                               logID,
+			ushort                                               leavesID)
 		{
 			for (var x = 0; x < chunkSize; x++)
 			for (var z = 0; z < chunkSize; z++)
@@ -82,14 +80,14 @@ namespace _Project.WorldGeneration
 
 		[BurstCompile]
 		private static void PlaceTree(
-			ref NativeParallelHashMap<int3, ChunkBlockDataRef>      chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter    dirtyWriter,
-			ref int3   root,         // World-space position of the grass block
-			int    trunkHeight,
-			int    chunkSize,
-			ushort airID,
-			ushort logID,
-			ushort leavesID)
+			ref NativeParallelHashMap<int3, ChunkBlockDataRef>   chunkMap,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter dirtyWriter,
+			ref int3                                             root, // World-space position of the grass block
+			int                                                  trunkHeight,
+			int                                                  chunkSize,
+			ushort                                               airID,
+			ushort                                               logID,
+			ushort                                               leavesID)
 		{
 			// ── Trunk ─────────────────────────────────────────────────────────
 			for (var i = 1; i <= trunkHeight; i++)
@@ -103,16 +101,16 @@ namespace _Project.WorldGeneration
 			}
 
 			// ── Canopy — flattened ellipsoid centred one above trunk tip ──────
-			var canopyCentreY = trunkHeight + 1;
-			const int   HR = 3;    // horizontal radius in blocks
-			const float VR = 2.2f; // vertical scale (< HR → flat disc shape)
+			var         canopyCentreY = trunkHeight + 1;
+			const int   HR            = 3;    // horizontal radius in blocks
+			const float VR            = 2.2f; // vertical scale (< HR → flat disc shape)
 
 			for (var lx = -HR; lx <= HR; lx++)
 			for (var lz = -HR; lz <= HR; lz++)
-			for (var ly = -1;  ly <= HR; ly++) // asymmetric: more up than down
+			for (var ly = -1; ly <= HR; ly++) // asymmetric: more up than down
 			{
 				var d = math.sqrt(lx * lx
-				                  + (ly * (HR / VR)) * (ly * (HR / VR))
+				                  + ly * (HR / VR) * (ly * (HR / VR))
 				                  + lz * lz);
 				if (d > HR) continue;
 
@@ -132,18 +130,18 @@ namespace _Project.WorldGeneration
 		// ── Write helper ──────────────────────────────────────────────────────
 
 		/// <summary>
-		/// Resolves world position → chunk coord → flat index, then conditionally
-		/// writes the block and marks the chunk dirty.
-		/// Handles positions in any loaded chunk (cross-chunk trees just work).
+		///     Resolves world position → chunk coord → flat index, then conditionally
+		///     writes the block and marks the chunk dirty.
+		///     Handles positions in any loaded chunk (cross-chunk trees just work).
 		/// </summary>
 		[BurstCompile]
 		private static void WriteBlock(
-			ref NativeParallelHashMap<int3, ChunkBlockDataRef>      chunkMap,
-			ref NativeParallelHashMap<int3, bool>.ParallelWriter    dirtyWriter,
-			ref int3       worldPos,
-			int        chunkSize,
-			ref BlockState value,
-			ushort     requiredExistingID)
+			ref NativeParallelHashMap<int3, ChunkBlockDataRef>   chunkMap,
+			ref NativeParallelHashMap<int3, bool>.ParallelWriter dirtyWriter,
+			ref int3                                             worldPos,
+			int                                                  chunkSize,
+			ref BlockState                                       value,
+			ushort                                               requiredExistingID)
 		{
 			int3 coord = WorldToChunkCoord(worldPos, chunkSize);
 
@@ -153,45 +151,47 @@ namespace _Project.WorldGeneration
 			if (math.any(local < 0) || math.any(local >= chunkSize)) return;
 
 			if (chunkRef.TryWrite(Utility.FlattenIndex(local.x, local.y, local.z), value, requiredExistingID))
-			{
 				dirtyWriter.TryAdd(coord, true);
-			}
 		}
 
 		// ── Utilities ─────────────────────────────────────────────────────────
 
 		/// <summary>
-		/// Finds the highest block with <paramref name="grassID"/> in column (x, z).
-		/// Returns the local Y, or -1 if no grass block is found.
-		///
-		/// Searching for grassID specifically (rather than the first non-air block)
-		/// prevents canopy leaves placed by an earlier checkerboard wave from
-		/// being treated as the surface in neighbouring chunks.
+		///     Finds the highest block with <paramref name="grassID" /> in column (x, z).
+		///     Returns the local Y, or -1 if no grass block is found.
+		///     Searching for grassID specifically (rather than the first non-air block)
+		///     prevents canopy leaves placed by an earlier checkerboard wave from
+		///     being treated as the surface in neighbouring chunks.
 		/// </summary>
 		[BurstCompile]
 		private static int FindSurface(
 			ref NativeArray<BlockState> data, int x, int z, int size, ushort grassID)
 		{
 			for (var y = size - 1; y >= 0; y--)
-				if (data.GetAtPosition(x,y,z).ID == grassID) return y;
+				if (data.GetAtPosition(x, y, z).ID == grassID)
+					return y;
 			return -1;
 		}
-		
-		internal static int3 WorldToChunkCoord(int3 world, int size) =>
-			new(FloorDiv(world.x, size),
-			    FloorDiv(world.y, size),
-			    FloorDiv(world.z, size));
+
+		internal static int3 WorldToChunkCoord(int3 world, int size)
+		{
+			return new int3(FloorDiv(world.x, size),
+			                FloorDiv(world.y, size),
+			                FloorDiv(world.z, size));
+		}
 
 		[BurstCompile]
 		private static int FloorDiv(int a, int b)
-			=> a / b - (a % b != 0 && (a ^ b) < 0 ? 1 : 0);
+		{
+			return a / b - (a % b != 0 && (a ^ b) < 0 ? 1 : 0);
+		}
 
 		[BurstCompile]
 		private static uint ColumnHash(int x, int z, int seed)
 		{
 			unchecked
 			{
-				var h = (uint)(x * 1376312589 ^ z * 1664525 ^ seed * 22695477);
+				var h = (uint)((x * 1376312589) ^ (z * 1664525) ^ (seed * 22695477));
 				h ^= h >> 16;
 				h *= 0x45d9f3b;
 				h ^= h >> 16;
