@@ -201,12 +201,12 @@ namespace _Project.Character
 		[BurstCompile]
 		private void ModifyBlock(ref SystemState state, ref float3 worldPos, ref BlockState newBlock, EntityCommandBuffer ecb)
 		{
-			int3 chunkCoord = PlayerVisibleChunksSystem.WorldToChunkCoord(worldPos);
+			int3 chunkCoord = Utility.WorldToChunkCoord(worldPos);
 			var  worldInt   = new int3((int3)math.floor(worldPos));
 			int3 localPos   = worldInt - chunkCoord * ChunkData.CHUNK_SIZE;
 
 			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
-
+			
 			if (!chunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return;
 
 			if (localPos.x < 0 || localPos.x >= ChunkData.CHUNK_SIZE ||

@@ -49,9 +49,9 @@ namespace _Project.WorldGeneration.Systems
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
 			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
 			                            .Position;
-			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
+			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
-			int budget = GameSettings.CHUNKS_PER_MESH_JOB;
+			const int budget = GameSettings.CHUNKS_PER_MESH_JOB;
 
 			NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 			var                             chunkLookup     = SystemAPI.GetSingleton<ChunkMapSingleton>();

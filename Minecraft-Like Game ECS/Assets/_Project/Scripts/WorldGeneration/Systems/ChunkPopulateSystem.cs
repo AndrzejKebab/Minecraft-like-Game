@@ -37,9 +37,9 @@ namespace _Project.WorldGeneration.Systems
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
 			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
 			                            .Position;
-			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
+			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
-			int budget = GameSettings.CHUNKS_PER_POPULATE_JOB;
+			const int budget = GameSettings.CHUNKS_PER_POPULATE_JOB;
 
 			NativeArray<Entity> entities = candidateQuery.ToEntityArray(Allocator.Temp);
 			NativeArray<ChunkPositionComponent> positions =

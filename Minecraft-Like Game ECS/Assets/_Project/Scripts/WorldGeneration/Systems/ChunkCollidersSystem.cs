@@ -73,7 +73,7 @@ namespace _Project.WorldGeneration.Systems
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
 			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
 			                            .Position;
-			int3 playerChunk = PlayerVisibleChunksSystem.WorldToChunkCoord(playerPos);
+			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
 			var ecb          = new EntityCommandBuffer(Allocator.Temp);
 			var oldToDispose = new NativeList<BlobAssetReference<Collider>>(Allocator.Temp);

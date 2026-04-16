@@ -30,11 +30,23 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<ChunkPositionComponent> Positions;
 
 		[NativeDisableContainerSafetyRestriction]
-		public NativeHashMap<Entity, ChunkComponent> ChunkDataLookup;
+		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> ChunkDataLookup;
 
 		[ReadOnly] public NativeArray<Block>       BlockPrototypes;
 		[ReadOnly] public NativeArray<OreSettings> OreTypes;
 
+		[ReadOnly] public FastNoise   ContinentalnessNoise;
+		[ReadOnly] public FastNoise   PeaksAndValleysNoise;
+		[ReadOnly] public FastNoise   ErosionNoise;
+		[ReadOnly] public FastNoise   RiverNoise;
+		[ReadOnly] public FastNoise   CavesNoise;
+		
+		[ReadOnly] public NativeCurve ContinentalnessCurve;
+		[ReadOnly] public NativeCurve ErosionCurve;
+		[ReadOnly] public NativeCurve PeaksAndValleysCurve;
+		
+		public EntityCommandBuffer.ParallelWriter ECB;
+		
 		public int Seed;
 		public int ChunkSize;
 
@@ -46,17 +58,6 @@ namespace _Project.WorldGeneration.Jobs
 		public float TreeDensity;
 		public int   MinTrunkHeight;
 		public int   MaxTrunkHeight;
-
-		public FastNoise   ContinentalnessNoise;
-		public FastNoise   PeaksAndValleysNoise;
-		public FastNoise   ErosionNoise;
-		public FastNoise   RiverNoise;
-		public FastNoise   CavesNoise;
-		public NativeCurve ContinentalnessCurve;
-		public NativeCurve ErosionCurve;
-		public NativeCurve PeaksAndValleysCurve;
-
-		public EntityCommandBuffer.ParallelWriter ECB;
 
 		public void Execute(int index)
 		{

@@ -57,7 +57,7 @@ namespace _Project.WorldGeneration.Systems
 			Entity playerEntity = SystemAPI.GetSingletonEntity<Player>();
 			float3 playerPos    = SystemAPI.GetComponentRO<LocalTransform>(playerEntity).ValueRO.Position;
 
-			int3 playerChunk = WorldToChunkCoord(playerPos);
+			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 			if (playerChunk.Equals(lastPlayerChunk)) return;
 			lastPlayerChunk = playerChunk;
 
@@ -142,14 +142,6 @@ namespace _Project.WorldGeneration.Systems
 
 			toRemove.Dispose();
 			desired.Dispose();
-		}
-
-		public static int3 WorldToChunkCoord(float3 worldPos)
-		{
-			return new int3(
-			                Mathf.FloorToInt(worldPos.x / ChunkData.CHUNK_SIZE),
-			                Mathf.FloorToInt(worldPos.y / ChunkData.CHUNK_SIZE),
-			                Mathf.FloorToInt(worldPos.z / ChunkData.CHUNK_SIZE));
 		}
 	}
 }

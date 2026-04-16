@@ -5,6 +5,20 @@ using Unity.Mathematics;
 
 namespace _Project.WorldGeneration
 {
+	// ── Data ─────────────────────────────────────────────────────────────────
+	/// <summary>Blittable ore configuration.  Store in a NativeArray.</summary>
+	public struct OreSettings
+	{
+		public ushort BlockID;       // Block to place
+		public ushort TargetBlockID; // Only replace this block (e.g. stone)
+		public int    MinWorldY;
+		public int    MaxWorldY;
+		public int    VeinsPerChunk;
+		public int    MaxVeinSize;
+		public float  VeinRadius; // Keep ≤ 2 to stay within the chunk
+	}
+
+	
 	/// <summary>
 	///     Chunk-local ore generation.  Replaces OreGenerator's hashmap-based API.
 	///     Writes directly into ownData NativeArray.  Vein radius ≤ 2 ensures all

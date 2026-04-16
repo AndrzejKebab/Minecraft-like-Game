@@ -171,8 +171,7 @@ namespace _Project.WorldGeneration
 			var v = caveNoise.GenSingle3D(wx, wy, wz, seed);
 			return v > 0f;
 		}
-
-		// MUST match TreeGenerator.ColumnHash for output determinism.
+		
 		[BurstCompile]
 		private static uint ColumnHash(int x, int z, int seed)
 		{

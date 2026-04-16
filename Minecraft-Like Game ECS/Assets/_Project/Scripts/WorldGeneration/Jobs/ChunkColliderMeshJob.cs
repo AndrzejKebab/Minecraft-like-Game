@@ -11,15 +11,6 @@ using Material = Unity.Physics.Material;
 
 namespace _Project.WorldGeneration.Jobs
 {
-	/// <summary>
-	///     Per-chunk: read BlockData → build solid-only greedy mesh → bake MeshCollider.
-	///     Reads own + 6 face-neighbor BlockData for cross-chunk face culling.
-	///     Missing neighbors treated as air (chunks at view-edge get extra faces, harmless).
-	///     "Solid" = ID != 0 AND not fluid. Everything else (air, water, etc.) walkable.
-	///     No texture/orientation/AO tracking — collider only needs face geometry.
-	///     Output: BlobAssetReference&lt;Collider&gt; per index. default(...) if chunk fully empty.
-	///     Caller writes blob into PhysicsCollider component or disposes if entity gone.
-	/// </summary>
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast,
 		             FloatPrecision = FloatPrecision.Low)]
 	public struct ChunkColliderMeshJob : IJobFor
@@ -27,19 +18,20 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<Entity> Entities;
 		[ReadOnly] public NativeArray<int3>   Positions;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeHashMap<int3, Entity> ChunkMap;
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeHashMap<int3, Entity> ChunkMap;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeArray<Block> BlockPrototypes;
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeArray<Block> BlockPrototypes;
 
+		[NativeDisableParallelForRestriction] 
+		[WriteOnly] public NativeArray<BlobAssetReference<Collider>> OutColliders;
+		
 		public CollisionFilter Filter;
 		public int             ChunkSize;
-
-		[NativeDisableParallelForRestriction] public NativeArray<BlobAssetReference<Collider>> OutColliders;
 
 		public void Execute(int index)
 		{
@@ -76,7 +68,6 @@ namespace _Project.WorldGeneration.Jobs
 		}
 
 		// ── Helpers ─────────────────────────────────────────────────────
-
 		private NativeArray<BlockState> TryGetNeighbor(int3 coord)
 		{
 			if (!ChunkMap.TryGetValue(coord, out Entity e)) return default;

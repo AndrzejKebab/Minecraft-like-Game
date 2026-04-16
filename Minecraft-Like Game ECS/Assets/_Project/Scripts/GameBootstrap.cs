@@ -125,21 +125,21 @@ namespace _Project
 				          BlockID       = reg.Blocks[13].ID,
 				          TargetBlockID = stone,
 				          MinWorldY     = -64, MaxWorldY  = 128,
-				          VeinsPerChunk = 20, MaxVeinSize = 17, VeinRadius = 2f
+				          VeinsPerChunk = 20, MaxVeinSize = 17, VeinRadius = 10f
 			          };
 			ores[1] = new OreSettings // Iron  — medium rarity
 			          {
 				          BlockID       = reg.Blocks[11].ID,
 				          TargetBlockID = stone,
-				          MinWorldY     = -64, MaxWorldY = 64,
-				          VeinsPerChunk = 9, MaxVeinSize = 9, VeinRadius = 1.5f
+				          MinWorldY     = -128, MaxWorldY = 64,
+				          VeinsPerChunk = 9, MaxVeinSize = 9, VeinRadius = 5f
 			          };
 			ores[2] = new OreSettings // Diamond — rare, deep only
 			          {
 				          BlockID       = reg.Blocks[12].ID,
 				          TargetBlockID = stone,
-				          MinWorldY     = -64, MaxWorldY = 16,
-				          VeinsPerChunk = 2, MaxVeinSize = 8, VeinRadius = 1f
+				          MinWorldY     = -256, MaxWorldY = -16,
+				          VeinsPerChunk = 2, MaxVeinSize = 8, VeinRadius = 2f
 			          };
 			return ores;
 		}
