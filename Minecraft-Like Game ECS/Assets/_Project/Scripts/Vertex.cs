@@ -40,10 +40,10 @@ namespace _Project
 			Data1234 = new uint4(data1, data2, data3, tSpec);
 		}
 
-		/// <param name="normalIdx">Geometric face index — drives shader normal, tangent, UV reconstruction.</param>
+		/// <param name="faceIdx">Geometric face index — drives shader normal, tangent, UV reconstruction.</param>
 		/// <param name="textureFaceIdx">Logical face index after orientation remap — selects which texture slot to read.</param>
 		/// <param name="ao">Ambient occlusion value (0-3).</param>
-		public Vertex(float3 pos, Block block, int normalIdx, int textureFaceIdx, int ao)
+		public Vertex(float3 pos, Block block, int faceIdx, int textureFaceIdx, int ao)
 		{
 			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
 			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
@@ -61,7 +61,7 @@ namespace _Project
 			var tNorm    = GetTextureIndex(textureFaceIdx, block.NormalTextures) & 0x1FFu;
 			var tSpec    = GetTextureIndex(textureFaceIdx, block.SpecularTextures) & 0x1FFu;
 
-			var data3 = tBase | (tOverlay << 9) | (tNorm << 18) | (((uint)normalIdx & 0x7u) << 27);
+			var data3 = tBase | (tOverlay << 9) | (tNorm << 18) | (((uint)faceIdx & 0x7u) << 27);
 
 			Data1234 = new uint4(data1, data2, data3, tSpec);
 		}

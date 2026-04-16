@@ -1,5 +1,6 @@
 ﻿using _Project.Tags;
 using _Project.WorldGeneration.Components;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,88 +11,95 @@ using UnityEngine;
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
+	[BurstCompile]
 	public partial struct ChunkManagerSystem : ISystem
 	{
+		private EntityQuery chunksToDestroy;
+
+		[BurstCompile]
 		public void OnCreate(ref SystemState state)
 		{
+			chunksToDestroy = SystemAPI.QueryBuilder().WithAll<ChunkPositionComponent, MarkedToDestroy>().Build();
 		}
-
-		public void OnDestroy(ref SystemState state)
-		{
-		}
-
+		public void OnDestroy(ref SystemState state) { }
+		
+		[BurstCompile]
 		public void OnUpdate(ref SystemState state)
 		{
 			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
 			RefRW<ChunkMapSingleton> mapSingleton = SystemAPI.GetSingletonRW<ChunkMapSingleton>();
 
-			foreach ((RefRO<ChunkPositionComponent> _, Entity entity) in SystemAPI
-			                                                             .Query<RefRO<ChunkPositionComponent>>()
-			                                                             .WithAll<MarkedToDestroy>()
-			                                                             .WithEntityAccess())
+			NativeArray<Entity>                 chunkEntities          = chunksToDestroy.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> chunkPositionComponents = chunksToDestroy.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+			
+			for (var index = 0; index < chunkEntities.Length; index++)
 			{
-				// Localized wait: Ensure no job is using this chunk or its neighbors before disposing memory structures
-				int3 pos = SystemAPI.GetComponent<ChunkPositionComponent>(entity).ChunkCoord;
+				Entity entity = chunkEntities[index];
+				int3   pos    = chunkPositionComponents[index].ChunkCoord;
 
-				if (SystemAPI.HasComponent<ChunkActiveJob>(entity))
-					SystemAPI.GetComponent<ChunkActiveJob>(entity).Handle.Complete();
+				if (SystemAPI.TryGetComponent(entity, out ChunkActiveJob job))
+					job.Handle.Complete();
 
-				NativeHashMap<int3, Entity> map = mapSingleton.ValueRO.ChunkMap;
-				for (var x = -1; x <= 1; x++)
-				for (var y = -1; y <= 1; y++)
-				for (var z = -1; z <= 1; z++)
-					if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
-						if (SystemAPI.HasComponent<ChunkActiveJob>(neighbor))
-							SystemAPI.GetComponent<ChunkActiveJob>(neighbor).Handle.Complete();
+				TryCompleteNeighbors(ref state, mapSingleton, pos);
 
-				if (SystemAPI.HasComponent<ChunkComponent>(entity))
+				if (SystemAPI.TryGetComponent(entity, out ChunkComponent chunk))
 				{
-					var comp = SystemAPI.GetComponent<ChunkComponent>(entity);
-					if (comp.BlockData.IsCreated) comp.BlockData.Dispose();
-
+					if (chunk.BlockData.IsCreated) chunk.BlockData.Dispose();
 					mapSingleton.ValueRW.ChunkDataLookup.Remove(entity);
 				}
 
-				if (SystemAPI.HasComponent<ChunkMeshData>(entity))
-				{
-					var comp = SystemAPI.GetComponent<ChunkMeshData>(entity);
-					comp.Dispose();
-				}
+				if (SystemAPI.TryGetComponent(entity, out ChunkMeshData data)) data.Dispose();
 
-				if (SystemAPI.HasComponent<PhysicsCollider>(entity))
-				{
-					var phys = SystemAPI.GetComponent<PhysicsCollider>(entity);
-					if (phys.Value.IsCreated) phys.Value.Dispose();
-				}
+				if (SystemAPI.TryGetComponent(entity, out PhysicsCollider collider))
+					if (collider.Value.IsCreated)
+						collider.Value.Dispose();
 
-				if (state.EntityManager.HasComponent<ChunkManagedMesh>(entity))
-				{
-					var managed = state.EntityManager.GetComponentObject<ChunkManagedMesh>(entity);
 
-					// Unregister mesh from BRG batch.
-					var egs = state.EntityManager.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-					if (egs != null && managed.MeshBatchID.value != 0)
-						egs.UnregisterMesh(managed.MeshBatchID);
-
-					// Destroy solid and fluid render companion entities.
-					if (managed.SolidEntity != Entity.Null &&
-					    state.EntityManager.Exists(managed.SolidEntity))
-						ecb.DestroyEntity(managed.SolidEntity);
-					if (managed.FluidEntity != Entity.Null &&
-					    state.EntityManager.Exists(managed.FluidEntity))
-						ecb.DestroyEntity(managed.FluidEntity);
-
-					// Release the Mesh asset.
-					if (managed.Mesh != null)
-						Object.Destroy(managed.Mesh);
-				}
+				DestroyMesh(ref state, entity, ecb);
 
 				ecb.DestroyEntity(entity);
 			}
 
+			chunkEntities.Dispose();
+			chunkPositionComponents.Dispose();
+			
 			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
+		}
+
+		[BurstDiscard]
+		private static void DestroyMesh(ref SystemState state, Entity entity, EntityCommandBuffer ecb)
+		{
+			if (!state.EntityManager.TryGetComponentObject(entity, out ChunkManagedMesh mesh)) return;
+			// Unregister mesh from BRG batch.
+			var egs = state.EntityManager.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+			if (egs != null && mesh.MeshBatchID.value != 0)
+				egs.UnregisterMesh(mesh.MeshBatchID);
+
+			// Destroy solid and fluid render companion entities.
+			if (mesh.SolidEntity != Entity.Null &&
+			    state.EntityManager.Exists(mesh.SolidEntity))
+				ecb.DestroyEntity(mesh.SolidEntity);
+			if (mesh.FluidEntity != Entity.Null &&
+			    state.EntityManager.Exists(mesh.FluidEntity))
+				ecb.DestroyEntity(mesh.FluidEntity);
+
+			// Release the Mesh asset.
+			if (mesh.Mesh != null)
+				Object.Destroy(mesh.Mesh);
+		}
+
+		[BurstCompile]
+		private void TryCompleteNeighbors(ref SystemState state, RefRW<ChunkMapSingleton> mapSingleton, int3 pos)
+		{
+			NativeHashMap<int3, Entity> map = mapSingleton.ValueRO.ChunkMap;
+			for (var x = -1; x <= 1; x++)
+			for (var y = -1; y <= 1; y++)
+			for (var z = -1; z <= 1; z++)
+				if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
+					if (SystemAPI.TryGetComponent(neighbor, out ChunkActiveJob neighborJob))
+						neighborJob.Handle.Complete();
 		}
 	}
 }

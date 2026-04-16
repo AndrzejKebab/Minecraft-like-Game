@@ -1,6 +1,7 @@
 using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.Jobs;
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Jobs;
@@ -13,6 +14,7 @@ using Collider = Unity.Physics.Collider;
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(FixedStepSimulationSystemGroup), OrderFirst = true)]
+	[BurstCompile]
 	public partial struct ChunkCollidersSystem : ISystem
 	{
 		private const int               COLLIDER_RADIUS = 1;
@@ -25,6 +27,10 @@ namespace _Project.WorldGeneration.Systems
 		private NativeArray<BlobAssetReference<Collider>> activeBlobs;
 		private bool                                      isJobActive;
 
+		private EntityQuery urgentQuery;
+		private EntityQuery outOfRangeQuery;
+
+		[BurstDiscard]
 		public void OnCreate(ref SystemState state)
 		{
 			state.RequireForUpdate<Player>();
@@ -41,8 +47,12 @@ namespace _Project.WorldGeneration.Systems
 				             [2] = new int3(0, -1, 0), [3] = new int3(0, 1, 0),
 				             [4] = new int3(0, 0, -1), [5] = new int3(0, 0, 1)
 			             };
+
+			urgentQuery     = SystemAPI.QueryBuilder().WithAll<UrgentColliderSync>().Build();
+			outOfRangeQuery = SystemAPI.QueryBuilder().WithAll<ChunkPositionComponent, HasCollider>().Build();
 		}
 
+		[BurstCompile]
 		public void OnDestroy(ref SystemState state)
 		{
 			if (faceChecks.IsCreated) faceChecks.Dispose();
@@ -57,6 +67,7 @@ namespace _Project.WorldGeneration.Systems
 			activeBlobs.Dispose();
 		}
 
+		[BurstCompile]
 		public void OnUpdate(ref SystemState state)
 		{
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
@@ -69,44 +80,93 @@ namespace _Project.WorldGeneration.Systems
 			var justBaked    = new NativeHashSet<Entity>(8, Allocator.Temp);
 
 			// ── 1. Complete active job if ready or urgent ──────────────────────
-			if (isJobActive)
+			oldToDispose = CompleteCurrentJobs(ref state, ecb, ref justBaked, ref oldToDispose);
+
+			// ── 2. Strip colliders for chunks that left radius ─────────────────
+			RemoveOutOfRangeColliders(ref state, ref playerChunk, ref justBaked, ref oldToDispose, ecb);
+
+			// ── 3. Collect candidates and schedule new batch when idle ─────────
+			oldToDispose = ScheduleColliderJobs(ref state, ref playerChunk, ref oldToDispose, ecb);
+
+			justBaked.Dispose();
+			ecb.Playback(state.EntityManager);
+			ecb.Dispose();
+
+			foreach (BlobAssetReference<Collider> c in oldToDispose) c.Dispose();
+			oldToDispose.Dispose();
+		}
+
+		private NativeList<BlobAssetReference<Collider>> ScheduleColliderJobs(
+			ref SystemState                              state,        ref int3            playerChunk,
+			ref NativeList<BlobAssetReference<Collider>> oldToDispose, EntityCommandBuffer ecb)
+		{
+			if (isJobActive) return oldToDispose;
+			var                         candEntities  = new NativeList<Entity>(64, Allocator.Temp);
+			var                         candPositions = new NativeList<int3>(64, Allocator.Temp);
+			var                         hasUrgent     = false;
+			NativeHashMap<int3, Entity> chunkMap      = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+
+			for (var x = -COLLIDER_RADIUS; x <= COLLIDER_RADIUS; x++)
 			{
-				var forceComplete = activeJobHandle.IsCompleted;
-
-				if (!forceComplete)
-					for (var i = 0; i < activeEntities.Length; i++)
-					{
-						if (!state.EntityManager.Exists(activeEntities[i]) ||
-						    !state.EntityManager.HasComponent<UrgentColliderSync>(activeEntities[i])) continue;
-						forceComplete = true;
-						break;
-					}
-
-				if (!forceComplete)
-					foreach (RefRO<UrgentColliderSync> _ in SystemAPI.Query<RefRO<UrgentColliderSync>>())
-					{
-						forceComplete = true;
-						break;
-					}
-
-				if (forceComplete)
+				for (var y = -COLLIDER_RADIUS; y <= COLLIDER_RADIUS; y++)
 				{
-					for (var i = 0; i < activeEntities.Length; i++)
-						justBaked.Add(activeEntities[i]);
+					for (var z = -COLLIDER_RADIUS; z <= COLLIDER_RADIUS; z++)
+					{
+						int3 pos = playerChunk + new int3(x, y, z);
+						if (!chunkMap.TryGetValue(pos, out Entity entity)) continue;
+
+						if (!state.EntityManager.HasComponent<IsPopulated>(entity) ||
+						    !state.EntityManager.HasComponent<IsInViewRange>(entity)) continue;
+
+						var hasCollider = state.EntityManager.HasComponent<HasCollider>(entity);
+						var isUrgent    = state.EntityManager.HasComponent<UrgentColliderSync>(entity);
+						var needsRebake = state.EntityManager.HasComponent<NeedsColliderSync>(entity) || isUrgent;
+
+						if (hasCollider && !needsRebake) continue;
+
+						candEntities.Add(entity);
+						candPositions.Add(pos);
+						if (isUrgent) hasUrgent = true;
+					}
+				}
+			}
+
+			if (candEntities.Length > 0)
+			{
+				activeEntities  = new NativeArray<Entity>(candEntities.AsArray(), Allocator.Persistent);
+				activePositions = new NativeArray<int3>(candPositions.AsArray(), Allocator.Persistent);
+
+				ScheduleBatch(ref state);
+
+				if (hasUrgent)
+				{
 					activeJobHandle.Complete();
-					ApplyBatch(ref state, ecb, oldToDispose);
+					ApplyBatch(ref state, ecb, ref oldToDispose);
 					isJobActive = false;
 				}
 			}
 
-			// ── 2. Strip colliders for chunks that left radius ─────────────────
-			foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
-			         SystemAPI.Query<RefRO<ChunkPositionComponent>>()
-			                  .WithAll<HasCollider>()
-			                  .WithEntityAccess())
+			candEntities.Dispose();
+			candPositions.Dispose();
+
+			return oldToDispose;
+		}
+
+		[BurstCompile]
+		private void RemoveOutOfRangeColliders(ref SystemState                              state, ref int3 playerChunk,
+		                                       ref NativeHashSet<Entity>                    justBaked,
+		                                       ref NativeList<BlobAssetReference<Collider>> oldToDispose,
+		                                       EntityCommandBuffer                          ecb)
+		{
+			NativeArray<Entity> entityArray = outOfRangeQuery.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> positionArray =
+				outOfRangeQuery.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+			for (var index = 0; index < entityArray.Length; index++)
 			{
-				if (IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
-				if (justBaked.Contains(entity)) continue; // blob already swapped in ApplyBatch — don't double-dispose
+				Entity                 entity = entityArray[index];
+				ChunkPositionComponent pos    = positionArray[index];
+				if (IsChebyshevNear(pos.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
+				if (justBaked.Contains(entity)) continue;
 
 				if (state.EntityManager.HasComponent<PhysicsCollider>(entity))
 				{
@@ -119,74 +179,59 @@ namespace _Project.WorldGeneration.Systems
 				ecb.RemoveComponent<HasCollider>(entity);
 			}
 
-			// ── 3. Collect candidates and schedule new batch when idle ─────────
-			if (!isJobActive)
-			{
-				var candEntities  = new NativeList<Entity>(64, Allocator.Temp);
-				var candPositions = new NativeList<int3>(64, Allocator.Temp);
-				var hasUrgent     = false;
-
-				foreach ((RefRO<ChunkPositionComponent> pos, Entity entity) in
-				         SystemAPI.Query<RefRO<ChunkPositionComponent>>()
-				                  .WithAll<IsPopulated, IsInViewRange>()
-				                  .WithEntityAccess())
-				{
-					if (!IsChebyshevNear(pos.ValueRO.ChunkCoord, playerChunk, COLLIDER_RADIUS)) continue;
-
-					var hasCollider = state.EntityManager.HasComponent<HasCollider>(entity);
-					var isUrgent    = state.EntityManager.HasComponent<UrgentColliderSync>(entity);
-					var needsRebake = state.EntityManager.HasComponent<NeedsColliderSync>(entity) || isUrgent;
-
-					if (hasCollider && !needsRebake) continue;
-
-					candEntities.Add(entity);
-					candPositions.Add(pos.ValueRO.ChunkCoord);
-					if (isUrgent) hasUrgent = true;
-				}
-
-				if (candEntities.Length > 0)
-				{
-					ScheduleBatch(ref state, candEntities.AsArray(), candPositions.AsArray());
-
-					if (hasUrgent)
-					{
-						activeJobHandle.Complete();
-						ApplyBatch(ref state, ecb, oldToDispose);
-						isJobActive = false;
-					}
-				}
-
-				candEntities.Dispose();
-				candPositions.Dispose();
-			}
-
-			justBaked.Dispose();
-			ecb.Playback(state.EntityManager);
-			ecb.Dispose();
-
-			foreach (BlobAssetReference<Collider> c in oldToDispose) c.Dispose();
-			oldToDispose.Dispose();
+			entityArray.Dispose();
+			positionArray.Dispose();
 		}
 
-		private void ScheduleBatch(
-			ref SystemState     state,
-			NativeArray<Entity> entities,
-			NativeArray<int3>   positions)
+		[BurstCompile]
+		private NativeList<BlobAssetReference<Collider>> CompleteCurrentJobs(
+			ref SystemState state, EntityCommandBuffer ecb, ref NativeHashSet<Entity> justBaked,
+			ref NativeList<BlobAssetReference<Collider>> oldToDispose)
 		{
-			activeEntities  = new NativeArray<Entity>(entities, Allocator.Persistent);
-			activePositions = new NativeArray<int3>(positions, Allocator.Persistent);
+			if (!isJobActive) return oldToDispose;
+			var forceComplete = activeJobHandle.IsCompleted;
+
+			if (!forceComplete)
+				for (var i = 0; i < activeEntities.Length; i++)
+				{
+					if (!state.EntityManager.Exists(activeEntities[i]) ||
+					    !state.EntityManager.HasComponent<UrgentColliderSync>(activeEntities[i])) continue;
+					forceComplete = true;
+					break;
+				}
+
+			if (!forceComplete && !urgentQuery.IsEmptyIgnoreFilter)
+			{
+				forceComplete = true;
+			}
+
+			if (!forceComplete) return oldToDispose;
+			{
+				for (var i = 0; i < activeEntities.Length; i++)
+					justBaked.Add(activeEntities[i]);
+				activeJobHandle.Complete();
+				ApplyBatch(ref state, ecb, ref oldToDispose);
+				isJobActive = false;
+			}
+
+			return oldToDispose;
+		}
+
+		[BurstCompile]
+		private void ScheduleBatch(ref SystemState state)
+		{
 			activeBlobs =
-				new NativeArray<BlobAssetReference<Collider>>(entities.Length, Allocator.Persistent,
+				new NativeArray<BlobAssetReference<Collider>>(activeEntities.Length, Allocator.Persistent,
 				                                              NativeArrayOptions.UninitializedMemory);
 			NativeHashMap<int3, Entity> chunkMap = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 
-			var handlesToWait = new NativeList<JobHandle>(entities.Length * 7, Allocator.Temp);
-			for (var i = 0; i < entities.Length; i++)
+			var handlesToWait = new NativeList<JobHandle>(activeEntities.Length * 7, Allocator.Temp);
+			for (var i = 0; i < activeEntities.Length; i++)
 			{
-				if (state.EntityManager.HasComponent<ChunkActiveJob>(entities[i]))
-					handlesToWait.Add(state.EntityManager.GetComponentData<ChunkActiveJob>(entities[i]).Handle);
+				if (state.EntityManager.HasComponent<ChunkActiveJob>(activeEntities[i]))
+					handlesToWait.Add(state.EntityManager.GetComponentData<ChunkActiveJob>(activeEntities[i]).Handle);
 
-				int3 p = positions[i];
+				int3 p = activePositions[i];
 				for (var f = 0; f < 6; f++)
 				{
 					int3 np = p + faceChecks[f];
@@ -216,58 +261,55 @@ namespace _Project.WorldGeneration.Systems
 				          OutColliders    = activeBlobs
 			          };
 
-			activeJobHandle = job.ScheduleParallelByRef(entities.Length, 1, dependencies);
+			activeJobHandle = job.ScheduleParallelByRef(activeEntities.Length, 1, dependencies);
 			isJobActive     = true;
 		}
 
+		[BurstCompile]
 		private void ApplyBatch(
-			ref SystemState                          state,
-			EntityCommandBuffer                      ecb,
-			NativeList<BlobAssetReference<Collider>> oldToDispose)
+			ref SystemState                              state,
+			EntityCommandBuffer                          ecb,
+			ref NativeList<BlobAssetReference<Collider>> oldToDispose)
 		{
 			for (var i = 0; i < activeEntities.Length; i++)
 			{
-				Entity                       e    = activeEntities[i];
-				BlobAssetReference<Collider> blob = activeBlobs[i];
+				Entity                       activeEntity = activeEntities[i];
+				BlobAssetReference<Collider> blob         = activeBlobs[i];
 
-				if (!state.EntityManager.Exists(e))
+				if (!state.EntityManager.Exists(activeEntity))
 				{
 					if (blob.IsCreated) blob.Dispose();
 					continue;
 				}
 
-				if (state.EntityManager.HasComponent<NeedsColliderSync>(e))
-					ecb.RemoveComponent<NeedsColliderSync>(e);
-				if (state.EntityManager.HasComponent<UrgentColliderSync>(e))
-					ecb.RemoveComponent<UrgentColliderSync>(e);
+				ecb.TryRemoveComponent<NeedsColliderSync>(ref state, activeEntity);
+				ecb.TryRemoveComponent<UrgentColliderSync>(ref state, activeEntity);
 
 				if (blob.IsCreated)
 				{
 					var chunkWorldPos = new float3(activePositions[i] * ChunkData.CHUNK_SIZE);
-					if (!state.EntityManager.HasComponent<LocalTransform>(e))
-						ecb.AddComponent(e, LocalTransform.FromPosition(chunkWorldPos));
-					if (!state.EntityManager.HasComponent<LocalToWorld>(e))
-						ecb.AddComponent<LocalToWorld>(e);
+					ecb.TryAddComponent(ref state, activeEntity, LocalTransform.FromPosition(chunkWorldPos));
+					ecb.TryAddComponent<LocalToWorld>(ref state, activeEntity);
 
-					if (state.EntityManager.HasComponent<PhysicsCollider>(e))
+					if (state.EntityManager.HasComponent<PhysicsCollider>(activeEntity))
 					{
-						var old = state.EntityManager.GetComponentData<PhysicsCollider>(e);
+						var old = state.EntityManager.GetComponentData<PhysicsCollider>(activeEntity);
 						if (old.Value.IsCreated) oldToDispose.Add(old.Value);
-						ecb.SetComponent(e, new PhysicsCollider { Value = blob });
+						ecb.SetComponent(activeEntity, new PhysicsCollider { Value = blob });
 					}
 					else
 					{
-						ecb.AddComponent(e, new PhysicsCollider { Value         = blob });
-						ecb.AddSharedComponent(e, new PhysicsWorldIndex { Value = 0 });
-						ecb.AddComponent<HasCollider>(e);
+						ecb.AddComponent(activeEntity, new PhysicsCollider { Value         = blob });
+						ecb.AddSharedComponent(activeEntity, new PhysicsWorldIndex { Value = 0 });
+						ecb.AddComponent<HasCollider>(activeEntity);
 					}
 				}
-				else if (state.EntityManager.HasComponent<PhysicsCollider>(e))
+				else if (state.EntityManager.HasComponent<PhysicsCollider>(activeEntity))
 				{
-					var old = state.EntityManager.GetComponentData<PhysicsCollider>(e);
+					var old = state.EntityManager.GetComponentData<PhysicsCollider>(activeEntity);
 					if (old.Value.IsCreated) oldToDispose.Add(old.Value);
-					ecb.RemoveComponent<PhysicsCollider>(e);
-					ecb.RemoveComponent<HasCollider>(e);
+					ecb.RemoveComponent<PhysicsCollider>(activeEntity);
+					ecb.RemoveComponent<HasCollider>(activeEntity);
 				}
 			}
 
@@ -276,6 +318,7 @@ namespace _Project.WorldGeneration.Systems
 			activeBlobs.Dispose();
 		}
 
+		[BurstCompile]
 		private static bool IsChebyshevNear(in int3 a, in int3 b, int radius)
 		{
 			int3 d = math.abs(a - b);

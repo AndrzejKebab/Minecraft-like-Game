@@ -45,7 +45,7 @@ namespace _Project.Character
 		{
 			var registry   = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
 			var maxBlockID = registry.Blocks.Length - 1;
-			ref PlayerInteractionState playerInteractionState =
+			ref PlayerInteractionState playerInteractionState = 
 				ref SystemAPI.GetSingletonRW<PlayerInteractionState>().ValueRW;
 
 			ScrollThroughBlocks(maxBlockID, ref registry, ref playerInteractionState);
