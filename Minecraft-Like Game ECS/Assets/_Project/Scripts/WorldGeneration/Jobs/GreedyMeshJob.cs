@@ -7,7 +7,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
-using UnityEngine;
+
 
 namespace _Project.WorldGeneration.Jobs
 {
@@ -333,10 +333,10 @@ namespace _Project.WorldGeneration.Jobs
 			v4[axis1] = basePos[axis1] + width;
 			v4[axis2] = basePos[axis2] + height;
 
-			outVerts.Add(PackVertex(v1, block, normalIdx, mask.AO.x));
-			outVerts.Add(PackVertex(v2, block, normalIdx, mask.AO.y));
-			outVerts.Add(PackVertex(v3, block, normalIdx, mask.AO.z));
-			outVerts.Add(PackVertex(v4, block, normalIdx, mask.AO.w));
+			outVerts.Add(new Vertex(v1, block, normalIdx, mask.AO.x));
+			outVerts.Add(new Vertex(v2, block, normalIdx, mask.AO.y));
+			outVerts.Add(new Vertex(v3, block, normalIdx, mask.AO.z));
+			outVerts.Add(new Vertex(v4, block, normalIdx, mask.AO.w));
 
 			if (mask.Normal > 0)
 			{
@@ -386,10 +386,10 @@ namespace _Project.WorldGeneration.Jobs
 				var normalIdx = (int)DirToIndex(rotatedNormal);
 				var b         = targetV.Length;
 
-				targetV.Add(PackVertex(v0, block, normalIdx, 3));
-				targetV.Add(PackVertex(v1, block, normalIdx, 3));
-				targetV.Add(PackVertex(v2, block, normalIdx, 3));
-				targetV.Add(PackVertex(v3, block, normalIdx, 3));
+				targetV.Add(new Vertex(v0, block, normalIdx, 3));
+				targetV.Add(new Vertex(v1, block, normalIdx, 3));
+				targetV.Add(new Vertex(v2, block, normalIdx, 3));
+				targetV.Add(new Vertex(v3, block, normalIdx, 3));
 
 				targetI.Add(b);
 				targetI.Add(b + 1);
@@ -398,28 +398,6 @@ namespace _Project.WorldGeneration.Jobs
 				targetI.Add(b + 3);
 				targetI.Add(b + 2);
 			}
-		}
-
-		private static Vertex PackVertex(float3 pos, Block block, int faceIdx, int ao)
-		{
-			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
-			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
-			var pz       = (uint)math.round(math.clamp(pos.z * 10f, 0f, 1023f));
-			var aoPacked = (uint)ao & 0x3;
-
-			var data1 = px | (py << 10) | (pz << 20) | (aoPacked << 30);
-
-			Color32 color = block.TintColor;
-			var     data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
-
-			var tBase    = GetTextureIndex(faceIdx, block.BaseTextures) & 0x1FFu;
-			var tOverlay = GetTextureIndex(faceIdx, block.OverlayTextures) & 0x1FFu;
-			var tNorm    = GetTextureIndex(faceIdx, block.NormalTextures) & 0x1FFu;
-			var tSpec    = GetTextureIndex(faceIdx, block.SpecularTextures) & 0x1FFu;
-
-			var data3 = tBase | (tOverlay << 9) | (tNorm << 18) | (((uint)faceIdx & 0x7u) << 27);
-
-			return new Vertex { Data1 = data1, Data2 = data2, Data3 = data3, Data4 = tSpec };
 		}
 
 		private bool NeighbourHidesFace(ref ChunkAccessor accessor, int x, int y, int z, int3 dir, bool isTransparent)
@@ -439,15 +417,6 @@ namespace _Project.WorldGeneration.Jobs
 					            > 0.5f => 2, < -0.5f => 3,
 					            _      => dir.x < -0.5f ? 4 : (uint)5
 				            }
-			       };
-		}
-		
-		private static ushort GetTextureIndex(int normalIdx, in NativeTexturesIDLayer layer)
-		{
-			return normalIdx switch
-			       {
-				       2 => layer.Top, 3  => layer.Bottom, 5 => layer.Right, 4 => layer.Left, 1 => layer.Front,
-				       0 => layer.Back, _ => layer.Front
 			       };
 		}
 

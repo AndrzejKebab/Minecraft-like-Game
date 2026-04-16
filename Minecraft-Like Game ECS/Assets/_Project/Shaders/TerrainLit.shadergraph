@@ -1035,6 +1035,9 @@
         },
         {
             "m_Id": "df07a3bb8d8447c9bd4edddcd2240b85"
+        },
+        {
+            "m_Id": "17bb3ce704244a7d8248d5efbc9f1339"
         }
     ],
     "synonyms": [],
@@ -1205,7 +1208,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "Normal",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": {
         "x": 0.0,
         "y": 0.0,
@@ -1246,6 +1249,23 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "B",
+    "m_StageCapability": 3,
+    "m_Value": 0.0,
+    "m_DefaultValue": 0.0,
+    "m_Labels": [],
+    "m_LiteralMode": false
+}
+
+{
+    "m_SGVersion": 0,
+    "m_Type": "UnityEditor.ShaderGraph.Vector1MaterialSlot",
+    "m_ObjectId": "17bb3ce704244a7d8248d5efbc9f1339",
+    "m_Id": 10,
+    "m_DisplayName": "AO",
+    "m_SlotType": 1,
+    "m_Hidden": false,
+    "m_HideConnector": false,
+    "m_ShaderOutputName": "AO",
     "m_StageCapability": 3,
     "m_Value": 0.0,
     "m_DefaultValue": 0.0,
@@ -1828,7 +1848,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "BaseTexture",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": 0.0,
     "m_DefaultValue": 0.0,
     "m_Labels": [],
@@ -1879,7 +1899,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "NormalTexture",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": 0.0,
     "m_DefaultValue": 0.0,
     "m_Labels": [],
@@ -3031,7 +3051,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "UV",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": {
         "x": 0.0,
         "y": 0.0
@@ -3430,7 +3450,7 @@
     "m_CustomColors": {
         "m_SerializableColors": []
     },
-    "m_Space": 0,
+    "m_Space": 2,
     "m_PositionSource": 0
 }
 
@@ -3470,7 +3490,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "OverlayTexture",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": 0.0,
     "m_DefaultValue": 0.0,
     "m_Labels": [],
@@ -3527,7 +3547,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "Color",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": {
         "x": 0.0,
         "y": 0.0,
@@ -3789,7 +3809,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "Position",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": {
         "x": 0.0,
         "y": 0.0,
@@ -4831,7 +4851,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "Tantent",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": {
         "x": 0.0,
         "y": 0.0,
@@ -4889,7 +4909,7 @@
     "m_Hidden": false,
     "m_HideConnector": false,
     "m_ShaderOutputName": "SpecularTexture",
-    "m_StageCapability": 1,
+    "m_StageCapability": 3,
     "m_Value": 0.0,
     "m_DefaultValue": 0.0,
     "m_Labels": [],

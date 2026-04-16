@@ -3,6 +3,8 @@ using _Project.WorldGeneration.Components;
 using Unity.Entities;
 using Unity.Physics;
 using Unity.Mathematics;
+using Unity.Rendering;
+using UnityEngine;
 
 namespace _Project.WorldGeneration.Systems
 {
@@ -68,10 +70,26 @@ namespace _Project.WorldGeneration.Systems
 					if (phys.Value.IsCreated) phys.Value.Dispose();
 				}
 
-				if (state.EntityManager.HasComponent<ChunkGfxBuffers>(entity))
+				if (state.EntityManager.HasComponent<ChunkManagedMesh>(entity))
 				{
-					var gfx = state.EntityManager.GetComponentObject<ChunkGfxBuffers>(entity);
-					gfx.Dispose();
+					var managed = state.EntityManager.GetComponentObject<ChunkManagedMesh>(entity);
+
+					// Unregister mesh from BRG batch.
+					var egs = state.EntityManager.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+					if (egs != null && managed.MeshBatchID.value != 0)
+						egs.UnregisterMesh(managed.MeshBatchID);
+
+					// Destroy solid and fluid render companion entities.
+					if (managed.SolidEntity != Entity.Null &&
+					    state.EntityManager.Exists(managed.SolidEntity))
+						ecb.DestroyEntity(managed.SolidEntity);
+					if (managed.FluidEntity != Entity.Null &&
+					    state.EntityManager.Exists(managed.FluidEntity))
+						ecb.DestroyEntity(managed.FluidEntity);
+					
+					// Release the Mesh asset.
+					if (managed.Mesh != null)
+						Object.Destroy(managed.Mesh);
 				}
 
 				ecb.DestroyEntity(entity);

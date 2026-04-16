@@ -1,84 +1,84 @@
-#pragma once
+#ifndef BLOCK_VERTEX_UNPACK_INCLUDED
+#define BLOCK_VERTEX_UNPACK_INCLUDED
 
-struct vertex
+static const float3 dir_vectors[6] =
 {
-    uint4 data;
+    float3( 0,  0, -1), // Back
+    float3( 0,  0,  1), // Front
+    float3( 0,  1,  0), // Top
+    float3( 0, -1,  0), // Bottom
+    float3(-1,  0,  0), // Left
+    float3( 1,  0,  0)  // Right
 };
 
-StructuredBuffer<vertex> vertices;
-float3 chunk_origin;
-int vertex_count;
-
-static const float3 dir_vectors[6] = {
-    float3(0, 0, -1), float3(0, 0, 1),
-    float3(0, 1, 0), float3(0, -1, 0),
-    float3(-1, 0, 0), float3(1, 0, 0)
+static const float3 tangent_vectors[6] =
+{
+    float3( 1,  0,  0),
+    float3(-1,  0,  0),
+    float3( 1,  0,  0),
+    float3(-1,  0,  0),
+    float3( 0,  0, -1),
+    float3( 0,  0,  1)
 };
 
-static const float3 tangent_vectors[6] = {
-    float3(1, 0, 0), // 0: Back
-    float3(-1, 0, 0), // 1: Front
-    float3(1, 0, 0), // 2: Top
-    float3(-1, 0, 0), // 3: Bottom
-    float3(0, 0, -1), // 4: Left
-    float3(0, 0, 1) // 5: Right
-};
-
-void get_vertex_data_float(
-    uint vertex_id : SV_VertexID,
-    out float3 position_ws,
-    out float3 normal_ws,
-    out float3 tangent_ws,
+void UnpackBlockVertex_float(
+    float4 packedUV8,
+    out float3 positionWS,
+    out float3 normalWS,
+    out float3 tangentWS,
     out float2 uv,
     out float4 color,
-    out float tex_base,
-    out float tex_overlay,
-    out float tex_normal,
-    out float tex_specular
+    out float texBase,
+    out float texOverlay,
+    out float texNormal,
+    out float texSpecular,
+    out float ao
 )
 {
-    if (vertex_id >= (uint)vertex_count) return;
+    uint4 v = asuint(packedUV8);
 
-    uint4 v = vertices[vertex_id].data;
+    uint data1 = v.x;
+    uint data2 = v.y;
+    uint data3 = v.z;
+    uint data4 = v.w;
 
-    float px = (float)(v.x & 0x3FF) / 10.0f;
-    float py = (float)((v.x >> 10) & 0x3FF) / 10.0f;
-    float pz = (float)((v.x >> 20) & 0x3FF) / 10.0f;
+    float px = (float)( data1        & 0x3FFu) / 10.0f;
+    float py = (float)((data1 >> 10)  & 0x3FFu) / 10.0f;
+    float pz = (float)((data1 >> 20)  & 0x3FFu) / 10.0f;
 
-    uint ao_val = (v.x >> 30) & 0x3;
-    float ao = ao_val / 3.0f;
-    position_ws = float3(px, py, pz) + chunk_origin;
+    uint aoVal = (data1 >> 30) & 0x3u;
+    ao = (float)aoVal / 3.0f;
 
-    color = float4((v.y & 0xFF) / 255.0f, ((v.y >> 8) & 0xFF) / 255.0f, ((v.y >> 16) & 0xFF) / 255.0f,
-                   ((v.y >> 24) & 0xFF) / 255.0f);
-    color.rgb *= ao;
+    positionWS = float3(px, py, pz);
 
-    tex_base = (float)(v.z & 0x1FF);
-    tex_overlay = (float)((v.z >> 9) & 0x1FF);
-    tex_normal = (float)((v.z >> 18) & 0x1FF);
-    uint face_idx = (v.z >> 27) & 0x7;
+    color = float4(
+        (float)( data2        & 0xFFu) / 255.0f,
+        (float)((data2 >> 8)  & 0xFFu) / 255.0f,
+        (float)((data2 >> 16) & 0xFFu) / 255.0f,
+        (float)((data2 >> 24) & 0xFFu) / 255.0f
+    );
 
-    tex_specular = (float)(v.w & 0x1FF);
+    texBase     = (float)( data3        & 0x1FFu);
+    texOverlay  = (float)((data3 >> 9)  & 0x1FFu);
+    texNormal   = (float)((data3 >> 18) & 0x1FFu);
 
-    normal_ws = dir_vectors[face_idx];
-    tangent_ws = tangent_vectors[face_idx];
+    uint faceIdx = (data3 >> 27) & 0x7u;
 
-    // UV Reconstruction
-    switch (face_idx)
+    texSpecular = (float)(data4 & 0x1FFu);
+
+    normalWS  = dir_vectors[faceIdx];
+    tangentWS = tangent_vectors[faceIdx];
+
+    // Rebuild a face-local UV.
+    switch (faceIdx)
     {
-    case 0: uv = float2(-px, py);
-        break; // Back  (-Z)
-    case 1: uv = float2(px, py);
-        break; // Front (+Z)
-    case 2: uv = float2(px, pz);
-        break; // Top   (+Y)
-    case 3: uv = float2(px, -pz);
-        break; // Bot   (-Y)
-    case 4: uv = float2(pz, py);
-        break; // Left  (-X)
-    case 5: uv = float2(-pz, py);
-        break; // Right (+X)
-    default: uv = float2(0, 0);
-        break;
+        case 0: uv = float2(-px,  py); break; // Back  (-Z)
+        case 1: uv = float2( px,  py); break; // Front (+Z)
+        case 2: uv = float2( px,  pz); break; // Top   (+Y)
+        case 3: uv = float2( px, -pz); break; // Bottom(-Y)
+        case 4: uv = float2( pz,  py); break; // Left  (-X)
+        case 5: uv = float2(-pz,  py); break; // Right (+X)
+        default: uv = float2(0, 0);    break;
     }
 }
+#endif
