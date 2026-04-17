@@ -271,6 +271,7 @@ namespace _Project.WorldGeneration.Systems
 				          BlockDataLookup = map.ChunkDataLookup,
 				          ChunkMap        = map.ChunkMap,
 				          BlockPrototypes = registry.Blocks,
+				          MeshDatas = registry.Meshes,
 				          ChunkSize       = ChunkData.CHUNK_SIZE,
 				          Filter          = chunkFilter,
 				          OutColliders    = activeBlobs

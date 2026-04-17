@@ -146,6 +146,7 @@ namespace _Project.WorldGeneration.Systems
 				          BlockDataLookup = chunkLookup.ChunkDataLookup,
 				          BlockPrototypes = registry.Blocks,
 				          MeshDatas    = registry.Meshes,
+				          FaceChecks = faceChecks,
 				          ECB             = ecb
 			          };
 

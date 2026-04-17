@@ -3,12 +3,12 @@
 
 static const float3 dir_vectors[6] =
 {
-    float3( 0,  0, -1), // Back
-    float3( 0,  0,  1), // Front
-    float3( 0,  1,  0), // Top
-    float3( 0, -1,  0), // Bottom
-    float3(-1,  0,  0), // Left
-    float3( 1,  0,  0)  // Right
+    float3( 0,  0, -1), // Back  (idx 0)
+    float3( 0,  0,  1), // Front (idx 1)
+    float3( 0,  1,  0), // Top   (idx 2)
+    float3( 0, -1,  0), // Bottom(idx 3)
+    float3(-1,  0,  0), // Left  (idx 4)
+    float3( 1,  0,  0)  // Right (idx 5)
 };
 
 static const float3 tangent_vectors[6] =
@@ -66,10 +66,13 @@ void UnpackBlockVertex_float(
 
     texSpecular = (float)(data4 & 0x1FFu);
 
+    // UVRotation packed at data4[9:10] — 0=none, 1=90°CCW, 2=180°, 3=90°CW
+    uint uvRot = (data4 >> 9) & 0x3u;
+
     normalWS  = dir_vectors[faceIdx];
     tangentWS = tangent_vectors[faceIdx];
 
-    // Rebuild a face-local UV.
+    // Rebuild face-local UV from world position.
     switch (faceIdx)
     {
         case 0: uv = float2(-px,  py); break; // Back  (-Z)
@@ -79,6 +82,19 @@ void UnpackBlockVertex_float(
         case 4: uv = float2( pz,  py); break; // Left  (-X)
         case 5: uv = float2(-pz,  py); break; // Right (+X)
         default: uv = float2(0, 0);    break;
+    }
+
+    // Rotate UV within each tile cell. floor(uv) is the cell origin; frac(uv)-0.5
+    // centres the rotation so it never bleeds into adjacent cells. Safe across
+    // greedy-merged quads because each cell rotates independently.
+    if (uvRot != 0u)
+    {
+        float2 c = frac(uv) - 0.5;
+        float2 r;
+        if      (uvRot == 1u) r = float2(-c.y,  c.x); // 90° CCW
+        else if (uvRot == 2u) r = float2(-c.x, -c.y); // 180°
+        else                  r = float2( c.y, -c.x); // 90° CW
+        uv = floor(uv) + r + 0.5;
     }
 }
 #endif

@@ -11,7 +11,6 @@ using UnityEngine;
 namespace _Project.WorldGeneration.Systems
 {
 	[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
-	[BurstCompile]
 	public partial struct ChunkManagerSystem : ISystem
 	{
 		private EntityQuery chunksToDestroy;
@@ -21,18 +20,21 @@ namespace _Project.WorldGeneration.Systems
 		{
 			chunksToDestroy = SystemAPI.QueryBuilder().WithAll<ChunkPositionComponent, MarkedToDestroy>().Build();
 		}
-		public void OnDestroy(ref SystemState state) { }
-		
-		[BurstCompile]
+
+		public void OnDestroy(ref SystemState state)
+		{
+		}
+
 		public void OnUpdate(ref SystemState state)
 		{
 			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
 			RefRW<ChunkMapSingleton> mapSingleton = SystemAPI.GetSingletonRW<ChunkMapSingleton>();
 
-			NativeArray<Entity>                 chunkEntities          = chunksToDestroy.ToEntityArray(Allocator.Temp);
-			NativeArray<ChunkPositionComponent> chunkPositionComponents = chunksToDestroy.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
-			
+			NativeArray<Entity> chunkEntities = chunksToDestroy.ToEntityArray(Allocator.Temp);
+			NativeArray<ChunkPositionComponent> chunkPositionComponents =
+				chunksToDestroy.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
+
 			for (var index = 0; index < chunkEntities.Length; index++)
 			{
 				Entity entity = chunkEntities[index];
@@ -63,12 +65,11 @@ namespace _Project.WorldGeneration.Systems
 
 			chunkEntities.Dispose();
 			chunkPositionComponents.Dispose();
-			
+
 			ecb.Playback(state.EntityManager);
 			ecb.Dispose();
 		}
 
-		[BurstDiscard]
 		private static void DestroyMesh(ref SystemState state, Entity entity, EntityCommandBuffer ecb)
 		{
 			if (!state.EntityManager.TryGetComponentObject(entity, out ChunkManagedMesh mesh)) return;
@@ -90,7 +91,6 @@ namespace _Project.WorldGeneration.Systems
 				Object.Destroy(mesh.Mesh);
 		}
 
-		[BurstCompile]
 		private void TryCompleteNeighbors(ref SystemState state, RefRW<ChunkMapSingleton> mapSingleton, int3 pos)
 		{
 			NativeHashMap<int3, Entity> map = mapSingleton.ValueRO.ChunkMap;

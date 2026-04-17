@@ -3,7 +3,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
 
-namespace _Project.WorldGeneration
+namespace _Project.WorldGeneration.Blocks
 {
 	// manageable struct for use in SO to beable set it in inspector
 	[Serializable]

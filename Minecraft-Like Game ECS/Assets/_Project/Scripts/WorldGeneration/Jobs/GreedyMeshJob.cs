@@ -18,15 +18,17 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<int3>           Positions;
 		[ReadOnly] public NativeHashMap<int3, Entity> ChunkMap;
 
-		[NativeDisableContainerSafetyRestriction] 
-		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction] 
-		[ReadOnly] public NativeArray<Block> BlockPrototypes;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<Block> BlockPrototypes;
 
-		[NativeDisableContainerSafetyRestriction] 
-		[ReadOnly] public NativeArray<NativeVoxelMeshData> MeshDatas;
-		
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<NativeVoxelMeshData> MeshDatas;
+
+		[ReadOnly] public NativeArray<int3> FaceChecks;
+
 		public EntityCommandBuffer.ParallelWriter ECB;
 
 		public void Execute(int index)
@@ -89,8 +91,8 @@ namespace _Project.WorldGeneration.Jobs
 				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr() + solidVertices.Length,
 				                     fluidVertices.GetUnsafePtr(),
 				                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-				var  svCount  = solidVertices.Length;
-				var  siCount  = solidIndices.Length;
+				var svCount  = solidVertices.Length;
+				var siCount  = solidIndices.Length;
 				var fIndices = fluidIndices.GetUnsafePtr();
 				var cIndices = meshData.CombinedIndices.GetUnsafePtr();
 				for (var i = 0; i < fluidIndices.Length; i++)
@@ -118,12 +120,10 @@ namespace _Project.WorldGeneration.Jobs
 		{
 			var CS = accessor.ChunkSize; // 32
 
-			// Two face maps, one per normal direction (front/back) for the current layer.
-			// Size = CS*CS uints. Indexed [axis2 * CS + axis1].
 			var faceMapFront = new NativeArray<uint>(CS * CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 			var faceMapBack  = new NativeArray<uint>(CS * CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
 
-			// ── 1. GREEDY MESHING ──────────────────────
+			// ── 1. GREEDY MESHING (standard cubes + fluids) ──────────────────────
 			for (var direction = 0; direction < 3; direction++)
 			{
 				var axis1 = (direction + 1) % 3;
@@ -135,7 +135,6 @@ namespace _Project.WorldGeneration.Jobs
 
 				for (chunkItr[direction] = -1; chunkItr[direction] < CS;)
 				{
-					// Build face maps for this layer ──────────────────────────────
 					var n = 0;
 					for (chunkItr[axis2] = 0; chunkItr[axis2] < CS; chunkItr[axis2]++)
 					for (chunkItr[axis1] = 0; chunkItr[axis1] < CS; chunkItr[axis1]++)
@@ -149,7 +148,6 @@ namespace _Project.WorldGeneration.Jobs
 						var currentTransparent = IsTransparent(current);
 						var compareTransparent = IsTransparent(compare);
 
-						// Front face: current block facing the compare side
 						uint mFront = 0;
 						if (currentType != 0 && currentType != 3)
 						{
@@ -162,7 +160,6 @@ namespace _Project.WorldGeneration.Jobs
 							}
 						}
 
-						// Back face: compare block facing the current side
 						uint mBack = 0;
 						if (compareType != 0 && compareType != 3)
 						{
@@ -182,7 +179,6 @@ namespace _Project.WorldGeneration.Jobs
 
 					chunkItr[direction]++;
 
-					// Binary greedy sweep on both face maps for this layer
 					BinaryGreedySweep(faceMapFront, direction, axis1, axis2, CS, chunkItr[direction],
 					                  ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
 					BinaryGreedySweep(faceMapBack,  direction, axis1, axis2, CS, chunkItr[direction],
@@ -192,27 +188,24 @@ namespace _Project.WorldGeneration.Jobs
 
 			faceMapFront.Dispose();
 			faceMapBack.Dispose();
+
+			// ── 2. CUSTOM MESHING (slabs, fences, foliage …) ─────────────────────
+			for (var x = 0; x < CS; x++)
+			for (var y = 0; y < CS; y++)
+			for (var z = 0; z < CS; z++)
+			{
+				BlockState state = accessor.GetBlockState(x, y, z);
+				if (state.IsEmpty || GetMeshType(state) != 3) continue;
+				RenderCustomMesh(ref accessor, x, y, z, state,
+				                 ref solidVertices, ref solidIndices,
+				                 ref fluidVertices, ref fluidIndices);
+			}
 		}
 
 		// ─────────────────────────────────────────────────────────────────────────
 		// BINARY GREEDY SWEEP
-		//
-		// For CS=32 each axis row is exactly 32 blocks → fits in one uint bitmask.
-		//
-		// Algorithm:
-		//   1. Group faces by packed mask value (blockID + meshType + AO + orientation
-		//      + normal). Each group gets a uint[CS] row-bitmask array where bit x of
-		//      row y is set iff faceMap[y*CS+x] == that mask value.
-		//
-		//   2. For each group, sweep rows using:
-		//      - tzcnt(remaining) → first unvisited face in O(1)
-		//      - tzcnt(~(remaining>>x)) → contiguous run width in O(1)
-		//      - (rowBits[y+h] & ~visited[y+h] & lineMask) == lineMask → height
-		//        check in O(1) per row (vs O(w) scalar scan in old code)
-		//
-		//   3. Single visited[] array shared across all groups — safe because each
-		//      (x,y) position belongs to at most one group.
 		// ─────────────────────────────────────────────────────────────────────────
+
 		[BurstCompile]
 		private void BinaryGreedySweep(
 			NativeArray<uint>      faceMap,
@@ -220,12 +213,8 @@ namespace _Project.WorldGeneration.Jobs
 			ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
 			ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
 		{
-			// ── Build per-group row bitmasks ──────────────────────────────────────
-			// maskToGroup : packed mask value → group index
-			// groupRowBits: flat array, groupRowBits[gIdx * CS + row] = uint bitmask
-			//               where bit x is set if faceMap[row*CS+x] == that mask.
 			var maskToGroup  = new NativeHashMap<uint, int>(32, Allocator.Temp);
-			var groupRowBits = new NativeList<uint>(32 * CS, Allocator.Temp); // grows as groups are added
+			var groupRowBits = new NativeList<uint>(32 * CS, Allocator.Temp);
 			var groupCount   = 0;
 
 			for (var y = 0; y < CS; y++)
@@ -239,7 +228,6 @@ namespace _Project.WorldGeneration.Jobs
 					gIdx = groupCount++;
 					maskToGroup.Add(m, gIdx);
 
-					// Append CS zeroed uints for this group's row bitmasks.
 					var oldLen = groupRowBits.Length;
 					groupRowBits.ResizeUninitialized(oldLen + CS);
 					UnsafeUtility.MemClear(
@@ -247,8 +235,6 @@ namespace _Project.WorldGeneration.Jobs
 						CS * sizeof(uint));
 				}
 
-				// Set bit x in this group's row y.
-				// Re-fetch ptr after any potential realloc from ResizeUninitialized.
 				groupRowBits.GetUnsafePtr()[gIdx * CS + y] |= 1u << x;
 			}
 
@@ -259,19 +245,16 @@ namespace _Project.WorldGeneration.Jobs
 				return;
 			}
 
-			// ── Sweep ─────────────────────────────────────────────────────────────
-			// One visited[] array for all groups — safe because positions are unique
-			// per group (each cell has exactly one non-zero packed mask value).
-			var  visitedArr   = new NativeArray<uint>(CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var  visitedArr   = new NativeArray<uint>(CS, Allocator.Temp, NativeArrayOptions.ClearMemory);
 			var visited     = (uint*)visitedArr.GetUnsafePtr();
 			var rowBitsBase = groupRowBits.GetUnsafePtr();
 
-			NativeArray<uint> keys = maskToGroup.GetKeyArray(Allocator.Temp);
+			var keys = maskToGroup.GetKeyArray(Allocator.Temp);
 
 			for (var gi = 0; gi < keys.Length; gi++)
 			{
 				var m    = keys[gi];
-				var  gIdx = maskToGroup[m];
+				var gIdx = maskToGroup[m];
 
 				UnpackMask(m, out var blockID, out var meshType,
 				           out var orientation, out var normal, out int4 ao);
@@ -281,37 +264,22 @@ namespace _Project.WorldGeneration.Jobs
 
 				for (var y = 0; y < CS; y++)
 				{
-					// Unvisited faces in this group on this row
 					var remaining = rowBits[y] & ~visited[y];
 					while (remaining != 0)
 					{
-						// ── Width (O(1)) ─────────────────────────────────────────
-						// x = leftmost unvisited face
-						var x = math.tzcnt(remaining);
-
-						// Shift so x lands at bit 0, then count leading 1-run.
-						// Using `remaining >> x` (not rowBits) ensures we don't
-						// extend into already-visited positions that happen to have
-						// the same mask value.
+						var x       = math.tzcnt(remaining);
 						var shifted = remaining >> x;
-						var  w       = math.tzcnt(~shifted); // tzcnt(0) == 32 ✓
-
-						// Build bitmask covering [x, x+w)
-						// Special-case w==32: (1u<<32) wraps to 1 in C#, so guard.
+						var w       = math.tzcnt(~shifted);
 						var lineMask = w < 32 ? ((1u << w) - 1u) << x : ~0u;
 
-						// ── Height (O(1) per row) ────────────────────────────────
-						// Each row check is one AND + compare, no scalar loop.
 						var h = 1;
 						while (y + h < CS &&
 						       (rowBits[y + h] & ~visited[y + h] & lineMask) == lineMask)
 							h++;
 
-						// ── Mark visited ─────────────────────────────────────────
 						for (var dy = 0; dy < h; dy++)
 							visited[y + dy] |= lineMask;
 
-						// ── Emit quad ────────────────────────────────────────────
 						int3 basePos = int3.zero;
 						basePos[direction] = layerCoord;
 						basePos[axis1]     = x;
@@ -326,7 +294,6 @@ namespace _Project.WorldGeneration.Jobs
 							                 direction, axis1, axis2, w, h, basePos,
 							                 ref solidV, ref solidI);
 
-						// Recompute remaining after marking visited
 						remaining = rowBits[y] & ~visited[y];
 					}
 				}
@@ -342,15 +309,12 @@ namespace _Project.WorldGeneration.Jobs
 		// PACKING / UNPACKING
 		// ─────────────────────────────────────────────────────────────────────────
 
-		// Bit layout (32 bits total):
-		//  [1:0]   meshType    (2 bits,  0-3)
-		//  [17:2]  blockID     (16 bits, 0-65535)
-		//  [20:18] orientation (3 bits,  0-7)
-		//  [21]    normal sign (1 bit,   0=negative, 1=positive)
-		//  [23:22] ao.x        (2 bits)
-		//  [25:24] ao.y        (2 bits)
-		//  [27:26] ao.z        (2 bits)
-		//  [29:28] ao.w        (2 bits)
+		// Bit layout:
+		//  [1:0]   meshType    (2 bits)
+		//  [17:2]  blockID     (16 bits)
+		//  [20:18] orientation (3 bits)
+		//  [21]    normal sign (1 bit, 0=negative)
+		//  [23:22] ao.x, [25:24] ao.y, [27:26] ao.z, [29:28] ao.w
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static uint PackMask(ushort blockID, byte meshType, byte orientation, sbyte normal, int4 ao)
@@ -388,10 +352,10 @@ namespace _Project.WorldGeneration.Jobs
 
 		private byte GetMeshType(BlockState state)
 		{
-			if (state.IsEmpty || state.ID == 0) return 0; // air
+			if (state.IsEmpty || state.ID == 0) return 0;
 			Block block = BlockPrototypes[state.ID];
-			if (block.IsFluid) return 2;                  // fluid
-			return block.MeshID == 0 ? (byte)1 : (byte)3; // standard / custom
+			if (block.IsFluid) return 2;
+			return block.MeshID == 0 ? (byte)1 : (byte)3;
 		}
 
 		private bool IsTransparent(BlockState state)
@@ -414,70 +378,198 @@ namespace _Project.WorldGeneration.Jobs
 			var   vertexCount = outVerts.Length;
 
 			var normalIdx = direction switch
-			                {
-				                0 => normal > 0 ? 4 : 5,
-				                1 => normal > 0 ? 3 : 2,
-				                _ => normal > 0 ? 0 : 1
-			                };
+			{
+				0 => normal > 0 ? 4 : 5,
+				1 => normal > 0 ? 3 : 2,
+				_ => normal > 0 ? 0 : 1
+			};
 
-			var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, orientation);
+			var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, orientation, out int uvRot);
 			float faceCoord    = basePos[direction];
 
 			float3 v1 = float3.zero, v2 = float3.zero, v3 = float3.zero, v4 = float3.zero;
 
 			v1[direction] = v2[direction] = v3[direction] = v4[direction] = faceCoord;
-			v1[axis1] = basePos[axis1];           v1[axis2] = basePos[axis2];
-			v2[axis1] = basePos[axis1] + width;   v2[axis2] = basePos[axis2];
-			v3[axis1] = basePos[axis1];           v3[axis2] = basePos[axis2] + height;
-			v4[axis1] = basePos[axis1] + width;   v4[axis2] = basePos[axis2] + height;
+			v1[axis1] = basePos[axis1];          v1[axis2] = basePos[axis2];
+			v2[axis1] = basePos[axis1] + width;  v2[axis2] = basePos[axis2];
+			v3[axis1] = basePos[axis1];          v3[axis2] = basePos[axis2] + height;
+			v4[axis1] = basePos[axis1] + width;  v4[axis2] = basePos[axis2] + height;
 
-			outVerts.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, ao.x));
-			outVerts.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, ao.y));
-			outVerts.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, ao.z));
-			outVerts.Add(new Vertex(v4, block, normalIdx, textureFaceIdx, ao.w));
+			outVerts.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, ao.x, uvRot));
+			outVerts.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, ao.y, uvRot));
+			outVerts.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, ao.z, uvRot));
+			outVerts.Add(new Vertex(v4, block, normalIdx, textureFaceIdx, ao.w, uvRot));
 
 			if (normal > 0)
 			{
-				outTris.Add(vertexCount);     outTris.Add(vertexCount + 2); outTris.Add(vertexCount + 1);
-				outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 2); outTris.Add(vertexCount + 3);
+				outTris.Add(vertexCount);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 3);
 			}
 			else
 			{
-				outTris.Add(vertexCount);     outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 2);
-				outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 3); outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 3);
+				outTris.Add(vertexCount + 2);
 			}
 		}
 
 		// ─────────────────────────────────────────────────────────────────────────
-		// TEXTURE REMAPPING / ROTATION
+		// CUSTOM MESH RENDERING
 		// ─────────────────────────────────────────────────────────────────────────
 
-		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation)
+		private void RenderCustomMesh(
+			ref ChunkAccessor accessor, int x, int y, int z, BlockState blockState,
+			ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
+			ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
 		{
-			return dirType switch
+			Block               block    = BlockPrototypes[blockState.ID];
+			NativeVoxelMeshData meshData = MeshDatas[block.MeshID];
+			quaternion          rot      = GetRotation(block.DirectionType, blockState.Orientation);
+			var                 wPos     = new float3(x, y, z);
+
+			ref NativeList<Vertex> targetV = ref block.IsFluid ? ref fluidV : ref solidV;
+			ref NativeList<int>    targetI = ref block.IsFluid ? ref fluidI : ref solidI;
+
+			// NOTE: assumes quads in MeshDataSO are ordered to match FaceChecks (0=-Z,1=+Z,2=+Y,3=-Y,4=-X,5=+X).
+			// If you reorder quads in the SO, update QuadFaceDir per quad here instead.
+			for (var i = 0; i < meshData.Triangles.Length; i++)
 			{
-				BlockDirectionType.None => normalIdx,
-				BlockDirectionType.YAxis when normalIdx is 2 or 3 => normalIdx,
-				BlockDirectionType.YAxis => orientation switch
+				int4   quad = meshData.Triangles[i];
+
+				// Rotate the canonical face direction into world space.
+				float3 rotatedNormal = math.round(math.mul(rot, FaceChecks[i]));
+				var    dir           = new int3((int)math.round(rotatedNormal.x),
+				                                (int)math.round(rotatedNormal.y),
+				                                (int)math.round(rotatedNormal.z));
+
+				if (NeighbourHidesFace(ref accessor, x, y, z, dir, block.IsTransparent)) continue;
+
+				// Rotate vertices around block centre (0.5,0.5,0.5).
+				float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f + wPos;
+				float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f + wPos;
+				float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f + wPos;
+				float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
+
+				var normalIdx      = (int)DirToIndex(rotatedNormal);
+				// RemapTextureFace: world-space normalIdx → original block face texture slot.
+				// For AllAxes blocks geometry is already rotated; uvRot stays 0.
+				// For YAxis blocks (if any reach here) uvRot would apply.
+				var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, blockState.Orientation, out int uvRot);
+				var b              = targetV.Length;
+
+				// AO is not computed per-vertex for custom mesh faces (no greedy sweep context).
+				// Pass ao=3 (full bright). Add AO support here if needed later.
+				targetV.Add(new Vertex(v0, block, normalIdx, textureFaceIdx, 3, uvRot));
+				targetV.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, 3, uvRot));
+				targetV.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, 3, uvRot));
+				targetV.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, 3, uvRot));
+
+				targetI.Add(b);     targetI.Add(b + 1); targetI.Add(b + 3);
+				targetI.Add(b);     targetI.Add(b + 3); targetI.Add(b + 2);
+			}
+		}
+
+		private bool NeighbourHidesFace(ref ChunkAccessor accessor, int x, int y, int z, int3 dir, bool isTransparent)
+		{
+			BlockState nb = accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
+			if (nb.IsEmpty || nb.ID == 0) return false;
+			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
+		}
+
+		private static uint DirToIndex(float3 dir)
+		{
+			return dir.z switch
+			{
+				< -0.5f => 0,
+				>  0.5f => 1,
+				_ => dir.y switch
 				{
-					2 => normalIdx,
-					3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
-					4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
-					5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
-					_ => normalIdx
-				},
-				BlockDirectionType.AllAxes => orientation switch
-				{
-					0 => normalIdx,
-					1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
-					2 => normalIdx switch { 1 => 2, 3 => 1, 0 => 3, 2 => 0, _ => normalIdx },
-					3 => normalIdx switch { 0 => 2, 3 => 0, 1 => 3, 2 => 1, _ => normalIdx },
-					4 => normalIdx switch { 5 => 2, 3 => 5, 4 => 3, 2 => 4, _ => normalIdx },
-					5 => normalIdx switch { 4 => 2, 3 => 4, 5 => 3, 2 => 5, _ => normalIdx },
-					_ => normalIdx
-				},
-				_ => normalIdx
+					> 0.5f  => 2,
+					< -0.5f => 3,
+					_       => dir.x < -0.5f ? 4u : 5u
+				}
 			};
+		}
+
+		// ─────────────────────────────────────────────────────────────────────────
+		// TEXTURE REMAPPING / UV ROTATION
+		// ─────────────────────────────────────────────────────────────────────────
+
+		/// <summary>
+		/// Maps world-space face index to the block's original texture slot, accounting
+		/// for block orientation.  Also outputs uvRot (0-3) for per-cell UV rotation in
+		/// the shader — only non-zero for YAxis top/bottom faces.
+		///
+		/// Face index convention: 0=-Z(Back), 1=+Z(Front), 2=+Y(Top), 3=-Y(Bottom),
+		///                        4=-X(Left), 5=+X(Right)
+		///
+		/// YAxis orientation encoding (from GetBlockOrientation):
+		///   2 = facing -Z (default / north)
+		///   3 = facing +Z (south, 180°)
+		///   4 = facing -X (west,   90° CCW)
+		///   5 = facing +X (east,   90° CW)
+		///
+		/// uvRot values: 0=none, 1=90°CCW, 2=180°, 3=90°CW
+		/// </summary>
+		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation, out int uvRot)
+		{
+			uvRot = 0;
+
+			switch (dirType)
+			{
+				case BlockDirectionType.None:
+					return normalIdx;
+
+				case BlockDirectionType.YAxis:
+					// Top / Bottom: texture slot unchanged, but UV must rotate with block.
+					if (normalIdx is 2 or 3)
+					{
+						uvRot = orientation switch
+						{
+							2 => 0, // facing -Z, baseline — no rotation
+							3 => 2, // facing +Z, 180°
+							4 => 1, // facing -X, 90° CCW
+							5 => 3, // facing +X, 90° CW
+							_ => 0
+						};
+						return normalIdx;
+					}
+					// Side faces: remap which slot to sample; no UV rotation needed
+					// (world-aligned UV tiles correctly regardless of block yaw).
+					return orientation switch
+					{
+						2 => normalIdx, // default, no remap
+						3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
+						4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
+						5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
+						_ => normalIdx
+					};
+
+				case BlockDirectionType.AllAxes:
+					// Geometry is physically rotated by GetRotation; normalIdx is already
+					// the world-space direction.  Map world direction → original model face.
+					// uvRot stays 0 — world-position UV follows rotated vertices naturally.
+					return orientation switch
+					{
+						0 => normalIdx,
+						1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
+						2 => normalIdx switch { 1 => 2, 3 => 1, 0 => 3, 2 => 0, _ => normalIdx },
+						3 => normalIdx switch { 0 => 2, 3 => 0, 1 => 3, 2 => 1, _ => normalIdx },
+						4 => normalIdx switch { 5 => 2, 3 => 5, 4 => 3, 2 => 4, _ => normalIdx },
+						5 => normalIdx switch { 4 => 2, 3 => 4, 5 => 3, 2 => 5, _ => normalIdx },
+						_ => normalIdx
+					};
+
+				default:
+					return normalIdx;
+			}
 		}
 
 		private static quaternion GetRotation(BlockDirectionType type, byte orientation)
