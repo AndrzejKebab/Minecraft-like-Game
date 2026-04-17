@@ -72,7 +72,7 @@ namespace _Project.WorldGeneration.Systems
 				int3 d  = positions[i].ChunkCoord - playerChunk;
 				var  ds = d.x * d.x + d.y * d.y + d.z * d.z;
 				var  u  = urgentLookup.HasComponent(entities[i]);
-				var  c  = new Candidate { Entity = entities[i], Coord = positions[i].ChunkCoord, DistSq = ds };
+				var  c  = new Candidate { Entity = entities[i], Coord = positions[i].ChunkCoord, DistSq = ds};
 				if (u) urgent.Add(c);
 				else normal.Add(c);
 			}
@@ -91,9 +91,9 @@ namespace _Project.WorldGeneration.Systems
 
 			// 2) Drain urgent first, then normal. Skip if any of 6 neighbors not populated.
 			count = TryEnqueue(urgent, count, budget, validEntities, validPositions,
-			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state, true);
 			count = TryEnqueue(normal, count, budget, validEntities, validPositions,
-			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state, false);
 
 			urgent.Dispose();
 			normal.Dispose();
@@ -167,18 +167,26 @@ namespace _Project.WorldGeneration.Systems
 		}
 
 		private int TryEnqueue(
-			NativeList<Candidate>             src,           int               count, int budget,
+			NativeList<Candidate>        src,           int               count, int budget,
 			NativeArray<Entity>          validEntities, NativeArray<int3> validPositions,
 			EntityCommandBuffer          ecbPre,
 			NativeHashMap<int3, Entity>  chunkMap,
 			ChunkMapSingleton            chunkLookup,
 			ComponentLookup<IsPopulated> populatedLookup,
-			ref SystemState              state)
+			ref SystemState              state,
+			bool                         isUrgentList)
 		{
 			for (var i = 0; i < src.Length && count < budget; i++)
 			{
 				int3   pos = src[i].Coord;
 				Entity ent = src[i].Entity;
+
+				// Skip normal mesh generation if there is an active job that hasn't completed yet.
+				if (!isUrgentList && state.EntityManager.HasComponent<ChunkActiveJob>(ent))
+				{
+					if (!state.EntityManager.GetComponentData<ChunkActiveJob>(ent).Handle.IsCompleted)
+						continue;
+				}
 
 				var ready = true;
 				for (var f = 0; f < 6; f++)
@@ -223,6 +231,7 @@ namespace _Project.WorldGeneration.Systems
 			{
 				return DistSq.CompareTo(other.DistSq);
 			}
+
 		}
 	}
 }

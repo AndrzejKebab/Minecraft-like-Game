@@ -30,6 +30,8 @@ namespace _Project.WorldGeneration.Systems
 			                          .Build();
 		}
 
+		public void OnDestroy(ref SystemState state) { }
+
 		public void OnUpdate(ref SystemState state)
 		{
 			if (candidateQuery.IsEmpty) return;
@@ -65,10 +67,12 @@ namespace _Project.WorldGeneration.Systems
 			urgent.Sort();
 			normal.Sort();
 
-			var take          = math.min(budget, urgent.Length + normal.Length);
-			var batchEntities = new NativeArray<Entity>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			var take = math.min(budget, urgent.Length + normal.Length);
+			var batchEntities =
+				new NativeArray<Entity>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
 			var batchPositions =
-				new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+				new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob,
+				                                        NativeArrayOptions.UninitializedMemory);
 
 			var written = 0;
 			for (var i = 0; i < urgent.Length && written < take; i++, written++)

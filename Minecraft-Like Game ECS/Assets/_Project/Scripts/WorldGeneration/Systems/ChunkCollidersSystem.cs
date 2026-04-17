@@ -9,6 +9,7 @@ using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using UnityEngine;
+using UtilityLibrary.Core;
 using Collider = Unity.Physics.Collider;
 
 namespace _Project.WorldGeneration.Systems
@@ -26,6 +27,7 @@ namespace _Project.WorldGeneration.Systems
 		private NativeArray<int3>                         activePositions;
 		private NativeArray<BlobAssetReference<Collider>> activeBlobs;
 		private bool                                      isJobActive;
+		private int3 lastPlayerChunk;
 
 		private EntityQuery urgentQuery;
 		private EntityQuery outOfRangeQuery;
@@ -80,13 +82,26 @@ namespace _Project.WorldGeneration.Systems
 			var justBaked    = new NativeHashSet<Entity>(8, Allocator.Temp);
 
 			// ── 1. Complete active job if ready or urgent ──────────────────────
-			oldToDispose = CompleteCurrentJobs(ref state, ecb, ref justBaked, ref oldToDispose);
+			if(isJobActive)
+			{
+				oldToDispose = CompleteCurrentJobs(ref state, ecb, ref justBaked, ref oldToDispose);
+			}
 
-			// ── 2. Strip colliders for chunks that left radius ─────────────────
-			RemoveOutOfRangeColliders(ref state, ref playerChunk, ref justBaked, ref oldToDispose, ecb);
+			var playerMoved = !playerChunk.Equals(lastPlayerChunk);
+			var hasUrgent   = !urgentQuery.IsEmptyIgnoreFilter;
 
-			// ── 3. Collect candidates and schedule new batch when idle ─────────
-			oldToDispose = ScheduleColliderJobs(ref state, ref playerChunk, ref oldToDispose, ecb);
+			if (playerMoved || hasUrgent)
+			{
+				if (playerMoved)
+				{
+					lastPlayerChunk = playerChunk;
+					// ── 2. Strip colliders for chunks that left radius ─────────────────
+					RemoveOutOfRangeColliders(ref state, ref playerChunk, ref justBaked, ref oldToDispose, ecb);
+				}
+
+				// ── 3. Collect candidates and schedule new batch when idle ─────────
+				oldToDispose = ScheduleColliderJobs(ref state, ref playerChunk, ref oldToDispose, ecb);
+			}
 
 			justBaked.Dispose();
 			ecb.Playback(state.EntityManager);

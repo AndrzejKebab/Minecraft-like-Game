@@ -9,8 +9,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Jobs
-{
-	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+{[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public unsafe struct GreedyMeshJob : IJobFor
 	{
 		[ReadOnly] public NativeArray<Entity>         Entities;
@@ -229,9 +228,6 @@ namespace _Project.WorldGeneration.Jobs
 				RenderCustomMesh(ref accessor, x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices,
 				                 ref fluidIndices);
 			}
-
-			// FIX: Removed duplicated memory combination block. 
-			// `ChunkMeshBuilderSystem.cs` natively handles combined arrays in Execute() now!
 		}
 
 		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
@@ -444,45 +440,98 @@ namespace _Project.WorldGeneration.Jobs
 		/// </summary>
 		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation)
 		{
-			if (dirType == BlockDirectionType.None) return normalIdx;
-
-			if (dirType == BlockDirectionType.YAxis)
-			{
-				if (normalIdx == 2 || normalIdx == 3) return normalIdx; // Top/Bottom unchanged
-				return orientation switch
-				       {
-					       // identity: no remap
-					       2 => normalIdx,
-					       // 180° Y: front↔back, left↔right
-					       3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
-					       // +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
-					       4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
-					       // -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
-					       5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
-					       _ => normalIdx
-				       };
-			}
-
-			if (dirType == BlockDirectionType.AllAxes)
-				// AllAxes orientations (matches GetRotation):
-				// 0=identity, 1=180°X, 2=+90°X, 3=-90°X, 4=-90°Z, 5=+90°Z
-				return orientation switch
-				       {
-					       0 => normalIdx,
-					       // 180° X: top↔bottom, front↔back
-					       1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
-					       // +90° X: top→front, front→bottom, bottom→back, back→top
-					       2 => normalIdx switch { 2 => 1, 1 => 3, 3 => 0, 0 => 2, _ => normalIdx },
-					       // -90° X: top→back, back→bottom, bottom→front, front→top
-					       3 => normalIdx switch { 2 => 0, 0 => 3, 3 => 1, 1 => 2, _ => normalIdx },
-					       // -90° Z: top→right, right→bottom, bottom→left, left→top
-					       4 => normalIdx switch { 2 => 5, 5 => 3, 3 => 4, 4 => 2, _ => normalIdx },
-					       // +90° Z: top→left, left→bottom, bottom→right, right→top
-					       5 => normalIdx switch { 2 => 4, 4 => 3, 3 => 5, 5 => 2, _ => normalIdx },
-					       _ => normalIdx
-				       };
-
-			return normalIdx;
+			return dirType switch
+			       {
+				       BlockDirectionType.None                           => normalIdx,
+				       BlockDirectionType.YAxis when normalIdx is 2 or 3 => normalIdx // Top/Bottom unchanged
+				       ,
+				       BlockDirectionType.YAxis => orientation switch
+				                                   {
+					                                   // identity: no remap
+					                                   2 => normalIdx,
+					                                   // 180° Y: front↔back, left↔right
+					                                   3 => normalIdx switch
+					                                        {
+						                                        0 => 1,
+						                                        1 => 0,
+						                                        4 => 5,
+						                                        5 => 4,
+						                                        _ => normalIdx
+					                                        },
+					                                   // +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
+					                                   4 => normalIdx switch
+					                                        {
+						                                        5 => 1,
+						                                        4 => 0,
+						                                        0 => 5,
+						                                        1 => 4,
+						                                        _ => normalIdx
+					                                        },
+					                                   // -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
+					                                   5 => normalIdx switch
+					                                        {
+						                                        4 => 1,
+						                                        5 => 0,
+						                                        1 => 5,
+						                                        0 => 4,
+						                                        _ => normalIdx
+					                                        },
+					                                   _ => normalIdx
+				                                   },
+				       // AllAxes orientations (matches GetRotation):
+				       // 0=identity, 1=180°X, 2=+90°X, 3=-90°X, 4=-90°Z, 5=+90°Z
+				       BlockDirectionType.AllAxes => orientation switch
+				                                     {
+					                                     0 => normalIdx,
+					                                     // 180° X: top↔bottom, front↔back
+					                                     1 => normalIdx switch
+					                                          {
+						                                          2 => 3,
+						                                          3 => 2,
+						                                          1 => 0,
+						                                          0 => 1,
+						                                          _ => normalIdx
+					                                          },
+					                                     // +90° X: global front shows local top, global bottom shows local front, global back shows local bottom, global top shows local back
+					                                     2 => normalIdx switch
+					                                          {
+						                                          1 => 2,
+						                                          3 => 1,
+						                                          0 => 3,
+						                                          2 => 0,
+						                                          _ => normalIdx
+					                                          },
+					                                     // -90° X: global back shows local top, global bottom shows local back, global front shows local bottom, global top shows local front
+					                                     3 => normalIdx switch
+					                                          {
+						                                          0 => 2,
+						                                          3 => 0,
+						                                          1 => 3,
+						                                          2 => 1,
+						                                          _ => normalIdx
+					                                          },
+					                                     // -90° Z: global right shows local top, global bottom shows local right, global left shows local bottom, global top shows local left
+					                                     4 => normalIdx switch
+					                                          {
+						                                          5 => 2,
+						                                          3 => 5,
+						                                          4 => 3,
+						                                          2 => 4,
+						                                          _ => normalIdx
+					                                          },
+					                                     // +90° Z: global left shows local top, global bottom shows local left, global right shows local bottom, global top shows local right
+					                                     5 => normalIdx switch
+					                                          {
+						                                          4 => 2,
+						                                          3 => 4,
+						                                          5 => 3,
+						                                          2 => 5,
+						                                          _ => normalIdx
+					                                          },
+					                                     _ => normalIdx
+				                                     },
+				       _ => normalIdx
+			       };
 		}
 
 		private static quaternion GetRotation(BlockDirectionType type, byte orientation)

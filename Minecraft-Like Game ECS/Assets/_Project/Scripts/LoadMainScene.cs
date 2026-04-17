@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace _Project
@@ -7,8 +8,17 @@ namespace _Project
 	{
 		private void Awake()
 		{
-			SceneManager.LoadScene("Main", LoadSceneMode.Additive);
-			Debug.Log("[LoadMainScene] Main scene loaded additively.");
+			SceneManager.sceneLoaded += OnSceneLoaded;
+			SceneManager.LoadSceneAsync("Main", LoadSceneMode.Additive);
+		}
+
+		private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+		{
+			if (scene.name != "Main") return;
+			SceneManager.SetActiveScene(scene);
+			Debug.Log("[SetSceneActive] Main scene loaded additively and set to active.");
+				
+			SceneManager.sceneLoaded -= OnSceneLoaded;
 		}
 	}
 }

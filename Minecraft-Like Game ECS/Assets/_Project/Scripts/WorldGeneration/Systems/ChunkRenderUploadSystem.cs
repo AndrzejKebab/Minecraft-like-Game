@@ -24,56 +24,60 @@ namespace _Project.WorldGeneration.Systems
 	public partial class ChunkRenderUploadSystem : SystemBase
 	{
 		// ── vertex layout ─────────────────────────────────────────────────────
-		private static readonly VertexAttributeDescriptor[] k_VertexLayout =
+		private static readonly VertexAttributeDescriptor[] vertexLayout =
 		{
 			new(VertexAttribute.TexCoord7, VertexAttributeFormat.Float32, 4)
 		};
 
 		// Local-space chunk bounds (32³ voxels, origin at 0,0,0)
-		private static readonly Bounds k_ChunkLocalBounds =
+		private static readonly Bounds chunkLocalBounds =
 			new(new Vector3(16f, 16f, 16f), new Vector3(32f, 32f, 32f));
 
 		// ── Entities Graphics state ────────────────────────────────────────────
-		private EntitiesGraphicsSystem m_EGS;
-		private BatchMaterialID        m_FluidMatID;
-		private bool                   m_MaterialsRegistered;
-		private BatchMaterialID        m_SolidMatID;
+		private EntitiesGraphicsSystem egs;
+		private BatchMaterialID        fluidMatID;
+		private BatchMaterialID        solidMatID;
+		private bool                   materialsRegistered;
 
-		private EntityQuery m_UploadQuery;
+		private EntityQuery uploadQuery;
 
 		private static RenderMeshDescription RenderDesc => new(ShadowCastingMode.TwoSided, true,
 		                                                       MotionVectorGenerationMode.Camera,
 		                                                       LayerMask.NameToLayer("Chunk"), staticShadowCaster: true,
 		                                                       lightProbeUsage: LightProbeUsage.Off);
 
+		private const MeshUpdateFlags MESH_UPDATE_FLAGS =
+			MeshUpdateFlags.DontNotifyMeshUsers | MeshUpdateFlags.DontRecalculateBounds |
+			MeshUpdateFlags.DontResetBoneBounds | MeshUpdateFlags.DontValidateIndices |
+			MeshUpdateFlags.DontValidateLodRanges;
 		protected override void OnCreate()
 		{
-			m_UploadQuery = SystemAPI.QueryBuilder()
+			uploadQuery = SystemAPI.QueryBuilder()
 			                         .WithAll<MeshRequiresUpload, ChunkMeshData, ChunkPositionComponent>()
 			                         .Build();
 		}
 
 		protected override void OnUpdate()
 		{
-			if (m_UploadQuery.IsEmpty) return;
+			if (uploadQuery.IsEmpty) return;
 
 			// ── lazy-register materials once ──────────────────────────────────
-			if (!m_MaterialsRegistered)
+			if (!materialsRegistered)
 			{
 				if (!SystemAPI.TryGetSingletonEntity<WorldBlockRegistrySingleton>(out Entity regEntity) ||
 				    !EntityManager.HasComponent<ChunkMaterialComponent>(regEntity))
 					return;
 
-				m_EGS = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-				if (m_EGS == null) return;
+				egs = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
+				if (egs == null) return;
 
 				var matComp = EntityManager.GetComponentObject<ChunkMaterialComponent>(regEntity);
-				m_SolidMatID          = m_EGS.RegisterMaterial(matComp.SolidMaterial);
-				m_FluidMatID          = m_EGS.RegisterMaterial(matComp.WaterMaterial);
-				m_MaterialsRegistered = true;
+				solidMatID          = egs.RegisterMaterial(matComp.SolidMaterial);
+				fluidMatID          = egs.RegisterMaterial(matComp.WaterMaterial);
+				materialsRegistered = true;
 			}
 
-			NativeArray<Entity> entities = m_UploadQuery.ToEntityArray(Allocator.Temp);
+			NativeArray<Entity> entities = uploadQuery.ToEntityArray(Allocator.Temp);
 			var                 ecb      = new EntityCommandBuffer(Allocator.Temp);
 
 			for (var i = 0; i < entities.Length; i++)
@@ -109,7 +113,7 @@ namespace _Project.WorldGeneration.Systems
 				{
 					managed = EntityManager.GetComponentObject<ChunkManagedMesh>(entity);
 					if (managed.MeshBatchID.value != 0)
-						m_EGS.UnregisterMesh(managed.MeshBatchID);
+						egs.UnregisterMesh(managed.MeshBatchID);
 				}
 
 				// ── write geometry into the Mesh via MeshDataArray ─────────────
@@ -118,7 +122,7 @@ namespace _Project.WorldGeneration.Systems
 
 				if (totalV > 0)
 				{
-					md.SetVertexBufferParams(totalV, k_VertexLayout);
+					md.SetVertexBufferParams(totalV, vertexLayout);
 					md.SetIndexBufferParams(totalI, IndexFormat.UInt32);
 
 					NativeArray<Vertex> dstV = md.GetVertexData<Vertex>();
@@ -131,35 +135,33 @@ namespace _Project.WorldGeneration.Systems
 					md.SetSubMesh(0,
 					              new SubMeshDescriptor(0, solidICount)
 					              {
-						              bounds = k_ChunkLocalBounds, vertexCount = totalV
+						              bounds = chunkLocalBounds, vertexCount = totalV
 					              },
-					              MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+					              MESH_UPDATE_FLAGS);
 					md.SetSubMesh(1,
 					              new SubMeshDescriptor(solidICount, fluidICount)
 					              {
-						              bounds = k_ChunkLocalBounds, vertexCount = totalV
+						              bounds = chunkLocalBounds, vertexCount = totalV
 					              },
-					              MeshUpdateFlags.DontRecalculateBounds | MeshUpdateFlags.DontValidateIndices);
+					              MESH_UPDATE_FLAGS);
 				}
 				else
 				{
-					md.SetVertexBufferParams(0, k_VertexLayout);
+					md.SetVertexBufferParams(0, vertexLayout);
 					md.SetIndexBufferParams(0, IndexFormat.UInt32);
 					md.subMeshCount = 2;
 					md.SetSubMesh(0, new SubMeshDescriptor(0, 0));
 					md.SetSubMesh(1, new SubMeshDescriptor(0, 0));
 				}
 
-				Mesh.ApplyAndDisposeWritableMeshData(mda, managed.Mesh,
-				                                     MeshUpdateFlags.DontRecalculateBounds |
-				                                     MeshUpdateFlags.DontValidateIndices);
-				managed.Mesh.bounds = k_ChunkLocalBounds;
+				Mesh.ApplyAndDisposeWritableMeshData(mda, managed.Mesh, MESH_UPDATE_FLAGS);
+				managed.Mesh.bounds = chunkLocalBounds;
 
 				// ── register mesh ──────────────────────────────────────────────
-				managed.MeshBatchID = m_EGS.RegisterMesh(managed.Mesh);
+				managed.MeshBatchID = egs.RegisterMesh(managed.Mesh);
 
 				// ── solid render entity (sub-mesh 0) ───────────────────────────
-				var solidMMI = new MaterialMeshInfo(m_SolidMatID, managed.MeshBatchID);
+				var solidMMI = new MaterialMeshInfo(solidMatID, managed.MeshBatchID);
 
 				if (managed.SolidEntity == Entity.Null || !EntityManager.Exists(managed.SolidEntity))
 				{
@@ -175,11 +177,11 @@ namespace _Project.WorldGeneration.Systems
 				{
 					EntityManager.SetComponentData(managed.SolidEntity, solidMMI);
 					EntityManager.SetComponentData(managed.SolidEntity,
-					                               new RenderBounds { Value = k_ChunkLocalBounds.ToAABB() });
+					                               new RenderBounds { Value = chunkLocalBounds.ToAABB() });
 				}
 
 				// ── fluid render entity (sub-mesh 1) ───────────────────────────
-				var fluidMMI = new MaterialMeshInfo(m_FluidMatID, managed.MeshBatchID, 1);
+				var fluidMMI = new MaterialMeshInfo(fluidMatID, managed.MeshBatchID, 1);
 
 				if (fluidICount > 0)
 				{
@@ -197,7 +199,7 @@ namespace _Project.WorldGeneration.Systems
 					{
 						EntityManager.SetComponentData(managed.FluidEntity, fluidMMI);
 						EntityManager.SetComponentData(managed.FluidEntity,
-						                               new RenderBounds { Value = k_ChunkLocalBounds.ToAABB() });
+						                               new RenderBounds { Value = chunkLocalBounds.ToAABB() });
 					}
 				}
 				else if (managed.FluidEntity != Entity.Null && EntityManager.Exists(managed.FluidEntity))

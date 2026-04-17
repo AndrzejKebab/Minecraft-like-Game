@@ -8,8 +8,8 @@ LightingSettings:
   m_PrefabAsset: {fileID: 0}
   m_Name: Main Lighting Settings
   serializedVersion: 10
-  m_EnableBakedLightmaps: 1
-  m_EnableRealtimeLightmaps: 1
+  m_EnableBakedLightmaps: 0
+  m_EnableRealtimeLightmaps: 0
   m_RealtimeEnvironmentLighting: 1
   m_BounceScale: 1
   m_AlbedoBoost: 1
@@ -40,7 +40,7 @@ LightingSettings:
   m_ExportTrainingData: 0
   m_EnableWorkerProcessBaking: 1
   m_TrainingDataDestination: TrainingData
-  m_RealtimeResolution: 12
+  m_RealtimeResolution: 16
   m_ForceWhiteAlbedo: 0
   m_ForceUpdates: 0
   m_PVRCulling: 1
