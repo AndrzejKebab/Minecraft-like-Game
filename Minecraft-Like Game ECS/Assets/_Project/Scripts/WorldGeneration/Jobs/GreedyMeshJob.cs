@@ -437,8 +437,6 @@ namespace _Project.WorldGeneration.Jobs
 			ref NativeList<Vertex> targetV = ref block.IsFluid ? ref fluidV : ref solidV;
 			ref NativeList<int>    targetI = ref block.IsFluid ? ref fluidI : ref solidI;
 
-			// NOTE: assumes quads in MeshDataSO are ordered to match FaceChecks (0=-Z,1=+Z,2=+Y,3=-Y,4=-X,5=+X).
-			// If you reorder quads in the SO, update QuadFaceDir per quad here instead.
 			for (var i = 0; i < meshData.Triangles.Length; i++)
 			{
 				int4   quad = meshData.Triangles[i];
@@ -458,14 +456,10 @@ namespace _Project.WorldGeneration.Jobs
 				float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
 
 				var normalIdx      = (int)DirToIndex(rotatedNormal);
-				// RemapTextureFace: world-space normalIdx → original block face texture slot.
-				// For AllAxes blocks geometry is already rotated; uvRot stays 0.
-				// For YAxis blocks (if any reach here) uvRot would apply.
+
 				var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, blockState.Orientation, out int uvRot);
 				var b              = targetV.Length;
 
-				// AO is not computed per-vertex for custom mesh faces (no greedy sweep context).
-				// Pass ao=3 (full bright). Add AO support here if needed later.
 				targetV.Add(new Vertex(v0, block, normalIdx, textureFaceIdx, 3, uvRot));
 				targetV.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, 3, uvRot));
 				targetV.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, 3, uvRot));
@@ -480,6 +474,8 @@ namespace _Project.WorldGeneration.Jobs
 		{
 			BlockState nb = accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
 			if (nb.IsEmpty || nb.ID == 0) return false;
+			if (GetMeshType(nb) == 3) return false;
+
 			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
 		}
 

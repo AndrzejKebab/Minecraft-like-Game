@@ -16,12 +16,12 @@ MonoBehaviour:
   Block:
     ID: 14
     MeshID: 1
-    IsTransparent: 0
+    IsTransparent: 1
     IsFluid: 0
     TintColor:
       serializedVersion: 2
       rgba: 4279332969
-    DirectionType: 0
+    DirectionType: 2
     BaseTextures:
       Front: 6
       Back: 6

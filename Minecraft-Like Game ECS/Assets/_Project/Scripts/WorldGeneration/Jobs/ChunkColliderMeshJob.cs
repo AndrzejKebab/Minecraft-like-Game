@@ -17,25 +17,24 @@ namespace _Project.WorldGeneration.Jobs
 	{
 		[ReadOnly] public NativeArray<Entity> Entities;
 		[ReadOnly] public NativeArray<int3>   Positions;
+		[ReadOnly] public CollisionFilter     Filter;
 
-		[NativeDisableContainerSafetyRestriction]
-		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction]
-		[ReadOnly] public NativeHashMap<int3, Entity> ChunkMap;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeHashMap<int3, Entity> ChunkMap;
 
-		[NativeDisableContainerSafetyRestriction]
-		[ReadOnly] public NativeArray<Block> BlockPrototypes;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<Block> BlockPrototypes;
 
-		// Needed to get actual geometry for non-full-block colliders (slabs, stairs, etc.)
-		[NativeDisableContainerSafetyRestriction]
-		[ReadOnly] public NativeArray<NativeVoxelMeshData> MeshDatas;
+		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		public NativeArray<NativeVoxelMeshData> MeshDatas;
 
-		[NativeDisableParallelForRestriction]
-		[WriteOnly] public NativeArray<BlobAssetReference<Collider>> OutColliders;
+		[NativeDisableParallelForRestriction] [WriteOnly]
+		public NativeArray<BlobAssetReference<Collider>> OutColliders;
 
-		public CollisionFilter Filter;
-		public int             ChunkSize;
+		public int ChunkSize;
 
 		public void Execute(int index)
 		{
@@ -83,10 +82,6 @@ namespace _Project.WorldGeneration.Jobs
 			return !BlockDataLookup.TryGetValue(e, out ChunkComponent c) ? default : c.BlockData;
 		}
 
-		/// <summary>
-		/// Returns true only for full-block (MeshID == 0) solid, non-fluid blocks.
-		/// Custom-mesh blocks are handled separately in BuildCustomMeshColliders.
-		/// </summary>
 		private bool IsSolid(BlockState b)
 		{
 			if (b.ID == 0 || b.ID >= BlockPrototypes.Length) return false;
@@ -109,17 +104,40 @@ namespace _Project.WorldGeneration.Jobs
 			NativeArray<BlockState> n  = default;
 			int                     lx = p.x, ly = p.y, lz = p.z;
 
-			if      (p.x < 0)   { n = nXN; lx = cs - 1; }
-			else if (p.x >= cs) { n = nXP; lx = 0; }
-			else if (p.y < 0)   { n = nYN; ly = cs - 1; }
-			else if (p.y >= cs) { n = nYP; ly = 0; }
-			else if (p.z < 0)   { n = nZN; lz = cs - 1; }
-			else if (p.z >= cs) { n = nZP; lz = 0; }
+			if (p.x < 0)
+			{
+				n  = nXN;
+				lx = cs - 1;
+			}
+			else if (p.x >= cs)
+			{
+				n  = nXP;
+				lx = 0;
+			}
+			else if (p.y < 0)
+			{
+				n  = nYN;
+				ly = cs - 1;
+			}
+			else if (p.y >= cs)
+			{
+				n  = nYP;
+				ly = 0;
+			}
+			else if (p.z < 0)
+			{
+				n  = nZN;
+				lz = cs - 1;
+			}
+			else if (p.z >= cs)
+			{
+				n  = nZP;
+				lz = 0;
+			}
 
 			return n.IsCreated && IsSolid(n[lx | (ly << 5) | (lz << 10)]);
 		}
 
-		// Greedy mesh: full-block solids only. 1-bit mask, no material distinction.
 		private void BuildSolidMesh(
 			NativeArray<BlockState> c,
 			NativeArray<BlockState> nXN,   NativeArray<BlockState> nXP,
@@ -164,11 +182,6 @@ namespace _Project.WorldGeneration.Jobs
 			maskB.Dispose();
 		}
 
-		/// <summary>
-		/// Emits rotated vertex geometry for every custom-mesh (MeshID != 0), non-fluid
-		/// block in the chunk. No greedy merging — custom shapes can't be greedy-merged
-		/// without per-face plane analysis. Geometry matches visual mesh exactly.
-		/// </summary>
 		private void BuildCustomMeshColliders(
 			NativeArray<BlockState> center,
 			ref NativeList<float3>  verts,
@@ -184,7 +197,7 @@ namespace _Project.WorldGeneration.Jobs
 				if (state.IsEmpty || state.ID == 0 || state.ID >= BlockPrototypes.Length) continue;
 
 				Block block = BlockPrototypes[state.ID];
-				if (block.IsFluid || block.MeshID == 0) continue; // full-blocks handled by BuildSolidMesh
+				if (block.IsFluid || block.MeshID == 0) continue;
 
 				NativeVoxelMeshData meshData = MeshDatas[block.MeshID];
 				quaternion          rot      = GetRotation(block.DirectionType, state.Orientation);
@@ -194,10 +207,15 @@ namespace _Project.WorldGeneration.Jobs
 				{
 					int4 quad = meshData.Triangles[i];
 
-					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f + wPos;
-					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f + wPos;
-					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f + wPos;
-					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
+					float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f;
+					float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f;
+					float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f;
+					float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f;
+
+					v0 = math.round(v0 * 1024f) / 1024f + wPos;
+					v1 = math.round(v1 * 1024f) / 1024f + wPos;
+					v2 = math.round(v2 * 1024f) / 1024f + wPos;
+					v3 = math.round(v3 * 1024f) / 1024f + wPos;
 
 					int b = verts.Length;
 					verts.Add(v0);
@@ -205,9 +223,9 @@ namespace _Project.WorldGeneration.Jobs
 					verts.Add(v2);
 					verts.Add(v3);
 
-					// Two triangles per quad, consistent winding.
-					tris.Add(new int3(b,     b + 1, b + 2));
-					tris.Add(new int3(b,     b + 2, b + 3));
+					// Front face
+					tris.Add(new int3(b, b + 2, b + 1));
+					tris.Add(new int3(b + 1, b + 2, b + 3));
 				}
 			}
 		}
@@ -222,16 +240,26 @@ namespace _Project.WorldGeneration.Jobs
 				var i = 0;
 				while (i < cs)
 				{
-					if (!mask[i + j * cs]) { i++; continue; }
+					if (!mask[i + j * cs])
+					{
+						i++;
+						continue;
+					}
 
 					var w = 1;
 					while (i + w < cs && mask[i + w + j * cs]) w++;
 
-					var h = 1; var done = false;
+					var h    = 1;
+					var done = false;
 					while (j + h < cs && !done)
 					{
 						for (var k = 0; k < w; k++)
-							if (!mask[i + k + (j + h) * cs]) { done = true; break; }
+							if (!mask[i + k + (j + h) * cs])
+							{
+								done = true;
+								break;
+							}
+
 						if (!done) h++;
 					}
 
@@ -240,8 +268,10 @@ namespace _Project.WorldGeneration.Jobs
 					basePos[axis1] = i;
 					basePos[axis2] = j;
 
-					int3 du = int3.zero; du[axis1] = w;
-					int3 dv = int3.zero; dv[axis2] = h;
+					int3 du = int3.zero;
+					du[axis1] = w;
+					int3 dv = int3.zero;
+					dv[axis2] = h;
 
 					float3 v0 = basePos;
 					float3 v1 = basePos + du;
@@ -249,7 +279,10 @@ namespace _Project.WorldGeneration.Jobs
 					float3 v3 = basePos + dv;
 
 					var b = verts.Length;
-					verts.Add(v0); verts.Add(v1); verts.Add(v2); verts.Add(v3);
+					verts.Add(v0);
+					verts.Add(v1);
+					verts.Add(v2);
+					verts.Add(v3);
 
 					if (normalSign > 0)
 					{
@@ -271,31 +304,30 @@ namespace _Project.WorldGeneration.Jobs
 			}
 		}
 
-		// Duplicated from GreedyMeshJob — static, Burst-safe, no shared state.
 		private static quaternion GetRotation(BlockDirectionType type, byte orientation)
 		{
 			return type switch
-			{
-				BlockDirectionType.YAxis => orientation switch
-				{
-					2 => quaternion.identity,
-					4 => quaternion.Euler(0,  math.PI / 2f, 0),
-					3 => quaternion.Euler(0,  math.PI,      0),
-					5 => quaternion.Euler(0, -math.PI / 2f, 0),
-					_ => quaternion.identity
-				},
-				BlockDirectionType.AllAxes => orientation switch
-				{
-					0 => quaternion.identity,
-					1 => quaternion.Euler(math.PI,        0, 0),
-					2 => quaternion.Euler(math.PI / 2f,   0, 0),
-					3 => quaternion.Euler(-math.PI / 2f,  0, 0),
-					4 => quaternion.Euler(0, 0, -math.PI / 2f),
-					5 => quaternion.Euler(0, 0,  math.PI / 2f),
-					_ => quaternion.identity
-				},
-				_ => quaternion.identity
-			};
+			       {
+				       BlockDirectionType.YAxis => orientation switch
+				                                   {
+					                                   2 => quaternion.identity,
+					                                   4 => quaternion.Euler(0, math.PI / 2f, 0),
+					                                   3 => quaternion.Euler(0, math.PI, 0),
+					                                   5 => quaternion.Euler(0, -math.PI / 2f, 0),
+					                                   _ => quaternion.identity
+				                                   },
+				       BlockDirectionType.AllAxes => orientation switch
+				                                     {
+					                                     0 => quaternion.identity,
+					                                     1 => quaternion.Euler(math.PI, 0, 0),
+					                                     2 => quaternion.Euler(math.PI / 2f, 0, 0),
+					                                     3 => quaternion.Euler(-math.PI / 2f, 0, 0),
+					                                     4 => quaternion.Euler(0, 0, -math.PI / 2f),
+					                                     5 => quaternion.Euler(0, 0, math.PI / 2f),
+					                                     _ => quaternion.identity
+				                                     },
+				       _ => quaternion.identity
+			       };
 		}
 	}
 }
