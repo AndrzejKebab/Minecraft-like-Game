@@ -1,4 +1,5 @@
-﻿using _Project.Tags;
+﻿using System.Runtime.CompilerServices;
+using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
 using Unity.Burst;
@@ -9,58 +10,48 @@ using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Jobs
-{[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+{
+	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public unsafe struct GreedyMeshJob : IJobFor
 	{
 		[ReadOnly] public NativeArray<Entity>         Entities;
 		[ReadOnly] public NativeArray<int3>           Positions;
 		[ReadOnly] public NativeHashMap<int3, Entity> ChunkMap;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeArray<Block> BlockPrototypes;
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeArray<Block> BlockPrototypes;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
-		public NativeArray<NativeVoxelMeshData> CustomMeshes;
-
-		[ReadOnly] public NativeArray<int3> FaceChecks;
-
+		[NativeDisableContainerSafetyRestriction] 
+		[ReadOnly] public NativeArray<NativeVoxelMeshData> MeshDatas;
+		
 		public EntityCommandBuffer.ParallelWriter ECB;
-
-		private struct Mask
-		{
-			public ushort BlockID;
-			public byte   MeshType;
-			public byte   Orientation;
-			public sbyte  Normal;
-			public int4   AO;
-		}
 
 		public void Execute(int index)
 		{
 			Entity entity = Entities[index];
 			int3   pos    = Positions[index];
 
-			ChunkMap.TryGetValue(pos + new int3(0, 0, -1), out Entity nZNeg);
-			ChunkMap.TryGetValue(pos + new int3(0, 0, 1), out Entity nZPos);
-			ChunkMap.TryGetValue(pos + new int3(0, -1, 0), out Entity nYNeg);
-			ChunkMap.TryGetValue(pos + new int3(0, 1, 0), out Entity nYPos);
-			ChunkMap.TryGetValue(pos + new int3(-1, 0, 0), out Entity nXNeg);
-			ChunkMap.TryGetValue(pos + new int3(1, 0, 0), out Entity nXPos);
+			ChunkMap.TryGetValue(pos + new int3(0,  0, -1), out Entity nZNeg);
+			ChunkMap.TryGetValue(pos + new int3(0,  0,  1), out Entity nZPos);
+			ChunkMap.TryGetValue(pos + new int3(0, -1,  0), out Entity nYNeg);
+			ChunkMap.TryGetValue(pos + new int3(0,  1,  0), out Entity nYPos);
+			ChunkMap.TryGetValue(pos + new int3(-1, 0,  0), out Entity nXNeg);
+			ChunkMap.TryGetValue(pos + new int3(1,  0,  0), out Entity nXPos);
 
 			var accessor = new ChunkAccessor
-			               {
-				               Center       = BlockDataLookup[entity].BlockData,
-				               NeighborZNeg = BlockDataLookup[nZNeg].BlockData,
-				               NeighborZPos = BlockDataLookup[nZPos].BlockData,
-				               NeighborYNeg = BlockDataLookup[nYNeg].BlockData,
-				               NeighborYPos = BlockDataLookup[nYPos].BlockData,
-				               NeighborXNeg = BlockDataLookup[nXNeg].BlockData,
-				               NeighborXPos = BlockDataLookup[nXPos].BlockData,
-				               ChunkSize    = ChunkData.CHUNK_SIZE
-			               };
+			{
+				Center       = BlockDataLookup[entity].BlockData,
+				NeighborZNeg = BlockDataLookup[nZNeg].BlockData,
+				NeighborZPos = BlockDataLookup[nZPos].BlockData,
+				NeighborYNeg = BlockDataLookup[nYNeg].BlockData,
+				NeighborYPos = BlockDataLookup[nYPos].BlockData,
+				NeighborXNeg = BlockDataLookup[nXNeg].BlockData,
+				NeighborXPos = BlockDataLookup[nXPos].BlockData,
+				ChunkSize    = ChunkData.CHUNK_SIZE
+			};
 
 			var solidVertices = new NativeList<Vertex>(Allocator.Temp);
 			var solidIndices  = new NativeList<int>(Allocator.Temp);
@@ -70,33 +61,36 @@ namespace _Project.WorldGeneration.Jobs
 			GenerateMesh(ref accessor, ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
 
 			var totalV = solidVertices.Length + fluidVertices.Length;
-			var totalI = solidIndices.Length + fluidIndices.Length;
+			var totalI = solidIndices.Length  + fluidIndices.Length;
 
 			var meshData = new ChunkMeshData
-			               {
-				               CombinedVertices = new NativeList<Vertex>(totalV, Allocator.Persistent),
-				               CombinedIndices  = new NativeList<int>(totalI, Allocator.Persistent),
-				               SolidVertexCount = solidVertices.Length,
-				               SolidIndexCount  = solidIndices.Length
-			               };
+			{
+				CombinedVertices = new NativeList<Vertex>(totalV, Allocator.Persistent),
+				CombinedIndices  = new NativeList<int>(totalI,    Allocator.Persistent),
+				SolidVertexCount = solidVertices.Length,
+				SolidIndexCount  = solidIndices.Length
+			};
 
 			meshData.CombinedVertices.ResizeUninitialized(totalV);
 			meshData.CombinedIndices.ResizeUninitialized(totalI);
 
 			if (solidVertices.Length > 0)
 			{
-				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr(), solidVertices.GetUnsafePtr(),
+				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr(),
+				                     solidVertices.GetUnsafePtr(),
 				                     solidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-				UnsafeUtility.MemCpy(meshData.CombinedIndices.GetUnsafePtr(), solidIndices.GetUnsafePtr(),
+				UnsafeUtility.MemCpy(meshData.CombinedIndices.GetUnsafePtr(),
+				                     solidIndices.GetUnsafePtr(),
 				                     solidIndices.Length * sizeof(int));
 			}
 
 			if (fluidVertices.Length > 0)
 			{
 				UnsafeUtility.MemCpy(meshData.CombinedVertices.GetUnsafePtr() + solidVertices.Length,
-				                     fluidVertices.GetUnsafePtr(), fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
-				var svCount  = solidVertices.Length;
-				var siCount  = solidIndices.Length;
+				                     fluidVertices.GetUnsafePtr(),
+				                     fluidVertices.Length * UnsafeUtility.SizeOf<Vertex>());
+				var  svCount  = solidVertices.Length;
+				var  siCount  = solidIndices.Length;
 				var fIndices = fluidIndices.GetUnsafePtr();
 				var cIndices = meshData.CombinedIndices.GetUnsafePtr();
 				for (var i = 0; i < fluidIndices.Length; i++)
@@ -104,7 +98,6 @@ namespace _Project.WorldGeneration.Jobs
 			}
 
 			ECB.AddComponent(index, entity, meshData);
-
 			if (totalV > 0)
 				ECB.AddComponent<MeshRequiresUpload>(index, entity);
 
@@ -114,20 +107,23 @@ namespace _Project.WorldGeneration.Jobs
 			fluidIndices.Dispose();
 		}
 
-		[BurstCompile]
-		private void GenerateMesh(ref ChunkAccessor   accessor,     ref NativeList<Vertex> solidVertices,
-		                          ref NativeList<int> solidIndices, ref NativeList<Vertex> fluidVertices,
-		                          ref NativeList<int> fluidIndices)
-		{
-			var chunkSize = accessor.ChunkSize;
-			var maskFront =
-				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			var maskBack =
-				new NativeArray<Mask>(chunkSize * chunkSize, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
-			Mask mFront = default;
-			Mask mBack  = default;
+		// ─────────────────────────────────────────────────────────────────────────
+		// MESH GENERATION
+		// ─────────────────────────────────────────────────────────────────────────
 
-			// 1. GREEDY MESHING (Standard Cubes & Fluids)
+		[BurstCompile]
+		private void GenerateMesh(ref ChunkAccessor   accessor,
+		                          ref NativeList<Vertex> solidVertices, ref NativeList<int> solidIndices,
+		                          ref NativeList<Vertex> fluidVertices, ref NativeList<int> fluidIndices)
+		{
+			var CS = accessor.ChunkSize; // 32
+
+			// Two face maps, one per normal direction (front/back) for the current layer.
+			// Size = CS*CS uints. Indexed [axis2 * CS + axis1].
+			var faceMapFront = new NativeArray<uint>(CS * CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var faceMapBack  = new NativeArray<uint>(CS * CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+
+			// ── 1. GREEDY MESHING ──────────────────────
 			for (var direction = 0; direction < 3; direction++)
 			{
 				var axis1 = (direction + 1) % 3;
@@ -137,11 +133,12 @@ namespace _Project.WorldGeneration.Jobs
 				int3 directionMask = int3.zero;
 				directionMask[direction] = 1;
 
-				for (chunkItr[direction] = -1; chunkItr[direction] < chunkSize;)
+				for (chunkItr[direction] = -1; chunkItr[direction] < CS;)
 				{
+					// Build face maps for this layer ──────────────────────────────
 					var n = 0;
-					for (chunkItr[axis2] = 0; chunkItr[axis2] < chunkSize; chunkItr[axis2]++)
-					for (chunkItr[axis1] = 0; chunkItr[axis1] < chunkSize; chunkItr[axis1]++)
+					for (chunkItr[axis2] = 0; chunkItr[axis2] < CS; chunkItr[axis2]++)
+					for (chunkItr[axis1] = 0; chunkItr[axis1] < CS; chunkItr[axis1]++)
 					{
 						BlockState current = accessor.GetBlockState(chunkItr);
 						BlockState compare = accessor.GetBlockState(chunkItr + directionMask);
@@ -152,450 +149,392 @@ namespace _Project.WorldGeneration.Jobs
 						var currentTransparent = IsTransparent(current);
 						var compareTransparent = IsTransparent(compare);
 
-						// Face of current block (facing positive)
+						// Front face: current block facing the compare side
+						uint mFront = 0;
 						if (currentType != 0 && currentType != 3)
 						{
-							var faceVisible                                                 = compareTransparent;
+							var faceVisible = compareTransparent;
 							if (currentType == compareType && currentType == 2) faceVisible = false;
-
 							if (faceVisible)
 							{
-								mFront.BlockID     = current.ID;
-								mFront.Orientation = current.Orientation;
-								mFront.MeshType    = currentType;
-								mFront.Normal      = -1;
-								mFront.AO          = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
+								int4 ao = ComputeAOMask(ref accessor, chunkItr + directionMask, axis1, axis2);
+								mFront  = PackMask(current.ID, currentType, current.Orientation, -1, ao);
 							}
-							else
-							{
-								mFront.MeshType = 0;
-							}
-						}
-						else
-						{
-							mFront.MeshType = 0;
 						}
 
-						// Face of compare block (facing negative)
+						// Back face: compare block facing the current side
+						uint mBack = 0;
 						if (compareType != 0 && compareType != 3)
 						{
-							var faceVisible                                                 = currentTransparent;
+							var faceVisible = currentTransparent;
 							if (compareType == currentType && compareType == 2) faceVisible = false;
-
 							if (faceVisible)
 							{
-								mBack.BlockID     = compare.ID;
-								mBack.Orientation = compare.Orientation;
-								mBack.MeshType    = compareType;
-								mBack.Normal      = 1;
-								mBack.AO          = ComputeAOMask(ref accessor, chunkItr, axis1, axis2);
+								int4 ao = ComputeAOMask(ref accessor, chunkItr, axis1, axis2);
+								mBack   = PackMask(compare.ID, compareType, compare.Orientation, 1, ao);
 							}
-							else
-							{
-								mBack.MeshType = 0;
-							}
-						}
-						else
-						{
-							mBack.MeshType = 0;
 						}
 
-						maskFront[n] = mFront;
-						maskBack[n]  = mBack;
+						faceMapFront[n] = mFront;
+						faceMapBack[n]  = mBack;
 						n++;
 					}
 
 					chunkItr[direction]++;
 
-					ProcessMask(maskFront, direction, axis1, axis2, chunkSize, chunkItr, ref solidVertices,
-					            ref solidIndices, ref fluidVertices, ref fluidIndices);
-					ProcessMask(maskBack, direction, axis1, axis2, chunkSize, chunkItr, ref solidVertices, ref solidIndices,
-					            ref fluidVertices, ref fluidIndices);
+					// Binary greedy sweep on both face maps for this layer
+					BinaryGreedySweep(faceMapFront, direction, axis1, axis2, CS, chunkItr[direction],
+					                  ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
+					BinaryGreedySweep(faceMapBack,  direction, axis1, axis2, CS, chunkItr[direction],
+					                  ref solidVertices, ref solidIndices, ref fluidVertices, ref fluidIndices);
 				}
 			}
 
-			maskFront.Dispose();
-			maskBack.Dispose();
+			faceMapFront.Dispose();
+			faceMapBack.Dispose();
+		}
 
-			// 2. CUSTOM MESHING (Slabs, Fences, Foliage)
-			for (var x = 0; x < chunkSize; x++)
-			for (var y = 0; y < chunkSize; y++)
-			for (var z = 0; z < chunkSize; z++)
+		// ─────────────────────────────────────────────────────────────────────────
+		// BINARY GREEDY SWEEP
+		//
+		// For CS=32 each axis row is exactly 32 blocks → fits in one uint bitmask.
+		//
+		// Algorithm:
+		//   1. Group faces by packed mask value (blockID + meshType + AO + orientation
+		//      + normal). Each group gets a uint[CS] row-bitmask array where bit x of
+		//      row y is set iff faceMap[y*CS+x] == that mask value.
+		//
+		//   2. For each group, sweep rows using:
+		//      - tzcnt(remaining) → first unvisited face in O(1)
+		//      - tzcnt(~(remaining>>x)) → contiguous run width in O(1)
+		//      - (rowBits[y+h] & ~visited[y+h] & lineMask) == lineMask → height
+		//        check in O(1) per row (vs O(w) scalar scan in old code)
+		//
+		//   3. Single visited[] array shared across all groups — safe because each
+		//      (x,y) position belongs to at most one group.
+		// ─────────────────────────────────────────────────────────────────────────
+		[BurstCompile]
+		private void BinaryGreedySweep(
+			NativeArray<uint>      faceMap,
+			int direction, int axis1, int axis2, int CS, int layerCoord,
+			ref NativeList<Vertex> solidV, ref NativeList<int> solidI,
+			ref NativeList<Vertex> fluidV, ref NativeList<int> fluidI)
+		{
+			// ── Build per-group row bitmasks ──────────────────────────────────────
+			// maskToGroup : packed mask value → group index
+			// groupRowBits: flat array, groupRowBits[gIdx * CS + row] = uint bitmask
+			//               where bit x is set if faceMap[row*CS+x] == that mask.
+			var maskToGroup  = new NativeHashMap<uint, int>(32, Allocator.Temp);
+			var groupRowBits = new NativeList<uint>(32 * CS, Allocator.Temp); // grows as groups are added
+			var groupCount   = 0;
+
+			for (var y = 0; y < CS; y++)
+			for (var x = 0; x < CS; x++)
 			{
-				BlockState state = accessor.GetBlockState(x, y, z);
-				if (state.IsEmpty || GetMeshType(state) != 3) continue;
+				var m = faceMap[y * CS + x];
+				if (m == 0) continue;
 
-				RenderCustomMesh(ref accessor, x, y, z, state, ref solidVertices, ref solidIndices, ref fluidVertices,
-				                 ref fluidIndices);
+				if (!maskToGroup.TryGetValue(m, out var gIdx))
+				{
+					gIdx = groupCount++;
+					maskToGroup.Add(m, gIdx);
+
+					// Append CS zeroed uints for this group's row bitmasks.
+					var oldLen = groupRowBits.Length;
+					groupRowBits.ResizeUninitialized(oldLen + CS);
+					UnsafeUtility.MemClear(
+						groupRowBits.GetUnsafePtr() + oldLen,
+						CS * sizeof(uint));
+				}
+
+				// Set bit x in this group's row y.
+				// Re-fetch ptr after any potential realloc from ResizeUninitialized.
+				groupRowBits.GetUnsafePtr()[gIdx * CS + y] |= 1u << x;
 			}
-		}
 
-		private void ProcessMask(NativeArray<Mask> mask, int direction, int axis1, int axis2, int chunkSize, int3 chunkItr,
-		                         ref NativeList<Vertex> solidV, ref NativeList<int> solidI, ref NativeList<Vertex> fluidV,
-		                         ref NativeList<int> fluidI)
-		{
-			var n = 0;
-			for (var j = 0; j < chunkSize; j++)
-			for (var i = 0; i < chunkSize;)
-				if (mask[n].MeshType != 0)
+			if (groupCount == 0)
+			{
+				maskToGroup.Dispose();
+				groupRowBits.Dispose();
+				return;
+			}
+
+			// ── Sweep ─────────────────────────────────────────────────────────────
+			// One visited[] array for all groups — safe because positions are unique
+			// per group (each cell has exactly one non-zero packed mask value).
+			var  visitedArr   = new NativeArray<uint>(CS, Allocator.Temp, NativeArrayOptions.UninitializedMemory);
+			var visited     = (uint*)visitedArr.GetUnsafePtr();
+			var rowBitsBase = groupRowBits.GetUnsafePtr();
+
+			NativeArray<uint> keys = maskToGroup.GetKeyArray(Allocator.Temp);
+
+			for (var gi = 0; gi < keys.Length; gi++)
+			{
+				var m    = keys[gi];
+				var  gIdx = maskToGroup[m];
+
+				UnpackMask(m, out var blockID, out var meshType,
+				           out var orientation, out var normal, out int4 ao);
+				var isFluid = meshType == 2;
+
+				var rowBits = rowBitsBase + gIdx * CS;
+
+				for (var y = 0; y < CS; y++)
 				{
-					Mask currentMask = mask[n];
-					int3 basePos     = chunkItr;
-					basePos[axis1] = i;
-					basePos[axis2] = j;
-
-					int width;
-					for (width = 1; i + width < chunkSize && CompareMask(mask[n + width], currentMask); width++)
+					// Unvisited faces in this group on this row
+					var remaining = rowBits[y] & ~visited[y];
+					while (remaining != 0)
 					{
+						// ── Width (O(1)) ─────────────────────────────────────────
+						// x = leftmost unvisited face
+						var x = math.tzcnt(remaining);
+
+						// Shift so x lands at bit 0, then count leading 1-run.
+						// Using `remaining >> x` (not rowBits) ensures we don't
+						// extend into already-visited positions that happen to have
+						// the same mask value.
+						var shifted = remaining >> x;
+						var  w       = math.tzcnt(~shifted); // tzcnt(0) == 32 ✓
+
+						// Build bitmask covering [x, x+w)
+						// Special-case w==32: (1u<<32) wraps to 1 in C#, so guard.
+						var lineMask = w < 32 ? ((1u << w) - 1u) << x : ~0u;
+
+						// ── Height (O(1) per row) ────────────────────────────────
+						// Each row check is one AND + compare, no scalar loop.
+						var h = 1;
+						while (y + h < CS &&
+						       (rowBits[y + h] & ~visited[y + h] & lineMask) == lineMask)
+							h++;
+
+						// ── Mark visited ─────────────────────────────────────────
+						for (var dy = 0; dy < h; dy++)
+							visited[y + dy] |= lineMask;
+
+						// ── Emit quad ────────────────────────────────────────────
+						int3 basePos = int3.zero;
+						basePos[direction] = layerCoord;
+						basePos[axis1]     = x;
+						basePos[axis2]     = y;
+
+						if (isFluid)
+							CreateGreedyQuad(blockID, orientation, normal, ao,
+							                 direction, axis1, axis2, w, h, basePos,
+							                 ref fluidV, ref fluidI);
+						else
+							CreateGreedyQuad(blockID, orientation, normal, ao,
+							                 direction, axis1, axis2, w, h, basePos,
+							                 ref solidV, ref solidI);
+
+						// Recompute remaining after marking visited
+						remaining = rowBits[y] & ~visited[y];
 					}
-
-					int height;
-					var done = false;
-					for (height = 1; j + height < chunkSize; height++)
-					{
-						for (var k = 0; k < width; k++)
-						{
-							if (CompareMask(mask[n + k + height * chunkSize], currentMask)) continue;
-							done = true;
-							break;
-						}
-
-						if (done) break;
-					}
-
-					if (currentMask.MeshType == 2)
-						CreateGreedyQuad(currentMask, direction, axis1, axis2, width, height, basePos, ref fluidV,
-						                 ref fluidI);
-					else
-						CreateGreedyQuad(currentMask, direction, axis1, axis2, width, height, basePos, ref solidV,
-						                 ref solidI);
-
-					for (var l = 0; l < height; l++)
-					for (var k = 0; k < width; k++)
-						mask[n + k + l * chunkSize] = default;
-
-					i += width;
-					n += width;
 				}
-				else
-				{
-					i++;
-					n++;
-				}
+			}
+
+			keys.Dispose();
+			visitedArr.Dispose();
+			maskToGroup.Dispose();
+			groupRowBits.Dispose();
 		}
 
-		private static bool CompareMask(Mask a, Mask b)
+		// ─────────────────────────────────────────────────────────────────────────
+		// PACKING / UNPACKING
+		// ─────────────────────────────────────────────────────────────────────────
+
+		// Bit layout (32 bits total):
+		//  [1:0]   meshType    (2 bits,  0-3)
+		//  [17:2]  blockID     (16 bits, 0-65535)
+		//  [20:18] orientation (3 bits,  0-7)
+		//  [21]    normal sign (1 bit,   0=negative, 1=positive)
+		//  [23:22] ao.x        (2 bits)
+		//  [25:24] ao.y        (2 bits)
+		//  [27:26] ao.z        (2 bits)
+		//  [29:28] ao.w        (2 bits)
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static uint PackMask(ushort blockID, byte meshType, byte orientation, sbyte normal, int4 ao)
 		{
-			return a.MeshType == b.MeshType && a.BlockID == b.BlockID && a.Normal == b.Normal
-			       && a.AO.Equals(b.AO) && a.Orientation == b.Orientation;
+			uint packed  = meshType;
+			packed      |= (uint)blockID     << 2;
+			packed      |= (uint)orientation << 18;
+			packed      |= (normal > 0 ? 1u : 0u) << 21;
+			packed      |= ((uint)ao.x & 3u) << 22;
+			packed      |= ((uint)ao.y & 3u) << 24;
+			packed      |= ((uint)ao.z & 3u) << 26;
+			packed      |= ((uint)ao.w & 3u) << 28;
+			return packed;
 		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static void UnpackMask(uint packed,
+		                               out ushort blockID, out byte meshType,
+		                               out byte orientation, out sbyte normal, out int4 ao)
+		{
+			meshType    = (byte)(packed         & 3u);
+			blockID     = (ushort)((packed >> 2) & 0xFFFFu);
+			orientation = (byte)((packed >> 18)  & 7u);
+			normal      = (packed & (1u << 21)) != 0 ? (sbyte)1 : (sbyte)-1;
+			ao          = new int4(
+				(int)((packed >> 22) & 3u),
+				(int)((packed >> 24) & 3u),
+				(int)((packed >> 26) & 3u),
+				(int)((packed >> 28) & 3u));
+		}
+
+		// ─────────────────────────────────────────────────────────────────────────
+		// BLOCK QUERIES
+		// ─────────────────────────────────────────────────────────────────────────
 
 		private byte GetMeshType(BlockState state)
 		{
-			if (state.IsEmpty || state.ID == 0) return 0; // Air
+			if (state.IsEmpty || state.ID == 0) return 0; // air
 			Block block = BlockPrototypes[state.ID];
-			if (block.IsFluid) return 2; // Fluid
-			return block.MeshID == 0 ? (byte)1 : (byte)3;
+			if (block.IsFluid) return 2;                  // fluid
+			return block.MeshID == 0 ? (byte)1 : (byte)3; // standard / custom
 		}
 
 		private bool IsTransparent(BlockState state)
 		{
-			if (state.IsEmpty || state.ID == 0) return true; // Air
+			if (state.IsEmpty || state.ID == 0) return true;
 			Block block = BlockPrototypes[state.ID];
 			return block.IsTransparent || GetMeshType(state) == 3;
 		}
 
-		private void CreateGreedyQuad(Mask mask, int direction, int axis1, int axis2, int width, int height, int3 basePos,
-		                              ref NativeList<Vertex> outVerts, ref NativeList<int> outTris)
+		// ─────────────────────────────────────────────────────────────────────────
+		// QUAD EMISSION
+		// ─────────────────────────────────────────────────────────────────────────
+
+		private void CreateGreedyQuad(
+			ushort blockID, byte orientation, sbyte normal, int4 ao,
+			int direction, int axis1, int axis2, int width, int height, int3 basePos,
+			ref NativeList<Vertex> outVerts, ref NativeList<int> outTris)
 		{
-			Block block       = BlockPrototypes[mask.BlockID];
+			Block block       = BlockPrototypes[blockID];
 			var   vertexCount = outVerts.Length;
 
 			var normalIdx = direction switch
 			                {
-				                0 => mask.Normal > 0 ? 4 : 5,
-				                1 => mask.Normal > 0 ? 3 : 2,
-				                _ => mask.Normal > 0 ? 0 : 1
+				                0 => normal > 0 ? 4 : 5,
+				                1 => normal > 0 ? 3 : 2,
+				                _ => normal > 0 ? 0 : 1
 			                };
 
-			var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, mask.Orientation);
+			var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, orientation);
+			float faceCoord    = basePos[direction];
 
-			float faceCoord = basePos[direction];
+			float3 v1 = float3.zero, v2 = float3.zero, v3 = float3.zero, v4 = float3.zero;
 
-			var v1 = new float3();
-			var v2 = new float3();
-			var v3 = new float3();
-			var v4 = new float3();
+			v1[direction] = v2[direction] = v3[direction] = v4[direction] = faceCoord;
+			v1[axis1] = basePos[axis1];           v1[axis2] = basePos[axis2];
+			v2[axis1] = basePos[axis1] + width;   v2[axis2] = basePos[axis2];
+			v3[axis1] = basePos[axis1];           v3[axis2] = basePos[axis2] + height;
+			v4[axis1] = basePos[axis1] + width;   v4[axis2] = basePos[axis2] + height;
 
-			v1[direction] = faceCoord;
-			v2[direction] = faceCoord;
-			v3[direction] = faceCoord;
-			v4[direction] = faceCoord;
+			outVerts.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, ao.x));
+			outVerts.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, ao.y));
+			outVerts.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, ao.z));
+			outVerts.Add(new Vertex(v4, block, normalIdx, textureFaceIdx, ao.w));
 
-			v1[axis1] = basePos[axis1];
-			v1[axis2] = basePos[axis2];
-			v2[axis1] = basePos[axis1] + width;
-			v2[axis2] = basePos[axis2];
-			v3[axis1] = basePos[axis1];
-			v3[axis2] = basePos[axis2] + height;
-			v4[axis1] = basePos[axis1] + width;
-			v4[axis2] = basePos[axis2] + height;
-
-			outVerts.Add(new Vertex(v1, block, normalIdx, textureFaceIdx, mask.AO.x));
-			outVerts.Add(new Vertex(v2, block, normalIdx, textureFaceIdx, mask.AO.y));
-			outVerts.Add(new Vertex(v3, block, normalIdx, textureFaceIdx, mask.AO.z));
-			outVerts.Add(new Vertex(v4, block, normalIdx, textureFaceIdx, mask.AO.w));
-
-			if (mask.Normal > 0)
+			if (normal > 0)
 			{
-				outTris.Add(vertexCount);
-				outTris.Add(vertexCount + 2);
-				outTris.Add(vertexCount + 1);
-				outTris.Add(vertexCount + 1);
-				outTris.Add(vertexCount + 2);
-				outTris.Add(vertexCount + 3);
+				outTris.Add(vertexCount);     outTris.Add(vertexCount + 2); outTris.Add(vertexCount + 1);
+				outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 2); outTris.Add(vertexCount + 3);
 			}
 			else
 			{
-				outTris.Add(vertexCount);
-				outTris.Add(vertexCount + 1);
-				outTris.Add(vertexCount + 2);
-				outTris.Add(vertexCount + 1);
-				outTris.Add(vertexCount + 3);
-				outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount);     outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 2);
+				outTris.Add(vertexCount + 1); outTris.Add(vertexCount + 3); outTris.Add(vertexCount + 2);
 			}
 		}
 
-		private void RenderCustomMesh(ref ChunkAccessor      accessor, int x, int y, int z, BlockState blockState,
-		                              ref NativeList<Vertex> solidV,   ref NativeList<int> solidI,
-		                              ref NativeList<Vertex> fluidV,   ref NativeList<int> fluidI)
-		{
-			Block               block    = BlockPrototypes[blockState.ID];
-			NativeVoxelMeshData meshData = CustomMeshes[block.MeshID];
-			quaternion          rot      = GetRotation(block.DirectionType, blockState.Orientation);
-			var                 wPos     = new float3(x, y, z);
+		// ─────────────────────────────────────────────────────────────────────────
+		// TEXTURE REMAPPING / ROTATION
+		// ─────────────────────────────────────────────────────────────────────────
 
-			ref NativeList<Vertex> targetV = ref block.IsFluid ? ref fluidV : ref solidV;
-			ref NativeList<int>    targetI = ref block.IsFluid ? ref fluidI : ref solidI;
-
-			for (var i = 0; i < meshData.Triangles.Length; i++)
-			{
-				int4   quad          = meshData.Triangles[i];
-				float3 rotatedNormal = math.round(math.mul(rot, FaceChecks[i]));
-				var    dir           = new int3(rotatedNormal);
-
-				if (NeighbourHidesFace(ref accessor, x, y, z, dir, block.IsTransparent)) continue;
-
-				float3 v0 = math.mul(rot, meshData.Vertices[quad.x] - 0.5f) + 0.5f + wPos;
-				float3 v1 = math.mul(rot, meshData.Vertices[quad.y] - 0.5f) + 0.5f + wPos;
-				float3 v2 = math.mul(rot, meshData.Vertices[quad.z] - 0.5f) + 0.5f + wPos;
-				float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
-
-				var normalIdx = (int)DirToIndex(rotatedNormal);
-				var b         = targetV.Length;
-
-				targetV.Add(new Vertex(v0, block, normalIdx, 3));
-				targetV.Add(new Vertex(v1, block, normalIdx, 3));
-				targetV.Add(new Vertex(v2, block, normalIdx, 3));
-				targetV.Add(new Vertex(v3, block, normalIdx, 3));
-
-				targetI.Add(b);
-				targetI.Add(b + 1);
-				targetI.Add(b + 3);
-				targetI.Add(b);
-				targetI.Add(b + 3);
-				targetI.Add(b + 2);
-			}
-		}
-
-		private bool NeighbourHidesFace(ref ChunkAccessor accessor, int x, int y, int z, int3 dir, bool isTransparent)
-		{
-			BlockState nb = accessor.GetBlockState(x + dir.x, y + dir.y, z + dir.z);
-			if (nb.IsEmpty || nb.ID == 0) return false;
-			return !(BlockPrototypes[nb.ID].IsTransparent && !isTransparent);
-		}
-
-		private static uint DirToIndex(float3 dir)
-		{
-			return dir.z switch
-			       {
-				       < -0.5f => 0, > 0.5f => 1,
-				       _ => dir.y switch
-				            {
-					            > 0.5f => 2, < -0.5f => 3,
-					            _      => dir.x < -0.5f ? 4 : (uint)5
-				            }
-			       };
-		}
-
-		/// <summary>
-		///     Maps a geometric face index (0-5) to the logical texture-slot face index, accounting for
-		///     block orientation. Top (2) and Bottom (3) are never remapped for YAxis blocks.
-		///     Face index conventions (matches DirToIndex / GetTextureIndex):
-		///     0 = Back  (-Z)   1 = Front (+Z)   2 = Top   (+Y)
-		///     3 = Bottom(-Y)   4 = Left  (-X)   5 = Right (+X)
-		///     YAxis orientation encoding (matches PlayerInteractionSystem assignment):
-		///     2 = identity (block front → +Z)   3 = 180° Y (block front → -Z)
-		///     4 = +90° Y   (block front → +X)   5 = -90° Y (block front → -X)
-		/// </summary>
 		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation)
 		{
 			return dirType switch
-			       {
-				       BlockDirectionType.None                           => normalIdx,
-				       BlockDirectionType.YAxis when normalIdx is 2 or 3 => normalIdx // Top/Bottom unchanged
-				       ,
-				       BlockDirectionType.YAxis => orientation switch
-				                                   {
-					                                   // identity: no remap
-					                                   2 => normalIdx,
-					                                   // 180° Y: front↔back, left↔right
-					                                   3 => normalIdx switch
-					                                        {
-						                                        0 => 1,
-						                                        1 => 0,
-						                                        4 => 5,
-						                                        5 => 4,
-						                                        _ => normalIdx
-					                                        },
-					                                   // +90° Y: +X→Front, -X→Back, -Z→Right, +Z→Left
-					                                   4 => normalIdx switch
-					                                        {
-						                                        5 => 1,
-						                                        4 => 0,
-						                                        0 => 5,
-						                                        1 => 4,
-						                                        _ => normalIdx
-					                                        },
-					                                   // -90° Y: -X→Front, +X→Back, +Z→Right, -Z→Left
-					                                   5 => normalIdx switch
-					                                        {
-						                                        4 => 1,
-						                                        5 => 0,
-						                                        1 => 5,
-						                                        0 => 4,
-						                                        _ => normalIdx
-					                                        },
-					                                   _ => normalIdx
-				                                   },
-				       // AllAxes orientations (matches GetRotation):
-				       // 0=identity, 1=180°X, 2=+90°X, 3=-90°X, 4=-90°Z, 5=+90°Z
-				       BlockDirectionType.AllAxes => orientation switch
-				                                     {
-					                                     0 => normalIdx,
-					                                     // 180° X: top↔bottom, front↔back
-					                                     1 => normalIdx switch
-					                                          {
-						                                          2 => 3,
-						                                          3 => 2,
-						                                          1 => 0,
-						                                          0 => 1,
-						                                          _ => normalIdx
-					                                          },
-					                                     // +90° X: global front shows local top, global bottom shows local front, global back shows local bottom, global top shows local back
-					                                     2 => normalIdx switch
-					                                          {
-						                                          1 => 2,
-						                                          3 => 1,
-						                                          0 => 3,
-						                                          2 => 0,
-						                                          _ => normalIdx
-					                                          },
-					                                     // -90° X: global back shows local top, global bottom shows local back, global front shows local bottom, global top shows local front
-					                                     3 => normalIdx switch
-					                                          {
-						                                          0 => 2,
-						                                          3 => 0,
-						                                          1 => 3,
-						                                          2 => 1,
-						                                          _ => normalIdx
-					                                          },
-					                                     // -90° Z: global right shows local top, global bottom shows local right, global left shows local bottom, global top shows local left
-					                                     4 => normalIdx switch
-					                                          {
-						                                          5 => 2,
-						                                          3 => 5,
-						                                          4 => 3,
-						                                          2 => 4,
-						                                          _ => normalIdx
-					                                          },
-					                                     // +90° Z: global left shows local top, global bottom shows local left, global right shows local bottom, global top shows local right
-					                                     5 => normalIdx switch
-					                                          {
-						                                          4 => 2,
-						                                          3 => 4,
-						                                          5 => 3,
-						                                          2 => 5,
-						                                          _ => normalIdx
-					                                          },
-					                                     _ => normalIdx
-				                                     },
-				       _ => normalIdx
-			       };
+			{
+				BlockDirectionType.None => normalIdx,
+				BlockDirectionType.YAxis when normalIdx is 2 or 3 => normalIdx,
+				BlockDirectionType.YAxis => orientation switch
+				{
+					2 => normalIdx,
+					3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
+					4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
+					5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
+					_ => normalIdx
+				},
+				BlockDirectionType.AllAxes => orientation switch
+				{
+					0 => normalIdx,
+					1 => normalIdx switch { 2 => 3, 3 => 2, 1 => 0, 0 => 1, _ => normalIdx },
+					2 => normalIdx switch { 1 => 2, 3 => 1, 0 => 3, 2 => 0, _ => normalIdx },
+					3 => normalIdx switch { 0 => 2, 3 => 0, 1 => 3, 2 => 1, _ => normalIdx },
+					4 => normalIdx switch { 5 => 2, 3 => 5, 4 => 3, 2 => 4, _ => normalIdx },
+					5 => normalIdx switch { 4 => 2, 3 => 4, 5 => 3, 2 => 5, _ => normalIdx },
+					_ => normalIdx
+				},
+				_ => normalIdx
+			};
 		}
 
 		private static quaternion GetRotation(BlockDirectionType type, byte orientation)
 		{
 			return type switch
-			       {
-				       BlockDirectionType.YAxis => orientation switch
-				                                   {
-					                                   2 => quaternion.identity, 4 => quaternion.Euler(0, math.PI / 2f, 0),
-					                                   3 => quaternion.Euler(0, math.PI, 0),
-					                                   5 => quaternion.Euler(0, -math.PI / 2f, 0), _ => quaternion.identity
-				                                   },
-				       BlockDirectionType.AllAxes => orientation switch
-				                                     {
-					                                     0 => quaternion.identity, 1 => quaternion.Euler(math.PI, 0, 0),
-					                                     2 => quaternion.Euler(math.PI / 2f, 0, 0),
-					                                     3 => quaternion.Euler(-math.PI / 2f, 0, 0),
-					                                     4 => quaternion.Euler(0, 0, -math.PI / 2f),
-					                                     5 => quaternion.Euler(0, 0, math.PI / 2f), _ => quaternion.identity
-				                                     },
-				       _ => quaternion.identity
-			       };
+			{
+				BlockDirectionType.YAxis => orientation switch
+				{
+					2 => quaternion.identity,
+					4 => quaternion.Euler(0,  math.PI / 2f, 0),
+					3 => quaternion.Euler(0,  math.PI,      0),
+					5 => quaternion.Euler(0, -math.PI / 2f, 0),
+					_ => quaternion.identity
+				},
+				BlockDirectionType.AllAxes => orientation switch
+				{
+					0 => quaternion.identity,
+					1 => quaternion.Euler(math.PI,        0, 0),
+					2 => quaternion.Euler(math.PI / 2f,   0, 0),
+					3 => quaternion.Euler(-math.PI / 2f,  0, 0),
+					4 => quaternion.Euler(0, 0, -math.PI / 2f),
+					5 => quaternion.Euler(0, 0,  math.PI / 2f),
+					_ => quaternion.identity
+				},
+				_ => quaternion.identity
+			};
 		}
+
+		// ─────────────────────────────────────────────────────────────────────────
+		// AMBIENT OCCLUSION
+		// ─────────────────────────────────────────────────────────────────────────
 
 		private int4 ComputeAOMask(ref ChunkAccessor accessor, int3 airPos, int axis1, int axis2)
 		{
-			int3 l = airPos;
-			l[axis1] -= 1;
-			int3 r = airPos;
-			r[axis1] += 1;
-			int3 b = airPos;
-			b[axis2] -= 1;
-			int3 T = airPos;
-			T[axis2] += 1;
+			int3 l   = airPos; l[axis1]   -= 1;
+			int3 r   = airPos; r[axis1]   += 1;
+			int3 b   = airPos; b[axis2]   -= 1;
+			int3 T   = airPos; T[axis2]   += 1;
+			int3 lbc = airPos; lbc[axis1] -= 1; lbc[axis2] -= 1;
+			int3 rbc = airPos; rbc[axis1] += 1; rbc[axis2] -= 1;
+			int3 ltc = airPos; ltc[axis1] -= 1; ltc[axis2] += 1;
+			int3 rtc = airPos; rtc[axis1] += 1; rtc[axis2] += 1;
 
-			int3 lbc = airPos;
-			lbc[axis1] -= 1;
-			lbc[axis2] -= 1;
-			int3 rbc = airPos;
-			rbc[axis1] += 1;
-			rbc[axis2] -= 1;
-			int3 ltc = airPos;
-			ltc[axis1] -= 1;
-			ltc[axis2] += 1;
-			int3 rtc = airPos;
-			rtc[axis1] += 1;
-			rtc[axis2] += 1;
-
-			var lo = IsOpaque(ref accessor, l) ? 1 : 0;
-			var ro = IsOpaque(ref accessor, r) ? 1 : 0;
-			var bo = IsOpaque(ref accessor, b) ? 1 : 0;
-			var to = IsOpaque(ref accessor, T) ? 1 : 0;
-
+			var lo   = IsOpaque(ref accessor, l)   ? 1 : 0;
+			var ro   = IsOpaque(ref accessor, r)   ? 1 : 0;
+			var bo   = IsOpaque(ref accessor, b)   ? 1 : 0;
+			var to   = IsOpaque(ref accessor, T)   ? 1 : 0;
 			var lbco = IsOpaque(ref accessor, lbc) ? 1 : 0;
 			var rbco = IsOpaque(ref accessor, rbc) ? 1 : 0;
 			var ltco = IsOpaque(ref accessor, ltc) ? 1 : 0;
 			var rtco = IsOpaque(ref accessor, rtc) ? 1 : 0;
 
 			return new int4(
-			                ComputeAO(lo, bo, lbco),
-			                ComputeAO(ro, bo, rbco),
-			                ComputeAO(lo, to, ltco),
-			                ComputeAO(ro, to, rtco)
-			               );
+				ComputeAO(lo, bo, lbco),
+				ComputeAO(ro, bo, rbco),
+				ComputeAO(lo, to, ltco),
+				ComputeAO(ro, to, rtco));
 		}
 
 		private bool IsOpaque(ref ChunkAccessor accessor, int3 pos)

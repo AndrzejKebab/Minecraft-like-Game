@@ -145,8 +145,7 @@ namespace _Project.WorldGeneration.Systems
 				          ChunkMap        = chunkMap,
 				          BlockDataLookup = chunkLookup.ChunkDataLookup,
 				          BlockPrototypes = registry.Blocks,
-				          CustomMeshes    = registry.Meshes,
-				          FaceChecks      = faceChecks,
+				          MeshDatas    = registry.Meshes,
 				          ECB             = ecb
 			          };
 
