@@ -102,9 +102,8 @@ namespace _Project.WorldGeneration
 			var h = baseHeight + erosionFactor * peaksBonus;
 
 			// River carving: abs(FBm) near-zero lines = river centerlines
-			var riverAbs = math.abs(river);
-			if (!(riverAbs < RIVER_HALF_WIDTH) || !(baseHeight > -20f)) return (int)math.round(h);
-			var t     = 1f - riverAbs / RIVER_HALF_WIDTH;      // 1 at center, 0 at edge
+			if (!(river < RIVER_HALF_WIDTH) || !(baseHeight > -20f)) return (int)math.round(h);
+			var t     = 1f - river / RIVER_HALF_WIDTH;      // 1 at center, 0 at edge
 			var carve = t * t * MAX_RIVER_CARVE;                 // quadratic V-profile
 			carve *= math.saturate(1f - erosionFactor * 0.6f); // no deep rivers through mountains
 			h     -= carve;

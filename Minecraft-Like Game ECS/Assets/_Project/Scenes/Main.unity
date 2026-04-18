@@ -865,10 +865,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.World.WorldAuthoring
   Seed: 1337
-  ContinentalnessEncoded: E@BPpDG@BD8wAQ@BkkCS4AAQ@BkNAAQ@BI@AgQAkH@BekQEA5qZGT8LAACAPxQDAADIQgQ=
-  PeaksAndValleysEncoded: KQAB@BCQ8AB@CkH@BekQU
-  ErosionEncoded: Iw@AIA+C@BD8QAACAPwkNAAQ@BJBg@AHpEFA==
-  RiverEncoded: KQAB@BCRkJE@BPpDMAE@BJDQAE@BCQY@AB6RCQ=
+  ContinentalnessEncoded: IAkQ@B+kMY@BPzAB@BCSQJLgAB@BCQ0AB@CgAACBACQc@AB6RAQDmpkZPwsAAIA/FAMAAMhCDA==
+  PeaksAndValleysEncoded: KQkOCSkJGQkNAAQ@BJBwAAQJxFLA==
+  ErosionEncoded: FwkeCS4AAQ@BkNAAQ@BJBg@AHpECP////8cAgg@AB6RAgB@BDA==
+  RiverEncoded: GQkcCRcJE@BHpEMAE@BJDQAE@BCQY@AD6RBQD@BQAQC/wIACwAAgD8M
   CavesEncoded: FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA==
   ContinentalnessCurve:
     serializedVersion: 2

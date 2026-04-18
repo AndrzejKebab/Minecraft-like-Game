@@ -117,12 +117,12 @@ namespace _Project.WorldGeneration.Jobs
 			OreGeneratorLocal.Generate(ref blockData, ref OreTypes, ref chunkWorldPos, ChunkSize, Seed);
 
 			// ── 5. Trees (deterministic halo projection) ───────────────────────
-			TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(
+			/*TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(
 			                                                     ref blockData, ref haloHeights,
 			                                                     ref CavesNoise,
 			                                                     ref chunkWorldPos, ChunkSize, Seed,
 			                                                     TreeDensity, MinTrunkHeight, MaxTrunkHeight,
-			                                                     AirID, GrassID, LogID, LeavesID);
+			                                                     AirID, GrassID, LogID, LeavesID);*/
 
 			haloHeights.Dispose();
 
