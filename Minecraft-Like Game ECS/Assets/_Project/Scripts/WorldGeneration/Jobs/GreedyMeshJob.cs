@@ -306,9 +306,7 @@ namespace _Project.WorldGeneration.Jobs
 
 		// ─────────────────────────────────────────────────────────────────────────
 		// PACKING / UNPACKING
-		// ─────────────────────────────────────────────────────────────────────────
-
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		// ─────────────────────────────────────────────────────────────────────────[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static uint PackMask(ushort blockID, byte meshType, byte orientation, sbyte normal, int4 ao)
 		{
 			uint packed  = meshType;
@@ -518,6 +516,16 @@ namespace _Project.WorldGeneration.Jobs
 					        };
 					return normalIdx;
 				case BlockDirectionType.AllAxes:
+					// UV Rotation fix specifically for side textures mapped via world projection.
+					if (orientation is 2 or 3) // Z-axis aligned log
+					{
+						if (normalIdx is 4 or 5) uvRot = 1; // X faces require 90° rotation
+					}
+					else if (orientation is 4 or 5) // X-axis aligned log
+					{
+						if (normalIdx is 0 or 1 or 2 or 3) uvRot = 1; // Z and Y faces require 90° rotation
+					}
+
 					return orientation switch
 					{
 						0 => normalIdx,
