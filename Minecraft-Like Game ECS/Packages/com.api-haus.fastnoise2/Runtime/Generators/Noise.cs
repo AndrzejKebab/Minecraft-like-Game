@@ -8,7 +8,7 @@ namespace FastNoise2.Generators
 	/// </summary>
 	public static class Noise
 	{
-		static int Bits(float value) => BitConverter.SingleToInt32Bits(value);
+		public static int Bits(float value) => BitConverter.SingleToInt32Bits(value);
 
 		#region Basic
 
@@ -41,7 +41,7 @@ namespace FastNoise2.Generators
 
 		#region Coherent Noise
 
-		static NoiseNode CoherentNoise(string name, float featureScale, int seedOffset)
+		static NoiseNode CoherentNoise(string name, float featureScale, int seedOffset, float outputMin = -1, float outputMax = 1 )
 		{
 			var vars = new Dictionary<string, int>
 			{
@@ -49,6 +49,8 @@ namespace FastNoise2.Generators
 			};
 			if (seedOffset != 0)
 				vars["SeedOffset"] = seedOffset;
+			vars["OutputMin"] = Bits(outputMin);
+			vars["OutputMax"] = Bits(outputMax);
 			return new NoiseNode(new NodeDescriptor(name, vars));
 		}
 
@@ -61,8 +63,8 @@ namespace FastNoise2.Generators
 		public static NoiseNode Perlin(float featureScale = 100f, int seedOffset = 0) =>
 			CoherentNoise("Perlin", featureScale, seedOffset);
 
-		public static NoiseNode Value(float featureScale = 100f, int seedOffset = 0) =>
-			CoherentNoise("Value", featureScale, seedOffset);
+		public static NoiseNode Value(float featureScale = 100f, int seedOffset = 0, float  outputMin = -1, float outputMax = 1 ) =>
+			CoherentNoise("Value", featureScale, seedOffset,  outputMin, outputMax);
 
 		#endregion
 
@@ -71,8 +73,8 @@ namespace FastNoise2.Generators
 		public static CellularValueNode CellularValue() =>
 			new(DistanceFunction.Euclidean, 0, 0f, 0f, 0f);
 
-		public static CellularDistanceNode CellularDistance() =>
-			new(DistanceFunction.Euclidean, CellularReturnType.Index0, 0, 1, 0f, 0f, 0f);
+		public static CellularDistanceNode CellularDistance(float scale = 100, float min = -1, float max = 1) =>
+			new(DistanceFunction.Euclidean, CellularReturnType.Index0, 0, 1, 0f, 0f, 0f, min, max, scale);
 
 		public static CellularLookupNode CellularLookup(NoiseNode lookup) =>
 			new(lookup, DistanceFunction.Euclidean, 0f, 0f, 0f);

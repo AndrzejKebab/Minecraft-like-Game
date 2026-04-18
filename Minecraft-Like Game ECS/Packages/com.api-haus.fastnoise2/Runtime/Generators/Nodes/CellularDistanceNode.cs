@@ -10,26 +10,30 @@ namespace FastNoise2.Generators
 		readonly DistanceFunction m_DistFunc;
 		readonly CellularReturnType m_ReturnType;
 		readonly int m_DistIdx0, m_DistIdx1;
+		readonly float m_OutPutMin,  m_OutPutMax, m_FeatureScale;
 		readonly Hybrid m_GridJitter, m_SizeJitter, m_MinkowskiP;
 
 		internal CellularDistanceNode(DistanceFunction distFunc,
 			CellularReturnType returnType, int distIdx0, int distIdx1,
-			Hybrid gridJitter, Hybrid sizeJitter, Hybrid minkowskiP)
+			Hybrid gridJitter, Hybrid sizeJitter, Hybrid minkowskiP,  float outputMin, float outputMax, float scale)
 			: base(MakeDescriptor(distFunc, returnType, distIdx0, distIdx1,
-				gridJitter, sizeJitter, minkowskiP))
+				gridJitter, sizeJitter, minkowskiP, outputMin, outputMax, scale))
 		{
-			m_DistFunc = distFunc;
-			m_ReturnType = returnType;
-			m_DistIdx0 = distIdx0;
-			m_DistIdx1 = distIdx1;
-			m_GridJitter = gridJitter;
-			m_SizeJitter = sizeJitter;
-			m_MinkowskiP = minkowskiP;
+			m_DistFunc     = distFunc;
+			m_ReturnType   = returnType;
+			m_DistIdx0     = distIdx0;
+			m_DistIdx1     = distIdx1;
+			m_GridJitter   = gridJitter;
+			m_SizeJitter   = sizeJitter;
+			m_MinkowskiP   = minkowskiP;
+			m_OutPutMin    = outputMin;
+			m_OutPutMax    = outputMax;
+			m_FeatureScale = scale;
 		}
 
 		static NodeDescriptor MakeDescriptor(DistanceFunction distFunc,
 			CellularReturnType returnType, int distIdx0, int distIdx1,
-			Hybrid gridJitter, Hybrid sizeJitter, Hybrid minkowskiP)
+			Hybrid gridJitter, Hybrid sizeJitter, Hybrid minkowskiP, float outputMin, float outputMax,float scale)
 		{
 			var vars = new Dictionary<string, int>
 			{
@@ -38,7 +42,10 @@ namespace FastNoise2.Generators
 				{ "ReturnType", EnumIndex("CellularDistance",
 					"ReturnType", returnType.ToMetadataString()) },
 				{ "DistanceIndex0", distIdx0 },
-				{ "DistanceIndex1", distIdx1 }
+				{ "DistanceIndex1", distIdx1 },
+				{"OutPutMin", Noise.Bits(outputMin) },
+				{"OutPutMax", Noise.Bits(outputMax) },
+				{"FeatureScale", Noise.Bits(scale)}
 			};
 			var hybrids = new Dictionary<string, HybridValue>();
 			gridJitter.AddTo(hybrids, "GridJitter");
@@ -49,30 +56,30 @@ namespace FastNoise2.Generators
 
 		public CellularDistanceNode WithDistanceFunction(DistanceFunction value) =>
 			new(value, m_ReturnType, m_DistIdx0, m_DistIdx1,
-				m_GridJitter, m_SizeJitter, m_MinkowskiP);
+				m_GridJitter, m_SizeJitter, m_MinkowskiP, m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithReturnType(CellularReturnType value) =>
 			new(m_DistFunc, value, m_DistIdx0, m_DistIdx1,
-				m_GridJitter, m_SizeJitter, m_MinkowskiP);
+				m_GridJitter, m_SizeJitter, m_MinkowskiP, m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithDistanceIndex0(int value) =>
 			new(m_DistFunc, m_ReturnType, value, m_DistIdx1,
-				m_GridJitter, m_SizeJitter, m_MinkowskiP);
+				m_GridJitter, m_SizeJitter, m_MinkowskiP, m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithDistanceIndex1(int value) =>
 			new(m_DistFunc, m_ReturnType, m_DistIdx0, value,
-				m_GridJitter, m_SizeJitter, m_MinkowskiP);
+				m_GridJitter, m_SizeJitter, m_MinkowskiP,  m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithGridJitter(Hybrid value) =>
 			new(m_DistFunc, m_ReturnType, m_DistIdx0, m_DistIdx1,
-				value, m_SizeJitter, m_MinkowskiP);
+				value, m_SizeJitter, m_MinkowskiP, m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithSizeJitter(Hybrid value) =>
 			new(m_DistFunc, m_ReturnType, m_DistIdx0, m_DistIdx1,
-				m_GridJitter, value, m_MinkowskiP);
+				m_GridJitter, value, m_MinkowskiP,  m_OutPutMin, m_OutPutMax, m_FeatureScale);
 
 		public CellularDistanceNode WithMinkowskiP(Hybrid value) =>
 			new(m_DistFunc, m_ReturnType, m_DistIdx0, m_DistIdx1,
-				m_GridJitter, m_SizeJitter, value);
+				m_GridJitter, m_SizeJitter, value, m_OutPutMin, m_OutPutMax, m_FeatureScale);
 	}
 }

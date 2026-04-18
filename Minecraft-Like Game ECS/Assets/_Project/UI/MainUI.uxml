@@ -1,7 +1,7 @@
 <ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="False">
-    <ui:VisualElement name="Root" style="flex-grow: 1;">
-        <ui:VisualElement name="CrossHair" style="justify-content: center; position: absolute; top: 50%; left: 50%; bottom: 50%; right: 50%; width: 35px; height: 35px;">
-            <ui:Image name="Image" source="project://database/Assets/_Project/Textures/Crosshair.png?fileID=2800000&amp;guid=bd21024ae9c90e644855c80f5e5355ae&amp;type=3#Crosshair" scale-mode="ScaleToFit" style="align-self: center; align-content: center; align-items: center; justify-content: space-between; width: 30px; height: 30px;"/>
+    <ui:VisualElement name="Root" style="align-content: center; align-self: center; justify-content: center; flex-direction: column; flex-wrap: nowrap; flex-grow: 1; flex-shrink: 1; width: 100%; height: 100%;">
+        <ui:VisualElement name="CrossHair" style="justify-content: space-around; position: absolute; top: 48.4%; left: 49.1%; bottom: 50px; right: 48.5px; width: 35px; height: 35px; align-self: center; align-items: center; align-content: center;">
+            <ui:Image name="Image" source="project://database/Assets/_Project/Textures/Crosshair.png?fileID=2800000&amp;guid=bd21024ae9c90e644855c80f5e5355ae&amp;type=3#Crosshair" scale-mode="ScaleToFit" enabled="true" style="align-self: center; align-content: auto; align-items: auto; justify-content: center; width: 30px; height: 30px; flex-grow: 0; bottom: 0; right: 0; top: 0; left: 0;"/>
         </ui:VisualElement>
         <ui:VisualElement name="BlockName" style="flex-grow: 1; flex-direction: column-reverse;">
             <ui:Label text="Slected Block: {Block.Name}" name="SelectedBlock" style="align-content: center; align-self: center; justify-content: center; align-items: auto; -unity-font-style: bold; -unity-text-auto-size: none; -unity-text-generator: advanced; font-size: 40px; color: rgb(255, 255, 255); -unity-text-outline-width: 3px; -unity-text-outline-color: rgb(14, 14, 14);"/>

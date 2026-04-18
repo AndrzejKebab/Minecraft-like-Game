@@ -1,5 +1,6 @@
 ﻿using _Project.WorldGeneration.Components;
 using FastNoise2.Bindings;
+using FastNoise2.Generators;
 using Unity.Entities;
 using UnityEngine;
 
@@ -27,6 +28,63 @@ namespace _Project.WorldGeneration
 		private void Start()
 		{
 			InitializeWorldInECS();
+			InitializeNoises();
+		}
+
+		private void InitializeNoises()
+		{
+			CreateContinentalnessNoise();
+			CreateErosionNoise();
+			CreatePeaksAndValleysNoise();
+			CreateRiverNoise();
+			CreateCavesNoise();
+		}
+
+		private void CreateContinentalnessNoise()
+		{
+			NoiseNode baseNoise = Noise.Simplex(1000).Fbm(0.6f, 1, 4, 2.5f)
+			                           .DomainRotatePlane(PlaneRotationType.ImproveXZPlanes)
+			                           .DomainWarpSimplex(100, 500, VectorizationScheme.GradientOuterProduct).PowInt();
+			NoiseNode remap      = baseNoise.Remap(0, 1, -1, 1);
+			NoiseNode finalNoise = baseNoise.MinSmooth(remap, 1);
+			ContinentalnessEncoded = finalNoise.Encode();
+		}
+
+		private void CreatePeaksAndValleysNoise()
+		{
+			NoiseNode baseNoise = Noise.Simplex(5000).Fbm(0.5f, 1, 4).Abs().Remap().PingPong().Remap();
+			PeaksAndValleysEncoded = baseNoise.Encode();
+		}
+
+		private void CreateErosionNoise()
+		{
+			NoiseNode baseNoise =
+				Noise.Simplex(1000, -1).Fbm(0.5f, 1, 4).DomainRotatePlane(PlaneRotationType.ImproveXZPlanes)
+				     .SignedSqrt() * Noise.Perlin(1000, 1);
+			ErosionEncoded = baseNoise.Encode();
+		}
+
+		private void CreateRiverNoise()
+		{
+			DomainWarpNode baseNoise = Noise.Simplex(2000).Fbm(0.5f, 1, 4)
+			                                .DomainWarpSimplex(50, 1000, VectorizationScheme.GradientOuterProduct);
+			NoiseNode finalNoise = baseNoise.MinSmooth(baseNoise * 2, 1).Abs();
+			RiverEncoded = finalNoise.Encode();
+		}
+
+		private void CreateCavesNoise()
+		{
+			NoiseNode baseNoise1 = Noise.Value(47.5f, 0, 0.46f, 0.8f).DomainAxisScale(1, 0.4f);
+			NoiseNode baseNoise2 = Noise.Value(44, 1, -0.4f, 0.5f).DomainAxisScale(1, 0.4f);
+			NoiseNode baseNoise3 = Noise.Value(8).Fbm(0.52f, 0.68f) * 0.015f;
+			CellularDistanceNode celDist = Noise.CellularDistance(660, 0.1f, -2.5f)
+			                                    .WithDistanceFunction(DistanceFunction.Hybrid)
+			                                    .WithReturnType(CellularReturnType.Index0Sub1)
+			                                    .WithGridJitter(baseNoise1)
+			                                    .WithSizeJitter(baseNoise2);
+			NoiseNode offSet        = celDist.SeedOffset(1).DomainRotatePlane(PlaneRotationType.ImproveXZPlanes);
+			NoiseNode finalNoise = offSet.MinSmooth(celDist, 0.18f) - baseNoise3;
+			CavesEncoded = finalNoise.Encode();
 		}
 
 		private void OnDestroy()

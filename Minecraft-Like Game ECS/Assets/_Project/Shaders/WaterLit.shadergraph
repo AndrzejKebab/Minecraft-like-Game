@@ -2978,8 +2978,8 @@
     "m_ObjectId": "5120fa1d37d747d4aa8c278d8680e8fd",
     "m_Title": "Water Color",
     "m_Position": {
-        "x": -2449.000244140625,
-        "y": -211.00003051757813
+        "x": -2448.999755859375,
+        "y": -211.0
     }
 }
 
@@ -4101,8 +4101,8 @@
     "m_ObjectId": "8d7a9c4f163744e28ab70ec677c9dbf3",
     "m_Title": "Water Waves",
     "m_Position": {
-        "x": -2099.000244140625,
-        "y": -628.0000610351563
+        "x": -2098.999755859375,
+        "y": -628.0001220703125
     }
 }
 
@@ -5877,7 +5877,7 @@
     "m_CustomColors": {
         "m_SerializableColors": []
     },
-    "m_Space": 0,
+    "m_Space": 2,
     "m_PositionSource": 0
 }
 
