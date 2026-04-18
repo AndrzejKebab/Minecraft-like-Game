@@ -152,8 +152,7 @@ namespace _Project.WorldGeneration.Systems
 
 			JobHandle handle = job.ScheduleParallelByRef(count, 1, inputDeps);
 			state.Dependency = JobHandle.CombineDependencies(state.Dependency, handle);
-			// 5) Write output handle to per-entity slot for the chunks BEING MESHED.
-			//    Neighbors weren't written, so don't touch their handles.
+
 			for (var i = 0; i < count; i++)
 			{
 				if (!SystemAPI.HasComponent<ChunkActiveJob>(validEntities[i])) continue;

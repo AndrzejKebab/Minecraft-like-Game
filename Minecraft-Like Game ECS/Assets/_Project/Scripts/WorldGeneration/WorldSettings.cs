@@ -1,6 +1,8 @@
-﻿using _Project.WorldGeneration.Components;
+﻿using System;
+using _Project.WorldGeneration.Components;
 using FastNoise2.Bindings;
 using FastNoise2.Generators;
+using Unity.Collections;
 using Unity.Entities;
 using UnityEngine;
 
@@ -25,10 +27,30 @@ namespace _Project.WorldGeneration
 		public AnimationCurve ErosionCurve;
 		public AnimationCurve PeaksAndValleysCurve;
 
-		private void Start()
+		private void Awake()
 		{
 			InitializeWorldInECS();
 			InitializeNoises();
+		}
+		
+		private void OnDestroy()
+		{
+			if (World.DefaultGameObjectInjectionWorld is null) return;
+			EntityManager em    = World.DefaultGameObjectInjectionWorld.EntityManager;
+			EntityQuery   query = em.CreateEntityQuery(typeof(WorldSettingsSingleton));
+			Entity        ent   = query.GetSingletonEntity();
+			var           comp  = em.GetComponentData<WorldSettingsSingleton>(ent);
+
+			comp.ContinentalnessNoise.Dispose();
+			comp.PeaksAndValleysNoise.Dispose();
+			comp.ErosionNoise.Dispose();
+			comp.RiverNoise.Dispose();
+			comp.CavesNoise.Dispose();
+			comp.ContinentalnessCurve.Dispose();
+			comp.PeaksAndValleysCurve.Dispose();
+			comp.ErosionCurve.Dispose();
+			
+			if (!query.IsEmpty) em.DestroyEntity(ent);
 		}
 
 		private void InitializeNoises()
@@ -85,14 +107,6 @@ namespace _Project.WorldGeneration
 			NoiseNode offSet        = celDist.SeedOffset(1).DomainRotatePlane(PlaneRotationType.ImproveXZPlanes);
 			NoiseNode finalNoise = offSet.MinSmooth(celDist, 0.18f) - baseNoise3;
 			CavesEncoded = finalNoise.Encode();
-		}
-
-		private void OnDestroy()
-		{
-			if (World.DefaultGameObjectInjectionWorld is null) return;
-			EntityManager em    = World.DefaultGameObjectInjectionWorld.EntityManager;
-			EntityQuery   query = em.CreateEntityQuery(typeof(WorldSettingsSingleton));
-			if (!query.IsEmpty) em.DestroyEntity(query.GetSingletonEntity());
 		}
 
 		private void InitializeWorldInECS()

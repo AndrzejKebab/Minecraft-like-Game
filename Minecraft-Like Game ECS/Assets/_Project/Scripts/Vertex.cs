@@ -44,31 +44,6 @@ namespace _Project
 			Data1234 = new uint4(data1, data2, data3, data4);
 		}
 
-		/// <summary>
-		/// Non-directional blocks: faceIdx used for both geometry and texture lookup.
-		/// </summary>
-		public Vertex(float3 pos, Block block, int faceIdx, int ao)
-		{
-			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
-			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
-			var pz       = (uint)math.round(math.clamp(pos.z * 10f, 0f, 1023f));
-			var aoPacked = (uint)ao & 0x3u;
-
-			var data1 = px | (py << 10) | (pz << 20) | (aoPacked << 30);
-
-			Color32 color = block.TintColor;
-			var     data2 = (uint)(color.r | (color.g << 8) | (color.b << 16) | (color.a << 24));
-
-			var tBase    = GetTextureIndex(faceIdx, block.BaseTextures)     & 0x1FFu;
-			var tOverlay = GetTextureIndex(faceIdx, block.OverlayTextures)  & 0x1FFu;
-			var tNorm    = GetTextureIndex(faceIdx, block.NormalTextures)   & 0x1FFu;
-			var tSpec    = GetTextureIndex(faceIdx, block.SpecularTextures) & 0x1FFu;
-
-			var data3 = tBase | (tOverlay << 9) | (tNorm << 18) | (((uint)faceIdx & 0x7u) << 27);
-			// uvRot = 0, no rotation
-			Data1234 = new uint4(data1, data2, data3, tSpec);
-		}
-
 		private static ushort GetTextureIndex(int normalIdx, in NativeTexturesIDLayer layer)
 		{
 			return normalIdx switch

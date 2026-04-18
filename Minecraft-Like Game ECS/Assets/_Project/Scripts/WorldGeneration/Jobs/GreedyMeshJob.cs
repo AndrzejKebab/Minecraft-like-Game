@@ -10,8 +10,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.Jobs
-{
-	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
+{[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast, FloatPrecision = FloatPrecision.Low)]
 	public unsafe struct GreedyMeshJob : IJobFor
 	{
 		[ReadOnly] public NativeArray<Entity>         Entities;
@@ -21,10 +20,10 @@ namespace _Project.WorldGeneration.Jobs
 		[NativeDisableContainerSafetyRestriction] [ReadOnly]
 		public NativeHashMap<Entity, ChunkComponent> BlockDataLookup;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		[NativeDisableContainerSafetyRestriction][ReadOnly]
 		public NativeArray<Block> BlockPrototypes;
 
-		[NativeDisableContainerSafetyRestriction] [ReadOnly]
+		[NativeDisableContainerSafetyRestriction][ReadOnly]
 		public NativeArray<NativeVoxelMeshData> MeshDatas;
 
 		[ReadOnly] public NativeArray<int3> FaceChecks;
@@ -309,13 +308,6 @@ namespace _Project.WorldGeneration.Jobs
 		// PACKING / UNPACKING
 		// ─────────────────────────────────────────────────────────────────────────
 
-		// Bit layout:
-		//  [1:0]   meshType    (2 bits)
-		//  [17:2]  blockID     (16 bits)
-		//  [20:18] orientation (3 bits)
-		//  [21]    normal sign (1 bit, 0=negative)
-		//  [23:22] ao.x, [25:24] ao.y, [27:26] ao.z, [29:28] ao.w
-
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		private static uint PackMask(ushort blockID, byte meshType, byte orientation, sbyte normal, int4 ao)
 		{
@@ -441,7 +433,8 @@ namespace _Project.WorldGeneration.Jobs
 			{
 				int4   quad = meshData.Triangles[i];
 
-				// Rotate the canonical face direction into world space.
+				// Rotate the canonical face direction into world space based strictly on the user authored FaceChecks Array. 
+				// This guarantees perfectly mapped normal calculations without relying on mesh quad winding structures.
 				float3 rotatedNormal = math.round(math.mul(rot, FaceChecks[i]));
 				var    dir           = new int3((int)math.round(rotatedNormal.x),
 				                                (int)math.round(rotatedNormal.y),
@@ -456,7 +449,6 @@ namespace _Project.WorldGeneration.Jobs
 				float3 v3 = math.mul(rot, meshData.Vertices[quad.w] - 0.5f) + 0.5f + wPos;
 
 				var normalIdx      = (int)DirToIndex(rotatedNormal);
-
 				var textureFaceIdx = RemapTextureFace(normalIdx, block.DirectionType, blockState.Orientation, out int uvRot);
 				var b              = targetV.Length;
 
@@ -498,22 +490,6 @@ namespace _Project.WorldGeneration.Jobs
 		// TEXTURE REMAPPING / UV ROTATION
 		// ─────────────────────────────────────────────────────────────────────────
 
-		/// <summary>
-		/// Maps world-space face index to the block's original texture slot, accounting
-		/// for block orientation.  Also outputs uvRot (0-3) for per-cell UV rotation in
-		/// the shader — only non-zero for YAxis top/bottom faces.
-		///
-		/// Face index convention: 0=-Z(Back), 1=+Z(Front), 2=+Y(Top), 3=-Y(Bottom),
-		///                        4=-X(Left), 5=+X(Right)
-		///
-		/// YAxis orientation encoding (from GetBlockOrientation):
-		///   2 = facing -Z (default / north)
-		///   3 = facing +Z (south, 180°)
-		///   4 = facing -X (west,   90° CCW)
-		///   5 = facing +X (east,   90° CW)
-		///
-		/// uvRot values: 0=none, 1=90°CCW, 2=180°, 3=90°CW
-		/// </summary>
 		private static int RemapTextureFace(int normalIdx, BlockDirectionType dirType, byte orientation, out int uvRot)
 		{
 			uvRot = 0;
@@ -522,36 +498,26 @@ namespace _Project.WorldGeneration.Jobs
 			{
 				case BlockDirectionType.None:
 					return normalIdx;
-
 				case BlockDirectionType.YAxis:
-					// Top / Bottom: texture slot unchanged, but UV must rotate with block.
-					if (normalIdx is 2 or 3)
-					{
-						uvRot = orientation switch
-						{
-							2 => 0, // facing -Z, baseline — no rotation
-							3 => 2, // facing +Z, 180°
-							4 => 1, // facing -X, 90° CCW
-							5 => 3, // facing +X, 90° CW
-							_ => 0
-						};
-						return normalIdx;
-					}
-					// Side faces: remap which slot to sample; no UV rotation needed
-					// (world-aligned UV tiles correctly regardless of block yaw).
-					return orientation switch
-					{
-						2 => normalIdx, // default, no remap
-						3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
-						4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
-						5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
-						_ => normalIdx
-					};
-
+					if (normalIdx is not (2 or 3))
+						return orientation switch
+						       {
+							       2 => normalIdx, // default, no remap
+							       3 => normalIdx switch { 0 => 1, 1 => 0, 4 => 5, 5 => 4, _ => normalIdx },
+							       4 => normalIdx switch { 5 => 1, 4 => 0, 0 => 5, 1 => 4, _ => normalIdx },
+							       5 => normalIdx switch { 4 => 1, 5 => 0, 1 => 5, 0 => 4, _ => normalIdx },
+							       _ => normalIdx
+						       };
+					uvRot = orientation switch
+					        {
+						        2 => 0, // facing -Z, baseline — no rotation
+						        3 => 2, // facing +Z, 180°
+						        4 => 1, // facing -X, 90° CCW
+						        5 => 3, // facing +X, 90° CW
+						        _ => 0
+					        };
+					return normalIdx;
 				case BlockDirectionType.AllAxes:
-					// Geometry is physically rotated by GetRotation; normalIdx is already
-					// the world-space direction.  Map world direction → original model face.
-					// uvRot stays 0 — world-position UV follows rotated vertices naturally.
 					return orientation switch
 					{
 						0 => normalIdx,
