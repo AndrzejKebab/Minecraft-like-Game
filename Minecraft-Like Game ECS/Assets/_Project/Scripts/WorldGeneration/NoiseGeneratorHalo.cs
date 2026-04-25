@@ -21,7 +21,7 @@ namespace _Project.WorldGeneration
 	{
 		// RiverHalfWidth: fraction of abs-noise range [0,1] treated as inside channel.
 		//   0.08 = narrow stream   0.13 = normal river   0.20 = broad valley
-		private const float RIVER_HALF_WIDTH = 0.12f;
+		private const float RIVER_HALF_WIDTH = 0.25f;
 		// MaxRiverCarve: blocks carved at centerline (depth=0 at banks).
 		private const float MAX_RIVER_CARVE = 28f;
 		
@@ -99,7 +99,7 @@ namespace _Project.WorldGeneration
 			var peaksBonus    = pvSpline.Evaluate(pv);
 
 			// Combine: peaks only matter where erosion is low
-			var h = baseHeight + erosionFactor * peaksBonus;
+			var h = baseHeight + (erosionFactor * peaksBonus);
 
 			// River carving: abs(FBm) near-zero lines = river centerlines
 			if (!(river < RIVER_HALF_WIDTH) || !(baseHeight > -20f)) return (int)math.round(h);
