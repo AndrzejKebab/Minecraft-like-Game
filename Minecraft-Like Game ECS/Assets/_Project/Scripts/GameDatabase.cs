@@ -27,10 +27,22 @@ namespace _Project
 			else Destroy(gameObject);
 		}
 
+		// statics survive when domain reload is disabled — reset on play mode entry
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void ResetStatics()
+		{
+			Instance = null;
+		}
+
 #if UNITY_EDITOR
 		private void OnValidate()
 		{
 			if (AutoCollectBlocks) EditorApplication.delayCall += CollectAndSortBlocks;
+		}
+
+		private void OnDisable()
+		{
+			EditorApplication.delayCall -= CollectAndSortBlocks;
 		}
 
 		[ContextMenu("Force Collect And Sort Blocks")]

@@ -11,6 +11,14 @@ namespace _Project
 			SceneManager.LoadSceneAsync("Main", LoadSceneMode.Additive);
 		}
 
+		// static event subscription survives when domain reload is disabled —
+		// clear on play mode entry (idempotent)
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void ResetStatics()
+		{
+			SceneManager.sceneLoaded -= OnSceneLoaded;
+		}
+
 		private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
 		{
 			if (scene.name != "Main") return;
