@@ -616,7 +616,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Unity.Scenes::Unity.Scenes.SubScene
   _SceneAsset: {fileID: 102900000, guid: bf8c7281355a3fa4c9cf67d03ad53b0d, type: 3}
-  _HierarchyColor: {r: 0.5, g: 0.5, b: 0.5, a: 1}
   AutoLoadScene: 1
   _SceneGUID:
     Value:
@@ -1059,6 +1058,15 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  WorldHeight: 512
+  SeaLevel: 0
+  ContinentScale: 3000
+  TerrainRegionSize: 1200
+  BiomeSize: 800
+  RiversEnabled: 1
+  FancyMountains: 1
+  ErosionEnabled: 1
+  ErosionDropletsPerChunk: 135
 --- !u!4 &1977036492
 Transform:
   m_ObjectHideFlags: 0

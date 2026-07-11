@@ -1,4 +1,5 @@
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -65,6 +66,7 @@ namespace _Project.WorldGeneration.TerraGen
 	/// </summary>
 	public struct TerraTileSlice
 	{
+		[NativeDisableContainerSafetyRestriction]
 		public NativeArray<TerraColumn> Columns; // GEN_BLOCKS² bordered grid
 		public int                      OriginX; // world block coords of grid [0,0]
 		public int                      OriginZ;
