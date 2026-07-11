@@ -49,6 +49,16 @@ TerraHeightmap.Sample(x, z)
 `TerraGenerator.ClassifyVoxel` turns a column into blocks (biome surfaces, rocky
 peaks, sea/river water, beaches).
 
+## Spawn on land
+
+`PlayerSpawnSystem` replaces the scene-authored spawn position: at startup a
+Burst job (`TerraSpawnSearchJob`) spirals outward from the origin until it finds
+an inland land column (above sea, below the peaks, outside river valleys), then
+the system pins the player above it — zeroed velocity every frame — while chunks
+stream in, refines the exact surface Y from real block data once the ground
+chunk is populated, and releases the player when its collider exists. Fully
+deterministic per seed.
+
 ## RTF → C# mapping
 
 | ReTerraForged (Java)                        | Here                          |
@@ -62,6 +72,7 @@ peaks, sea/river water, beaches).
 | `Heightmap`                                 | `TerraHeightmap` |
 | `TileGenerator` / `TileCache`               | `TerraTileGenJob` + `TerraTileSystem` |
 | `tile/filter/Erosion` + `Smoothing` + `Modifier` | `TerraErosion` |
+| `SpawnFinderFix`                            | `TerraSpawnSearchJob` + `PlayerSpawnSystem` |
 | `Preset` settings                           | `TerraGenSettings` (singleton IComponentData) |
 
 ## Deliberate deviations from RTF
