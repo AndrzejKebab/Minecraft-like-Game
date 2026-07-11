@@ -64,13 +64,11 @@ ChunkGfxBuffers          → VertexBuffer, IndexBuffer, ArgsBuffer (GraphicsBuff
 
 `BlockState` is 4 bytes: `ID (ushort)` + `Orientation (byte)`.
 
-### Terrain Generation (ChunkPopulateSystem)
+### Terrain Generation (TerraTileSystem + ChunkPopulateSystem)
 
-One fused Burst job per chunk (`ChunkPopulateJob`):
-1. **TerraGen halo columns** — ReTerraForged-style pipeline (`Scripts/WorldGeneration/TerraGen/`, see its README): continent voronoi → terrain-region provinces → populator blend (mountain chains) → rivers → climate/biomes. Pure Burst functions of `(x, z, seed)`, configured by the `TerraGenSettings` singleton.
-2. **Voxel classification** — biome-aware surfaces (sand/grass/stone), sea + river water fill
-3. **Caves** — FastNoise2 3D carve
-4. **Ores** — `OreGeneratorLocal`
+ReTerraForged-style pipeline (`Scripts/WorldGeneration/TerraGen/`, see its README), tile-cached:
+1. **TerraTileSystem** (before populate) — generates tiles of 4×4 chunk columns + 32-block border via `TerraTileGenJob`: continent voronoi → terrain-region provinces → populator blend (mountain chains) → rivers → climate/biomes, then droplet **erosion** + **smoothing** filters. Cached in `TerraTileCacheSingleton` (`NativeHashMap<int2, TerraTile>`), shared by all vertical chunks of a column; evicted by distance once no jobs read them (Gen/Read JobHandles).
+2. **ChunkPopulateJob** (fused, per chunk) — reads its columns from the tile slice; all-air / all-stone fast paths; biome-aware voxel classification (sand/grass/stone surfaces, sea + river water); **caves** (FastNoise2 3D carve); **ores** (`OreGeneratorLocal`). Configured by the `TerraGenSettings` singleton.
 
 ### Greedy Meshing (GreedyMeshJob)
 

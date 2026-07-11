@@ -15,12 +15,12 @@ namespace _Project.WorldGeneration.Jobs
 {
 	/// <summary>
 	///     Single fused population job.  Per chunk:
-	///     1. TerraGen halo columns (3×3 chunk area) — ReTerraForged-style pipeline:
-	///        continent → terrain regions → populator blend → rivers → climate/biomes
-	///     2. Terrain blocks (own 32³), biome-aware surfaces + river/sea water
+	///     1. Read TerraGen columns from the cached tile (TerraTileSystem) — the
+	///        ReTerraForged pipeline + erosion filters ran once per tile, not per chunk
+	///     2. Terrain blocks (own 32³) with all-air / all-stone fast paths
 	///     3. Caves (own 32³, FastNoise2)
 	///     4. Ores (own chunk only)
-	///     5. Trees (project from halo columns into own chunk)
+	///     5. Trees (project from tile columns into own chunk)
 	///     6. Tag IsPopulated + NeedsMeshSync (or IsEmpty)
 	///     Fully deterministic per chunk.  No neighbor BlockData reads or writes.
 	/// </summary>
@@ -33,6 +33,14 @@ namespace _Project.WorldGeneration.Jobs
 
 		[NativeDisableContainerSafetyRestriction]
 		[ReadOnly] public NativeHashMap<Entity, ChunkComponent> ChunkDataLookup;
+
+		/// <summary>
+		///     Per-chunk view into the cached tile columns (parallel to Entities).
+		///     The inner arrays are owned by TerraTileCacheSingleton; this job is a
+		///     registered reader via the tile's ReadHandle.
+		/// </summary>
+		[NativeDisableContainerSafetyRestriction]
+		[ReadOnly] public NativeArray<TerraTileSlice> TileSlices;
 
 		[ReadOnly] public NativeArray<Block>       BlockPrototypes;
 		[ReadOnly] public NativeArray<OreSettings> OreTypes;
@@ -61,31 +69,62 @@ namespace _Project.WorldGeneration.Jobs
 			int3                    chunkWorldPos = Positions[index].WorldPosition;
 			NativeArray<BlockState> blockData     = ChunkDataLookup[entity].BlockData;
 
-			// ── 1. TerraGen halo columns ───────────────────────────────────────
-			TerraGenerator.GenerateHaloColumns(out NativeArray<TerraColumn> haloColumns,
-			                                   ref chunkWorldPos, ChunkSize, in TerraSettings);
+			// ── 1. Tile columns (generated + eroded once per tile) ─────────────
+			TerraTileSlice slice   = TileSlices[index];
+			var            gen     = TerraTileConst.GEN_BLOCKS;
+			var            baseX   = chunkWorldPos.x - slice.OriginX;
+			var            baseZ   = chunkWorldPos.z - slice.OriginZ;
 
-			// ── 2. Terrain ─────────────────────────────────────────────────────
-			//      Center 32×32 of halo = own chunk's columns.  No extra noise calls.
-			var haloSize     = ChunkSize * 3;
-			var centerOffset = ChunkSize; // halo origin is -ChunkSize from own origin
-
-			// mountain surfaces above this world Y turn to bare stone
-			var stoneLineY = (int)(TerraSettings.WorldHeight * 0.62f) - TerraSettings.SeaLevel;
-
+			// vertical bounds of this chunk's own 32×32 columns
+			var minSurface = int.MaxValue;
+			var maxTop     = int.MinValue;
 			for (var z = 0; z < ChunkSize; z++)
 			for (var x = 0; x < ChunkSize; x++)
 			{
-				var hx     = x + centerOffset;
-				var hz     = z + centerOffset;
-				TerraColumn column = haloColumns[hx + hz * haloSize];
+				TerraColumn column = slice.Columns[baseX + x + (baseZ + z) * gen];
+				minSurface = math.min(minSurface, column.SurfaceY);
+				maxTop     = math.max(maxTop, math.max(column.SurfaceY, column.WaterY));
+			}
 
-				for (var y = 0; y < ChunkSize; y++)
+			var worldYMin = chunkWorldPos.y;
+			var worldYMax = chunkWorldPos.y + ChunkSize - 1;
+
+			// ── fast path: fully above terrain and water → empty chunk ─────────
+			if (worldYMin > maxTop)
+			{
+				var air = new BlockState { ID = 0, Orientation = 0 };
+				for (var i = 0; i < blockData.Length; i++) blockData[i] = air;
+
+				ECB.RemoveComponent<NeedsPopulation>(index, entity);
+				ECB.AddComponent<IsPopulated>(index, entity);
+				ECB.AddComponent<IsEmpty>(index, entity);
+				return;
+			}
+
+			// ── 2. Terrain ─────────────────────────────────────────────────────
+			if (worldYMax < minSurface - 4)
+			{
+				// fast path: fully below every surface layer → solid stone
+				var stone = new BlockState { ID = TerraGenerator.STONE, Orientation = 0 };
+				for (var i = 0; i < blockData.Length; i++) blockData[i] = stone;
+			}
+			else
+			{
+				// mountain surfaces above this world Y turn to bare stone
+				var stoneLineY = (int)(TerraSettings.WorldHeight * 0.62f) - TerraSettings.SeaLevel;
+
+				for (var z = 0; z < ChunkSize; z++)
+				for (var x = 0; x < ChunkSize; x++)
 				{
-					var worldY = chunkWorldPos.y + y;
-					var id     = TerraGenerator.ClassifyVoxel(worldY, in column, stoneLineY);
-					var idx    = x | (y << 5) | (z << 10);
-					blockData[idx] = new BlockState { ID = id, Orientation = 0 };
+					TerraColumn column = slice.Columns[baseX + x + (baseZ + z) * gen];
+
+					for (var y = 0; y < ChunkSize; y++)
+					{
+						var worldY = chunkWorldPos.y + y;
+						var id     = TerraGenerator.ClassifyVoxel(worldY, in column, stoneLineY);
+						var idx    = x | (y << 5) | (z << 10);
+						blockData[idx] = new BlockState { ID = id, Orientation = 0 };
+					}
 				}
 			}
 
@@ -111,12 +150,10 @@ namespace _Project.WorldGeneration.Jobs
 			// ── 4. Ores ────────────────────────────────────────────────────────
 			OreGeneratorLocal.Generate(ref blockData, ref OreTypes, ref chunkWorldPos, ChunkSize, Seed);
 
-			// ── 5. Trees (deterministic halo projection) ───────────────────────
-			//      TODO reenable using haloColumns (SurfaceY + Biome give ground level
-			//      and biome-specific density for foreign trees rooted in neighbors)
+			// ── 5. Trees (deterministic tile projection) ───────────────────────
+			//      TODO reenable using slice.Columns — the tile border guarantees the
+			//      full 1-chunk halo (SurfaceY + Biome) is available for foreign trees
 			/*TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(...);*/
-
-			haloColumns.Dispose();
 
 			// ── 6. Emptiness check + tags ──────────────────────────────────────
 			var hasBlocks = false;

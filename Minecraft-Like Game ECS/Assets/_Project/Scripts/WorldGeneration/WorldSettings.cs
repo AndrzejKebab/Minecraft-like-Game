@@ -48,6 +48,12 @@ namespace _Project.WorldGeneration
 		[Tooltip("Functional-erosion mountains (RTF fancy mountains) — pricier but prettier")]
 		public bool FancyMountains = true;
 
+		[Tooltip("Droplet erosion filter, applied once per cached tile (RTF filters)")]
+		public bool ErosionEnabled = true;
+
+		[Tooltip("Erosion droplets per 16-block cell (RTF default 135)")]
+		public int ErosionDropletsPerChunk = 135;
+
 		private void Awake()
 		{
 			InitializeWorldInECS();
@@ -157,8 +163,10 @@ namespace _Project.WorldGeneration
 			terraSettings.ContinentScale    = ContinentScale;
 			terraSettings.TerrainRegionSize = TerrainRegionSize;
 			terraSettings.BiomeSize         = BiomeSize;
-			terraSettings.RiversEnabled     = RiversEnabled;
-			terraSettings.FancyMountains    = FancyMountains;
+			terraSettings.RiversEnabled           = RiversEnabled;
+			terraSettings.FancyMountains          = FancyMountains;
+			terraSettings.ErosionEnabled          = ErosionEnabled;
+			terraSettings.ErosionDropletsPerChunk = ErosionDropletsPerChunk;
 			em.AddComponentData(settingsEntity, terraSettings);
 
 			Debug.Log($"[WorldSettings] Loaded seed={Seed} (TerraGen pipeline)");

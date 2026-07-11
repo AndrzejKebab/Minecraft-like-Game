@@ -1,6 +1,4 @@
 using Unity.Burst;
-using Unity.Collections;
-using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.TerraGen
 {
@@ -15,61 +13,25 @@ namespace _Project.WorldGeneration.TerraGen
 	}
 
 	/// <summary>
-	///     Bridge between the RTF-style cell pipeline and the chunk population job:
-	///     fills the 3×3-chunk halo of columns (same pattern the old NoiseGenerator
-	///     used) and classifies voxels against a column.
+	///     Column → voxel classification. Column data itself is produced by
+	///     TerraTileGenJob and cached per tile in TerraTileCacheSingleton.
 	/// </summary>
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast,
 		             FloatPrecision = FloatPrecision.Low)]
 	public static class TerraGenerator
 	{
-		public static void GenerateHaloColumns(out NativeArray<TerraColumn> columns,
-		                                       ref int3 chunkWorldPos, int chunkSize,
-		                                       in TerraGenSettings settings)
-		{
-			var haloSize = chunkSize * 3;
-			var originX  = chunkWorldPos.x - chunkSize;
-			var originZ  = chunkWorldPos.z - chunkSize;
-
-			columns = new NativeArray<TerraColumn>(haloSize * haloSize, Allocator.Temp,
-			                                       NativeArrayOptions.UninitializedMemory);
-
-			var levels = TerraLevels.Make(settings.WorldHeight, settings.SeaLevel);
-
-			for (var z = 0; z < haloSize; z++)
-			for (var x = 0; x < haloSize; x++)
-			{
-				TerraHeightmap.Sample(out TerraCell cell, originX + x, originZ + z,
-				                      in settings, in levels);
-
-				var surfaceY = levels.ToBlockY(cell.Height);
-				var waterY   = 0; // sea level
-				if (cell.Terrain == TerraTerrain.River && cell.RiverWaterLevel > 0f)
-					waterY = math.max(0, levels.ToBlockY(cell.RiverWaterLevel));
-
-				columns[x + z * haloSize] = new TerraColumn
-				                            {
-					                            SurfaceY  = surfaceY,
-					                            WaterY    = waterY,
-					                            RiverMask = cell.RiverMask,
-					                            Biome     = cell.Biome,
-					                            Terrain   = cell.Terrain
-				                            };
-			}
-		}
-
 		// block prototype IDs (see Resources/Blocks assets)
-		private const ushort AIR   = 0;
-		private const ushort STONE = 1;
-		private const ushort DIRT  = 2;
-		private const ushort GRASS = 3;
-		private const ushort WATER = 4;
-		private const ushort SAND  = 5;
+		public const ushort AIR   = 0;
+		public const ushort STONE = 1;
+		public const ushort DIRT  = 2;
+		public const ushort GRASS = 3;
+		public const ushort WATER = 4;
+		public const ushort SAND  = 5;
 
 		/// <summary>
-		///     Biome/terrain-aware voxel classification (replaces the old flat
-		///     ClassifyVoxel). Rocky peaks above the stone line, sand in deserts /
-		///     badlands / beaches / river beds, grass+dirt elsewhere.
+		///     Biome/terrain-aware voxel classification. Rocky peaks above the stone
+		///     line, sand in deserts / badlands / beaches / river beds, grass+dirt
+		///     elsewhere, sea + river water above the surface.
 		/// </summary>
 		public static ushort ClassifyVoxel(int worldY, in TerraColumn column, int stoneLineY)
 		{

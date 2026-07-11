@@ -48,6 +48,18 @@ namespace _Project.WorldGeneration.TerraGen
 		public int   RiverValleyDepth; // blocks of valley carve at the banks, default 12
 		public int   RiverBedDepth;    // blocks below local water surface, default 3
 
+		// ── Filters (RTF FilterSettings — applied per tile) ──────────────────
+		public bool  ErosionEnabled;
+		public int   ErosionDropletsPerChunk; // default 135
+		public int   ErosionDropletLifetime;  // default 12
+		public float ErosionDropletVolume;    // default 0.7
+		public float ErosionDropletVelocity;  // default 0.7
+		public float ErosionRate;             // default 0.5
+		public float ErosionDepositRate;      // default 0.5
+		public int   SmoothingIterations;     // default 1
+		public float SmoothingRadius;         // default 1.8
+		public float SmoothingRate;           // default 0.9
+
 		// ── Climate (RTF ClimateSettings) ────────────────────────────────────
 		public int   BiomeSize;         // default 800
 		public int   BiomeWarpScale;    // default 150
@@ -91,6 +103,17 @@ namespace _Project.WorldGeneration.TerraGen
 				       RiverBedWidth    = 0.012f,
 				       RiverValleyDepth = 12,
 				       RiverBedDepth    = 3,
+
+				       ErosionEnabled          = true,
+				       ErosionDropletsPerChunk = 135,
+				       ErosionDropletLifetime  = 12,
+				       ErosionDropletVolume    = 0.7f,
+				       ErosionDropletVelocity  = 0.7f,
+				       ErosionRate             = 0.5f,
+				       ErosionDepositRate      = 0.5f,
+				       SmoothingIterations     = 1,
+				       SmoothingRadius         = 1.8f,
+				       SmoothingRate           = 0.9f,
 
 				       BiomeSize          = 800,
 				       BiomeWarpScale     = 150,
