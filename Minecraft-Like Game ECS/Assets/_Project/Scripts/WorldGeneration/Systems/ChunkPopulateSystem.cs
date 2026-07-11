@@ -22,6 +22,7 @@ namespace _Project.WorldGeneration.Systems
 			state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
 			state.RequireForUpdate<WorldBlockRegistrySingleton>();
 			state.RequireForUpdate<WorldSettingsSingleton>();
+			state.RequireForUpdate<TerraGen.TerraGenSettings>();
 			state.RequireForUpdate<ChunkMapSingleton>();
 
 			candidateQuery = SystemAPI.QueryBuilder()
@@ -105,9 +106,10 @@ namespace _Project.WorldGeneration.Systems
 				inputDeps = JobHandle.CombineDependencies(inputDeps, h);
 			}
 
-			var settings = SystemAPI.GetSingleton<WorldSettingsSingleton>();
-			var registry = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
-			var map      = SystemAPI.GetSingleton<ChunkMapSingleton>();
+			var settings      = SystemAPI.GetSingleton<WorldSettingsSingleton>();
+			var terraSettings = SystemAPI.GetSingleton<TerraGen.TerraGenSettings>();
+			var registry      = SystemAPI.GetSingleton<WorldBlockRegistrySingleton>();
+			var map           = SystemAPI.GetSingleton<ChunkMapSingleton>();
 			EntityCommandBuffer.ParallelWriter ecb = SystemAPI
 			                                         .GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
 			                                         .CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
@@ -125,18 +127,12 @@ namespace _Project.WorldGeneration.Systems
 				          GrassID              = registry.Blocks[3].ID,
 				          LogID                = registry.Blocks[7].ID,
 				          LeavesID             = registry.Blocks[10].ID,
-				          TreeDensity          = registry.TreeDensity,
-				          MinTrunkHeight       = registry.MinTrunkHeight,
-				          MaxTrunkHeight       = registry.MaxTrunkHeight,
-				          ContinentalnessNoise = settings.ContinentalnessNoise,
-				          PeaksAndValleysNoise = settings.PeaksAndValleysNoise,
-				          ErosionNoise         = settings.ErosionNoise,
-				          RiverNoise           = settings.RiverNoise,
-				          CavesNoise           = settings.CavesNoise,
-				          ContinentalnessCurve = settings.ContinentalnessCurve,
-				          ErosionCurve         = settings.ErosionCurve,
-				          PeaksAndValleysCurve = settings.PeaksAndValleysCurve,
-				          ECB                  = ecb
+				          TreeDensity    = registry.TreeDensity,
+				          MinTrunkHeight = registry.MinTrunkHeight,
+				          MaxTrunkHeight = registry.MaxTrunkHeight,
+				          CavesNoise     = settings.CavesNoise,
+				          TerraSettings  = terraSettings,
+				          ECB            = ecb
 			          };
 
 			JobHandle handle = job.ScheduleByRef(take, 1, inputDeps);

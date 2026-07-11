@@ -1,0 +1,105 @@
+using System;
+using Unity.Entities;
+
+namespace _Project.WorldGeneration.TerraGen
+{
+	/// <summary>
+	///     Blittable generator configuration — the equivalent of RTF's Preset
+	///     (WorldSettings + TerrainSettings + ClimateSettings + RiverSettings).
+	///     Lives in a singleton component and is passed by value into Burst jobs.
+	///     Defaults mirror RTF's default preset where a counterpart exists.
+	/// </summary>
+	[Serializable]
+	public struct TerraGenSettings : IComponentData
+	{
+		public int Seed;
+
+		// ── Vertical mapping ─────────────────────────────────────────────────
+		public int WorldHeight; // blocks of total elevation range (RTF worldHeight)
+		public int SeaLevel;    // block Y (within WorldHeight) that maps to worldY 0
+
+		// ── Continent (RTF WorldSettings.Continent) ──────────────────────────
+		public int   ContinentScale;        // default 3000
+		public float ContinentJitter;       // default 0.7
+		public float ContinentSizeVariance; // default 0.25
+		public int   ContinentNoiseOctaves; // default 5
+		public float ContinentNoiseGain;    // default 0.26
+		public float ContinentNoiseLacunarity; // default 4.33
+
+		// ── Control points (RTF WorldSettings.ControlPoints) ─────────────────
+		public float DeepOcean;    // default 0.1
+		public float ShallowOcean; // default 0.25
+		public float Beach;        // default 0.327
+		public float Coast;        // default 0.448
+		public float Inland;       // default 0.502
+
+		// ── Terrain regions (RTF TerrainSettings.General) ────────────────────
+		public int   TerrainRegionSize;     // default 1200
+		public float GlobalVerticalScale;   // default 0.985
+		public float GlobalHorizontalScale; // default 0.85 (terrainFrequency = 1/scale)
+		public bool  FancyMountains;        // functional-erosion mountains, default true
+
+		// ── Rivers (simplified network — see TerraRivers) ────────────────────
+		public bool  RiversEnabled;
+		public int   RiverScale;       // voronoi scale of the drainage network, default 1000
+		public float RiverValleyWidth; // fraction of edge-distance forming the valley, default 0.24
+		public float RiverBankWidth;   // default 0.035
+		public float RiverBedWidth;    // default 0.012
+		public int   RiverValleyDepth; // blocks of valley carve at the banks, default 12
+		public int   RiverBedDepth;    // blocks below local water surface, default 3
+
+		// ── Climate (RTF ClimateSettings) ────────────────────────────────────
+		public int   BiomeSize;         // default 800
+		public int   BiomeWarpScale;    // default 150
+		public float BiomeWarpStrength; // default 80
+		public float TemperatureScale;  // default 4 (latitude band size, in biome cells)
+		public int   TemperatureFalloff; // sin^power, default 2
+		public float MoistureScale;     // default 1.0
+		public int   MoistureFalloff;   // default 1
+
+		public static TerraGenSettings Default(int seed)
+		{
+			return new TerraGenSettings
+			       {
+				       Seed = seed,
+
+				       WorldHeight = 256,
+				       SeaLevel    = 63,
+
+				       ContinentScale           = 3000,
+				       ContinentJitter          = 0.7f,
+				       ContinentSizeVariance    = 0.25f,
+				       ContinentNoiseOctaves    = 5,
+				       ContinentNoiseGain       = 0.26f,
+				       ContinentNoiseLacunarity = 4.33f,
+
+				       DeepOcean    = 0.1f,
+				       ShallowOcean = 0.25f,
+				       Beach        = 0.327f,
+				       Coast        = 0.448f,
+				       Inland       = 0.502f,
+
+				       TerrainRegionSize     = 1200,
+				       GlobalVerticalScale   = 0.985f,
+				       GlobalHorizontalScale = 0.85f,
+				       FancyMountains        = true,
+
+				       RiversEnabled    = true,
+				       RiverScale       = 1000,
+				       RiverValleyWidth = 0.24f,
+				       RiverBankWidth   = 0.035f,
+				       RiverBedWidth    = 0.012f,
+				       RiverValleyDepth = 12,
+				       RiverBedDepth    = 3,
+
+				       BiomeSize          = 800,
+				       BiomeWarpScale     = 150,
+				       BiomeWarpStrength  = 80f,
+				       TemperatureScale   = 4f,
+				       TemperatureFalloff = 2,
+				       MoistureScale      = 1f,
+				       MoistureFalloff    = 1
+			       };
+		}
+	}
+}

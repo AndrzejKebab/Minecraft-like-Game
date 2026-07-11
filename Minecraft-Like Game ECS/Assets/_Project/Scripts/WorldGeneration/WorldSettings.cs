@@ -22,10 +22,31 @@ namespace _Project.WorldGeneration
 		public string CavesEncoded =
 			"FgIcCS4AAQ@BklCQs@BlRBDNzMw9G@AIMAgAw@ADgC@BCiQIzczMPgkJ@BPkIQH4XrPhjNzEw/DBIkCM3MzD4JCQ@ADBCCAE@BQzczMvhg@B/JAL/BAAL7FE4PgQKFwkNCQg@CQQQDuB4FPwt7FC4/BAOPwnU8DA=="; // FractalRidged Simplex3D freq~0.02
 
-		[Header("Terrain Splines")] public AnimationCurve ContinentalnessCurve;
+		[Header("Terrain Splines (legacy generator)")] public AnimationCurve ContinentalnessCurve;
 
 		public AnimationCurve ErosionCurve;
 		public AnimationCurve PeaksAndValleysCurve;
+
+		[Header("TerraGen (ReTerraForged-style pipeline)")]
+		[Tooltip("Total elevation range in blocks (RTF worldHeight)")]
+		public int WorldHeight = 256;
+
+		[Tooltip("Block level within WorldHeight that maps to world Y 0 (the sea)")]
+		public int SeaLevel = 63;
+
+		[Tooltip("Size of continent voronoi cells in blocks")]
+		public int ContinentScale = 3000;
+
+		[Tooltip("Size of terrain-type regions (plains/hills/mountains provinces)")]
+		public int TerrainRegionSize = 1200;
+
+		[Tooltip("Size of climate/biome regions")]
+		public int BiomeSize = 800;
+
+		public bool RiversEnabled = true;
+
+		[Tooltip("Functional-erosion mountains (RTF fancy mountains) — pricier but prettier")]
+		public bool FancyMountains = true;
 
 		private void Awake()
 		{
@@ -127,8 +148,20 @@ namespace _Project.WorldGeneration
 				                    PeaksAndValleysCurve = PeaksAndValleysCurve.ToNative()
 			                    };
 
-			em.AddComponentData(em.CreateEntity(), worldSettings);
-			Debug.Log($"[WorldSettings] Loaded seed={Seed}");
+			Entity settingsEntity = em.CreateEntity();
+			em.AddComponentData(settingsEntity, worldSettings);
+
+			TerraGen.TerraGenSettings terraSettings = TerraGen.TerraGenSettings.Default(Seed);
+			terraSettings.WorldHeight       = WorldHeight;
+			terraSettings.SeaLevel          = SeaLevel;
+			terraSettings.ContinentScale    = ContinentScale;
+			terraSettings.TerrainRegionSize = TerrainRegionSize;
+			terraSettings.BiomeSize         = BiomeSize;
+			terraSettings.RiversEnabled     = RiversEnabled;
+			terraSettings.FancyMountains    = FancyMountains;
+			em.AddComponentData(settingsEntity, terraSettings);
+
+			Debug.Log($"[WorldSettings] Loaded seed={Seed} (TerraGen pipeline)");
 		}
 
 		/// <summary>

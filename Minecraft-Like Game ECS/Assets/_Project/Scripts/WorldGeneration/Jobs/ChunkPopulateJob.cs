@@ -1,6 +1,7 @@
-﻿using _Project.Tags;
+using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
+using _Project.WorldGeneration.TerraGen;
 using FastNoise2.Bindings;
 using NativeTexture;
 using Unity.Burst;
@@ -14,11 +15,12 @@ namespace _Project.WorldGeneration.Jobs
 {
 	/// <summary>
 	///     Single fused population job.  Per chunk:
-	///     1. Halo heightmap (3×3 chunk area)
-	///     2. Terrain blocks (own 32³)
-	///     3. Caves (own 32³)
+	///     1. TerraGen halo columns (3×3 chunk area) — ReTerraForged-style pipeline:
+	///        continent → terrain regions → populator blend → rivers → climate/biomes
+	///     2. Terrain blocks (own 32³), biome-aware surfaces + river/sea water
+	///     3. Caves (own 32³, FastNoise2)
 	///     4. Ores (own chunk only)
-	///     5. Trees (project from 27 halo columns into own chunk)
+	///     5. Trees (project from halo columns into own chunk)
 	///     6. Tag IsPopulated + NeedsMeshSync (or IsEmpty)
 	///     Fully deterministic per chunk.  No neighbor BlockData reads or writes.
 	/// </summary>
@@ -35,18 +37,12 @@ namespace _Project.WorldGeneration.Jobs
 		[ReadOnly] public NativeArray<Block>       BlockPrototypes;
 		[ReadOnly] public NativeArray<OreSettings> OreTypes;
 
-		[ReadOnly] public FastNoise   ContinentalnessNoise;
-		[ReadOnly] public FastNoise   PeaksAndValleysNoise;
-		[ReadOnly] public FastNoise   ErosionNoise;
-		[ReadOnly] public FastNoise   RiverNoise;
-		[ReadOnly] public FastNoise   CavesNoise;
-		
-		[ReadOnly] public NativeCurve ContinentalnessCurve;
-		[ReadOnly] public NativeCurve ErosionCurve;
-		[ReadOnly] public NativeCurve PeaksAndValleysCurve;
-		
+		[ReadOnly] public FastNoise CavesNoise;
+
+		public TerraGenSettings TerraSettings;
+
 		public EntityCommandBuffer.ParallelWriter ECB;
-		
+
 		public int Seed;
 		public int ChunkSize;
 
@@ -65,30 +61,29 @@ namespace _Project.WorldGeneration.Jobs
 			int3                    chunkWorldPos = Positions[index].WorldPosition;
 			NativeArray<BlockState> blockData     = ChunkDataLookup[entity].BlockData;
 
-			// ── 1. Halo heightmap ──────────────────────────────────────────────
-			NoiseGenerator.GenerateHaloHeightmap(
-			                                         out NativeArray<int> haloHeights,
-			                                         ref ContinentalnessNoise, ref PeaksAndValleysNoise,
-			                                         ref ErosionNoise, ref RiverNoise,
-			                                         ref chunkWorldPos, ChunkSize, Seed,
-			                                         ref ContinentalnessCurve, ref ErosionCurve, ref PeaksAndValleysCurve);
+			// ── 1. TerraGen halo columns ───────────────────────────────────────
+			TerraGenerator.GenerateHaloColumns(out NativeArray<TerraColumn> haloColumns,
+			                                   ref chunkWorldPos, ChunkSize, in TerraSettings);
 
 			// ── 2. Terrain ─────────────────────────────────────────────────────
-			//      Center 32×32 of halo = own chunk's heights.  No extra noise calls.
+			//      Center 32×32 of halo = own chunk's columns.  No extra noise calls.
 			var haloSize     = ChunkSize * 3;
 			var centerOffset = ChunkSize; // halo origin is -ChunkSize from own origin
+
+			// mountain surfaces above this world Y turn to bare stone
+			var stoneLineY = (int)(TerraSettings.WorldHeight * 0.62f) - TerraSettings.SeaLevel;
 
 			for (var z = 0; z < ChunkSize; z++)
 			for (var x = 0; x < ChunkSize; x++)
 			{
 				var hx     = x + centerOffset;
 				var hz     = z + centerOffset;
-				var height = haloHeights[hx + hz * haloSize];
+				TerraColumn column = haloColumns[hx + hz * haloSize];
 
 				for (var y = 0; y < ChunkSize; y++)
 				{
 					var worldY = chunkWorldPos.y + y;
-					var id     = NoiseGenerator.ClassifyVoxel(worldY, height);
+					var id     = TerraGenerator.ClassifyVoxel(worldY, in column, stoneLineY);
 					var idx    = x | (y << 5) | (z << 10);
 					blockData[idx] = new BlockState { ID = id, Orientation = 0 };
 				}
@@ -117,14 +112,11 @@ namespace _Project.WorldGeneration.Jobs
 			OreGeneratorLocal.Generate(ref blockData, ref OreTypes, ref chunkWorldPos, ChunkSize, Seed);
 
 			// ── 5. Trees (deterministic halo projection) ───────────────────────
-			/*TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(
-			                                                     ref blockData, ref haloHeights,
-			                                                     ref CavesNoise,
-			                                                     ref chunkWorldPos, ChunkSize, Seed,
-			                                                     TreeDensity, MinTrunkHeight, MaxTrunkHeight,
-			                                                     AirID, GrassID, LogID, LeavesID);*/
+			//      TODO reenable using haloColumns (SurfaceY + Biome give ground level
+			//      and biome-specific density for foreign trees rooted in neighbors)
+			/*TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(...);*/
 
-			haloHeights.Dispose();
+			haloColumns.Dispose();
 
 			// ── 6. Emptiness check + tags ──────────────────────────────────────
 			var hasBlocks = false;

@@ -66,10 +66,11 @@ ChunkGfxBuffers          → VertexBuffer, IndexBuffer, ArgsBuffer (GraphicsBuff
 
 ### Terrain Generation (ChunkPopulateSystem)
 
-Three sequential Burst jobs per chunk:
-1. **TerrainShapePassJob** — FastNoise2 heightmap → classifies each voxel (air / stone / dirt / grass)
-2. **CavesPassJob** — carves cave volumes
-3. **DecorationPassJob** — places trees and ores; uses **4-color checkerboard wave** so adjacent chunks decorate in parallel without write conflicts
+One fused Burst job per chunk (`ChunkPopulateJob`):
+1. **TerraGen halo columns** — ReTerraForged-style pipeline (`Scripts/WorldGeneration/TerraGen/`, see its README): continent voronoi → terrain-region provinces → populator blend (mountain chains) → rivers → climate/biomes. Pure Burst functions of `(x, z, seed)`, configured by the `TerraGenSettings` singleton.
+2. **Voxel classification** — biome-aware surfaces (sand/grass/stone), sea + river water fill
+3. **Caves** — FastNoise2 3D carve
+4. **Ores** — `OreGeneratorLocal`
 
 ### Greedy Meshing (GreedyMeshJob)
 
