@@ -62,14 +62,34 @@ namespace _Project.WorldGeneration.TerraGen
 
 	/// <summary>
 	///     Per-chunk view into a cached tile, resolved on the main thread when the
-	///     populate batch is built. Columns aliases the tile's persistent array.
+	///     populate batch is built.
+	///     Holds a raw pointer instead of the NativeArray because nested native
+	///     containers are illegal in jobs (same reasoning as ChunkBlockDataRef).
+	///     Safe because the tile's Persistent array outlives every reader:
+	///     populate jobs register on the tile's ReadHandle and TerraTileSystem only
+	///     disposes a tile after both Gen and Read handles completed.
 	/// </summary>
-	public struct TerraTileSlice
+	public unsafe struct TerraTileSlice
 	{
-		[NativeDisableContainerSafetyRestriction]
-		public NativeArray<TerraColumn> Columns; // GEN_BLOCKS² bordered grid
-		public int                      OriginX; // world block coords of grid [0,0]
-		public int                      OriginZ;
+		[NativeDisableUnsafePtrRestriction] public TerraColumn* Columns; // GEN_BLOCKS² bordered grid
+
+		public int OriginX; // world block coords of grid [0,0]
+		public int OriginZ;
+
+		/// <summary> Build a slice for a tile. Call on the main thread only. </summary>
+		public static TerraTileSlice Make(in TerraTile tile, int2 tileCoord)
+		{
+			int2 origin = TerraTileConst.GenOrigin(tileCoord);
+			return new TerraTileSlice
+			       {
+				       // no-checks pointer: the gen job may still be writing; readers
+				       // are ordered after it via the GenHandle dependency
+				       Columns = (TerraColumn*)NativeArrayUnsafeUtility
+					       .GetUnsafeBufferPointerWithoutChecks(tile.Columns),
+				       OriginX = origin.x,
+				       OriginZ = origin.y
+			       };
+		}
 	}
 
 	/// <summary>

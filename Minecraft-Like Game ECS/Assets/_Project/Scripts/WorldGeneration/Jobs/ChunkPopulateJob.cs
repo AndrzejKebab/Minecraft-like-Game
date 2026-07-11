@@ -36,10 +36,9 @@ namespace _Project.WorldGeneration.Jobs
 
 		/// <summary>
 		///     Per-chunk view into the cached tile columns (parallel to Entities).
-		///     The inner arrays are owned by TerraTileCacheSingleton; this job is a
-		///     registered reader via the tile's ReadHandle.
+		///     Slices hold raw pointers into arrays owned by TerraTileCacheSingleton;
+		///     this job is a registered reader via the tile's ReadHandle.
 		/// </summary>
-		[NativeDisableContainerSafetyRestriction]
 		[ReadOnly] public NativeArray<TerraTileSlice> TileSlices;
 
 		[ReadOnly] public NativeArray<Block>       BlockPrototypes;
@@ -63,7 +62,7 @@ namespace _Project.WorldGeneration.Jobs
 		public int   MinTrunkHeight;
 		public int   MaxTrunkHeight;
 
-		public void Execute(int index)
+		public unsafe void Execute(int index)
 		{
 			Entity                  entity        = Entities[index];
 			int3                    chunkWorldPos = Positions[index].WorldPosition;

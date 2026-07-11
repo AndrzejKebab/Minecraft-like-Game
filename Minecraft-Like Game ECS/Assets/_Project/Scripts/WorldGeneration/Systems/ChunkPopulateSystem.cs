@@ -125,15 +125,9 @@ namespace _Project.WorldGeneration.Systems
 			{
 				int2 tileCoord = TerraTileConst.TileOfChunk(new int2(batchPositions[i].ChunkCoord.x,
 				                                                     batchPositions[i].ChunkCoord.z));
-				TerraTile tile   = cache.Tiles[tileCoord];
-				int2      origin = TerraTileConst.GenOrigin(tileCoord);
-				batchSlices[i] = new TerraTileSlice
-				                 {
-					                 Columns = tile.Columns,
-					                 OriginX = origin.x,
-					                 OriginZ = origin.y
-				                 };
-				inputDeps = JobHandle.CombineDependencies(inputDeps, tile.GenHandle);
+				TerraTile tile = cache.Tiles[tileCoord];
+				batchSlices[i] = TerraTileSlice.Make(in tile, tileCoord);
+				inputDeps      = JobHandle.CombineDependencies(inputDeps, tile.GenHandle);
 				usedTiles.Add(tileCoord);
 			}
 
