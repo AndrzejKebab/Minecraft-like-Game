@@ -19,7 +19,8 @@ public struct FirstPersonCharacterComponent : IComponentData
 	public float MinViewAngle;
 	public float MaxViewAngle;
 
-	public Entity     ViewEntity;
+	[NonSerialized] public Entity ViewEntity;
+
 	public float      ViewPitchDegrees;
 	public quaternion ViewLocalRotation;
 }
@@ -35,5 +36,5 @@ public struct FirstPersonCharacterControl : IComponentData
 [Serializable]
 public struct FirstPersonCharacterView : IComponentData
 {
-	public Entity CharacterEntity;
+	[NonSerialized] public Entity CharacterEntity;
 }

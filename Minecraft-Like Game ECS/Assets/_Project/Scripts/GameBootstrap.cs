@@ -106,11 +106,11 @@ namespace _Project
 			blockRegistrySingleton.OreTypes = CreateDefaultOres(blockRegistrySingleton);
 			em.AddComponentData(regEntity, blockRegistrySingleton);
 
-			em.AddComponentObject(regEntity, new ChunkMaterialComponent
-			                                 {
-				                                 SolidMaterial = chunkMaterial,
-				                                 WaterMaterial = waterMaterial
-			                                 });
+			em.AddComponentData(regEntity, new ChunkMaterialComponent
+			                               {
+				                               SolidMaterial = chunkMaterial,
+				                               WaterMaterial = waterMaterial
+			                               });
 
 			Debug.Log($"[GameBootstrap] Game Data Ready! Blocks: {allBlocks.Length}, Meshes: {uniqueMeshes.Count}");
 		}

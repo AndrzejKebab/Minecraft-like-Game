@@ -30,7 +30,8 @@ public struct OrbitCamera : IComponentData
 [Serializable]
 public struct OrbitCameraControl : IComponentData
 {
-	public Entity FollowedCharacterEntity;
+	[NonSerialized] public Entity FollowedCharacterEntity;
+
 	public float2 LookDegreesDelta;
 	public float  ZoomDelta;
 }
@@ -38,5 +39,5 @@ public struct OrbitCameraControl : IComponentData
 [Serializable]
 public struct OrbitCameraIgnoredEntityBufferElement : IBufferElementData
 {
-	public Entity Entity;
+	[NonSerialized] public Entity Entity;
 }

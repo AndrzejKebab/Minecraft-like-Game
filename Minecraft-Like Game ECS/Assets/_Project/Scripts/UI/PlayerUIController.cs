@@ -11,6 +11,7 @@ namespace _Project.UI
 
 		private       PanelRenderer      panelRenderer;
 		private       Label              selectedBlockLabel;
+		private       int                lastReloadVersion = -1;
 		public static PlayerUIController Instance { get; private set; }
 
 		private void Awake()
@@ -19,6 +20,13 @@ namespace _Project.UI
 			else Destroy(gameObject);
 
 			panelRenderer = GetComponent<PanelRenderer>();
+		}
+
+		// statics survive when domain reload is disabled — reset on play mode entry
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void ResetStatics()
+		{
+			Instance = null;
 		}
 
 		private void OnEnable()
@@ -31,8 +39,11 @@ namespace _Project.UI
 			panelRenderer.UnregisterUIReloadCallback(OnUIReload);
 		}
 
-		private void OnUIReload(PanelRenderer renderer, VisualElement rootElement)
+		private void OnUIReload(PanelRenderer renderer, VisualElement rootElement, int version)
 		{
+			if (version == lastReloadVersion) return; // UI didn't actually change
+			lastReloadVersion = version;
+
 			selectedBlockLabel = rootElement.Q<Label>("SelectedBlock");
 
 			if (selectedBlockLabel == null)

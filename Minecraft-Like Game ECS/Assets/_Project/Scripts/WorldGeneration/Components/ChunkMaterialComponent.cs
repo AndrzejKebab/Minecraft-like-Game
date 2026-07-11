@@ -1,11 +1,15 @@
-﻿using Unity.Entities;
+using Unity.Entities;
 using UnityEngine;
 
 namespace _Project.WorldGeneration.Components
 {
-	public class ChunkMaterialComponent : IComponentData
+	/// <summary>
+	///     Unmanaged component referencing the chunk materials via UnityObjectRef
+	///     (managed IComponentData classes are deprecated since Entities 6.6).
+	/// </summary>
+	public struct ChunkMaterialComponent : IComponentData
 	{
-		public Material SolidMaterial;
-		public Material WaterMaterial;
+		public UnityObjectRef<Material> SolidMaterial;
+		public UnityObjectRef<Material> WaterMaterial;
 	}
 }

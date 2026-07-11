@@ -72,7 +72,8 @@ namespace _Project.WorldGeneration.Systems
 
 		private static void DestroyMesh(ref SystemState state, Entity entity, EntityCommandBuffer ecb)
 		{
-			if (!state.EntityManager.TryGetComponentObject(entity, out ChunkManagedMesh mesh)) return;
+			if (!state.EntityManager.HasComponent<ChunkManagedMesh>(entity)) return;
+			var mesh = state.EntityManager.GetComponentData<ChunkManagedMesh>(entity);
 			// Unregister mesh from BRG batch.
 			var egs = state.EntityManager.World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 			if (egs != null && mesh.MeshBatchID.value != 0)
@@ -87,8 +88,8 @@ namespace _Project.WorldGeneration.Systems
 				ecb.DestroyEntity(mesh.FluidEntity);
 
 			// Release the Mesh asset.
-			if (mesh.Mesh != null)
-				Object.Destroy(mesh.Mesh);
+			if (mesh.Mesh.Value != null)
+				Object.Destroy(mesh.Mesh.Value);
 		}
 
 		private void TryCompleteNeighbors(ref SystemState state, RefRW<ChunkMapSingleton> mapSingleton, int3 pos)

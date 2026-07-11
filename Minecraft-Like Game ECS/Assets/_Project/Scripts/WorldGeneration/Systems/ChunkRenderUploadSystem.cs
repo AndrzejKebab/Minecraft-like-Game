@@ -71,9 +71,9 @@ namespace _Project.WorldGeneration.Systems
 				egs = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
 				if (egs == null) return;
 
-				var matComp = EntityManager.GetComponentObject<ChunkMaterialComponent>(regEntity);
-				solidMatID          = egs.RegisterMaterial(matComp.SolidMaterial);
-				fluidMatID          = egs.RegisterMaterial(matComp.WaterMaterial);
+				var matComp = EntityManager.GetComponentData<ChunkMaterialComponent>(regEntity);
+				solidMatID          = egs.RegisterMaterial(matComp.SolidMaterial.Value);
+				fluidMatID          = egs.RegisterMaterial(matComp.WaterMaterial.Value);
 				materialsRegistered = true;
 			}
 
@@ -107,11 +107,11 @@ namespace _Project.WorldGeneration.Systems
 				if (isFirstUpload)
 				{
 					managed = new ChunkManagedMesh { Mesh = new Mesh { name = "ChunkMesh" } };
-					EntityManager.AddComponentObject(entity, managed);
+					EntityManager.AddComponentData(entity, managed);
 				}
 				else
 				{
-					managed = EntityManager.GetComponentObject<ChunkManagedMesh>(entity);
+					managed = EntityManager.GetComponentData<ChunkManagedMesh>(entity);
 					if (managed.MeshBatchID.value != 0)
 						egs.UnregisterMesh(managed.MeshBatchID);
 				}
@@ -154,11 +154,11 @@ namespace _Project.WorldGeneration.Systems
 					md.SetSubMesh(1, new SubMeshDescriptor(0, 0));
 				}
 
-				Mesh.ApplyAndDisposeWritableMeshData(mda, managed.Mesh, MESH_UPDATE_FLAGS);
-				managed.Mesh.bounds = chunkLocalBounds;
+				Mesh.ApplyAndDisposeWritableMeshData(mda, managed.Mesh.Value, MESH_UPDATE_FLAGS);
+				managed.Mesh.Value.bounds = chunkLocalBounds;
 
 				// ── register mesh ──────────────────────────────────────────────
-				managed.MeshBatchID = egs.RegisterMesh(managed.Mesh);
+				managed.MeshBatchID = egs.RegisterMesh(managed.Mesh.Value);
 
 				// ── solid render entity (sub-mesh 0) ───────────────────────────
 				var solidMMI = new MaterialMeshInfo(solidMatID, managed.MeshBatchID);
@@ -209,6 +209,9 @@ namespace _Project.WorldGeneration.Systems
 				}
 
 				// ── bookkeeping ────────────────────────────────────────────────
+				// struct component: persist MeshBatchID / SolidEntity / FluidEntity
+				EntityManager.SetComponentData(entity, managed);
+
 				ecb.RemoveComponent<MeshRequiresUpload>(entity);
 				if (!EntityManager.HasComponent<HasMesh>(entity))
 					ecb.AddComponent<HasMesh>(entity);

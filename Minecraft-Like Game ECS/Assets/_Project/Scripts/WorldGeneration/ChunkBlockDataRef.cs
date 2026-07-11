@@ -17,6 +17,7 @@ namespace _Project.WorldGeneration
 	///     we only build the map from <see cref="IsPopulated" /> chunk entities
 	///     whose BlockData lives in a Persistent NativeArray on the ChunkComponent).
 	/// </summary>
+	[BurstCompile]
 	public unsafe struct ChunkBlockDataRef
 	{
 		[NativeDisableUnsafePtrRestriction] private BlockState* _ptr;

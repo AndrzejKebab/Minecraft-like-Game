@@ -8,4 +8,11 @@ public class MainGameObjectCamera : MonoBehaviour
 	{
 		Instance = GetComponent<Camera>();
 	}
+
+	// statics survive when domain reload is disabled — reset on play mode entry
+	[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+	private static void ResetStatics()
+	{
+		Instance = null;
+	}
 }

@@ -24,6 +24,11 @@ namespace _Project.WorldGeneration.Blocks
 			Block.TintColor = TintColor;
 		}
 
+		private void OnDisable()
+		{
+			EditorApplication.delayCall -= AssignUniqueIdIfNeeded;
+		}
+
 		private void AssignUniqueIdIfNeeded()
 		{
 			if (this == null) return;
