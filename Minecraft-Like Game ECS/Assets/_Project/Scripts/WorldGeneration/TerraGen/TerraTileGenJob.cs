@@ -52,17 +52,33 @@ namespace _Project.WorldGeneration.TerraGen
 			TerraErosion.ApplyErosion(ref cells, size, origin.x, origin.y, in Settings, in levels);
 			TerraErosion.ApplySmoothing(ref cells, size, in Settings, in levels);
 
-			// ── 3. quantise to columns ─────────────────────────────────────────
+			// ── 3. block-space conversion + river water settling ───────────────
+			var surfBlocks  = new NativeArray<float>(size * size, Allocator.Temp,
+			                                         NativeArrayOptions.UninitializedMemory);
+			var waterBlocks = new NativeArray<float>(size * size, Allocator.Temp,
+			                                         NativeArrayOptions.UninitializedMemory);
+			for (var i = 0; i < cells.Length; i++)
+			{
+				TerraGenCell cell = cells[i];
+				surfBlocks[i] = levels.ToBlocksF(cell.Height);
+				waterBlocks[i] = cell.Terrain == TerraTerrain.River
+					? levels.ToBlocksF(cell.RiverWaterLevel)
+					: 0f;
+			}
+
+			TerraRivers.SettleWater(in cells, ref surfBlocks, ref waterBlocks, size);
+
+			// ── 4. quantise to columns ─────────────────────────────────────────
 			for (var i = 0; i < cells.Length; i++)
 			{
 				TerraGenCell cell = cells[i];
 				var waterY = 0; // sea level
-				if (cell.Terrain == TerraTerrain.River && cell.RiverWaterLevel > 0f)
-					waterY = math.max(0, levels.ToBlockY(cell.RiverWaterLevel));
+				if (cell.Terrain == TerraTerrain.River)
+					waterY = math.max(0, TerraNoise.Round(waterBlocks[i]));
 
 				Columns[i] = new TerraColumn
 				             {
-					             SurfaceY  = levels.ToBlockY(cell.Height),
+					             SurfaceY  = TerraNoise.Round(surfBlocks[i]),
 					             WaterY    = waterY,
 					             RiverMask = cell.RiverMask,
 					             Biome     = cell.Biome,
@@ -70,6 +86,8 @@ namespace _Project.WorldGeneration.TerraGen
 				             };
 			}
 
+			surfBlocks.Dispose();
+			waterBlocks.Dispose();
 			cells.Dispose();
 		}
 	}

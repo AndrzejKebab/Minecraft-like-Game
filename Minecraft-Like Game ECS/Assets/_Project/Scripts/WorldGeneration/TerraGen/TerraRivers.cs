@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.TerraGen
@@ -77,10 +78,11 @@ namespace _Project.WorldGeneration.TerraGen
 			// hypsometric curve — depths and water levels come out exact
 			var hBlocks = levels.ToBlocksF(cell.Height);
 
-			// rivers only run through low/mid lands — without a network solver the
-			// per-column water levels can't stay consistent on steep mountainsides
-			// (mountain valleys come from the droplet erosion filter instead)
-			strength *= 1f - math.saturate((hBlocks - 60f) / 80f);
+			// rivers only run through LOW lands — without a network solver the
+			// per-column water levels can't stay consistent on slopes, which turns
+			// into hanging water sheets on hillsides (mountain and hill valleys
+			// come from the droplet erosion filter instead)
+			strength *= 1f - math.saturate((hBlocks - 40f) / 40f);
 
 			if (strength <= 0f || hBlocks <= 0.5f)
 			{
@@ -107,10 +109,12 @@ namespace _Project.WorldGeneration.TerraGen
 			var banksBlocks = hBlocks - valleyAlpha * valleyDepth * carveMod;
 			banksBlocks = math.max(banksBlocks, math.min(hBlocks, 1f));
 
-			// local water surface ~2 blocks below the banks, never below the sea
-			var waterBlocks = math.max(0f, banksBlocks - 2f);
+			// water level quantised into 4-block pools so the surface forms flat
+			// stretches with occasional small falls, instead of following the
+			// banks block-by-block (which reads as terraced water on any slope)
+			var waterBlocks = math.max(0f, math.floor((banksBlocks - 2f) / 4f) * 4f);
 
-			if (e < bankWidth && carveMod > 0.25f)
+			if (e < bankWidth && carveMod > 0.4f)
 			{
 				// ── channel: banks slope down into a bed below the water line ───
 				var t = math.saturate((e - bedWidth) / math.max(1e-6f, bankWidth - bedWidth));
@@ -131,6 +135,73 @@ namespace _Project.WorldGeneration.TerraGen
 			{
 				var banks = levels.FromBlocksF(banksBlocks);
 				if (banks < cell.Height) cell.Height = banks;
+			}
+		}
+
+		/// <summary>
+		///     Tile-level water consistency pass (runs in TerraTileGenJob over the
+		///     bordered grid, in block units). Per-column water levels can disagree
+		///     with their surroundings — quantised pools change level mid-channel and
+		///     terrain can slope across the river — which renders as water hanging in
+		///     the air. Two rules fix it:
+		///     1. spill — water higher than an adjacent land surface is clamped down
+		///        to that surface (it would pour out there),
+		///     2. weirs — where a pool drops to a lower pool, the boundary column's
+		///        bed is raised to the upper water level, forming a solid lip so the
+		///        step face is ground instead of exposed water.
+		/// </summary>
+		public static void SettleWater(in NativeArray<TerraGenCell> cells,
+		                               ref NativeArray<float> surfBlocks,
+		                               ref NativeArray<float> waterBlocks, int size)
+		{
+			// pass 1: lateral spill clamp against land neighbours
+			for (var z = 1; z < size - 1; z++)
+			for (var x = 1; x < size - 1; x++)
+			{
+				var i = x + z * size;
+				if (cells[i].Terrain != TerraTerrain.River) continue;
+
+				var w = waterBlocks[i];
+				for (var n = 0; n < 4; n++)
+				{
+					var j = Neighbor(i, n, size);
+					if (cells[j].Terrain == TerraTerrain.River) continue;
+					// submerged land contains up to the sea surface
+					var containment = math.max(surfBlocks[j], 0f);
+					if (containment < w) w = containment;
+				}
+
+				waterBlocks[i] = w;
+			}
+
+			// pass 2: solid weir lips at pool-to-pool drops
+			for (var z = 1; z < size - 1; z++)
+			for (var x = 1; x < size - 1; x++)
+			{
+				var i = x + z * size;
+				if (cells[i].Terrain != TerraTerrain.River) continue;
+
+				for (var n = 0; n < 4; n++)
+				{
+					var j = Neighbor(i, n, size);
+					if (cells[j].Terrain != TerraTerrain.River) continue;
+					if (waterBlocks[j] < waterBlocks[i] - 0.5f)
+					{
+						surfBlocks[i] = math.max(surfBlocks[i], waterBlocks[i]);
+						break;
+					}
+				}
+			}
+		}
+
+		private static int Neighbor(int index, int direction, int size)
+		{
+			switch (direction)
+			{
+				case 0:  return index - 1;
+				case 1:  return index + 1;
+				case 2:  return index - size;
+				default: return index + size;
 			}
 		}
 	}
