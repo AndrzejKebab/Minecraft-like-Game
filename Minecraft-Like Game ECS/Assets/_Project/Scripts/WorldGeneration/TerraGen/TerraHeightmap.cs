@@ -19,9 +19,9 @@ namespace _Project.WorldGeneration.TerraGen
 			cell         = TerraCell.Default();
 			cell.Terrain = TerraTerrain.Flats;
 
-			// beach noise: perlin2(20, 1) * levels.scale(5)
+			// beach noise: perlin2(20, 1) scaled to ~4 real blocks above the sea
 			cell.BeachNoise = TerraNoise.Perlin(x, z, s.Seed + SEED_BEACH, 1f / 20f, 1)
-			                  * levels.Scale(5);
+			                  * levels.BlocksAboveSea(4f);
 
 			TerraContinent.Apply(ref cell, x, z, in s);
 

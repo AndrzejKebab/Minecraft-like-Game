@@ -110,7 +110,7 @@ namespace _Project.WorldGeneration.Jobs
 			else
 			{
 				// mountain surfaces above this world Y turn to bare stone
-				var stoneLineY = (int)(TerraSettings.WorldHeight * 0.62f) - TerraSettings.SeaLevel;
+				var stoneLineY = (int)(TerraSettings.MountainHeight * 0.55f);
 
 				for (var z = 0; z < ChunkSize; z++)
 				for (var x = 0; x < ChunkSize; x++)

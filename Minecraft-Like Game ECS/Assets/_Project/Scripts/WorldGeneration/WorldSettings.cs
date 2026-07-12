@@ -28,11 +28,11 @@ namespace _Project.WorldGeneration
 		public AnimationCurve PeaksAndValleysCurve;
 
 		[Header("TerraGen (ReTerraForged-style pipeline)")]
-		[Tooltip("Total elevation range in blocks (RTF worldHeight)")]
-		public int WorldHeight = 256;
+		[Tooltip("Blocks from the sea (always world Y 0) down to the deepest ocean floor")]
+		public int OceanDepth = 256;
 
-		[Tooltip("Block level within WorldHeight that maps to world Y 0 (the sea)")]
-		public int SeaLevel = 63;
+		[Tooltip("Typical big-mountain elevation in blocks; rare peaks reach ~2x this")]
+		public int MountainHeight = 512;
 
 		[Tooltip("Size of continent voronoi cells in blocks")]
 		public int ContinentScale = 3000;
@@ -158,8 +158,8 @@ namespace _Project.WorldGeneration
 			em.AddComponentData(settingsEntity, worldSettings);
 
 			TerraGen.TerraGenSettings terraSettings = TerraGen.TerraGenSettings.Default(Seed);
-			terraSettings.WorldHeight       = WorldHeight;
-			terraSettings.SeaLevel          = SeaLevel;
+			terraSettings.OceanDepth        = OceanDepth;
+			terraSettings.MountainHeight    = MountainHeight;
 			terraSettings.ContinentScale    = ContinentScale;
 			terraSettings.TerrainRegionSize = TerrainRegionSize;
 			terraSettings.BiomeSize         = BiomeSize;

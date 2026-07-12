@@ -431,7 +431,9 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			return new TerrainSample
 			       {
-				       Height    = levels.Water,
+				       // ~2 blocks above the sea so the coastal blend band reads as
+				       // low land instead of a kilometres-wide flooded flat
+				       Height    = levels.Water + levels.BlocksAboveSea(2f),
 				       Erosion   = -1.1f,
 				       Weirdness = -1.1f,
 				       Terrain   = TerraTerrain.Coast

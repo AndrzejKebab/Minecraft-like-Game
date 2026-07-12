@@ -105,44 +105,133 @@ namespace _Project.WorldGeneration.TerraGen
 	}
 
 	/// <summary>
-	///     Port of RTF Levels — converts between normalised heights [0,1] and block Ys.
-	///     WorldY 0 in this game is sea level, so ToBlockY subtracts SeaLevel.
+	///     Port of RTF Levels, decoupled from output scale.
+	///     The pipeline runs in a FIXED virtual space (1024 units, sea at 256 —
+	///     RTF's proportions, which the populator constants are tuned for). Output
+	///     block heights come from a hypsometric curve, like real-world elevation
+	///     distribution: most land is low and gentle, mountainsides steepen
+	///     exponentially. Sea level is ALWAYS world Y 0.
+	///     OceanDepth = blocks from sea to the deepest floor.
+	///     MountainHeight = blocks at normalised elevation 1.0 (a typical big
+	///     mountain); rare peaks reach ~2×.
 	/// </summary>
 	public struct TerraLevels
 	{
-		public int   WorldHeight;
-		public int   SeaLevel;
-		public float Unit;   // 1 / WorldHeight
+		public const int VIRTUAL_HEIGHT = 1024;
+		public const int VIRTUAL_SEA    = 256;
+
+		public int   OceanDepth;
+		public int   MountainHeight;
+		public float Unit;   // 1 / VIRTUAL_HEIGHT
 		public float Water;  // normalised water level
 		public float Ground; // normalised first-land level
 
-		public static TerraLevels Make(int worldHeight, int seaLevel)
+		public static TerraLevels Make(int oceanDepth, int mountainHeight)
 		{
-			var height = math.max(1, worldHeight);
 			return new TerraLevels
 			       {
-				       WorldHeight = height,
-				       SeaLevel    = seaLevel,
-				       Unit        = 1f / height,
-				       Water       = (seaLevel - 1) / (float)height,
-				       Ground      = seaLevel / (float)height
+				       OceanDepth     = math.max(1, oceanDepth),
+				       MountainHeight = math.max(1, mountainHeight),
+				       Unit           = 1f / VIRTUAL_HEIGHT,
+				       Water          = (VIRTUAL_SEA - 1) / (float)VIRTUAL_HEIGHT,
+				       Ground         = VIRTUAL_SEA / (float)VIRTUAL_HEIGHT
 			       };
 		}
 
-		public float Scale(int blocks)
+		/// <summary> Virtual units → normalised delta (populator-space, pre-curve). </summary>
+		public float Scale(int virtualBlocks)
 		{
-			return blocks / (float)WorldHeight;
+			return virtualBlocks / (float)VIRTUAL_HEIGHT;
 		}
 
-		public float WaterPlus(int blocks)
+		public float WaterPlus(int virtualBlocks)
 		{
-			return (SeaLevel - 1 + blocks) / (float)WorldHeight;
+			return (VIRTUAL_SEA - 1 + virtualBlocks) / (float)VIRTUAL_HEIGHT;
 		}
 
-		/// <summary> Normalised height → world block Y (sea level = worldY 0). </summary>
+		// ── hypsometric curve ────────────────────────────────────────────────
+		// e = elevation fraction above water (h - Water)/(1 - Water), f in units
+		// of MountainHeight. Piecewise linear, monotonic, slope increases with
+		// altitude: flat plains, rolling hills, steep peaks.
+		//   e:    0.00  0.10  0.30  0.60  1.00  1.45+
+		//   f:    0.00  0.02  0.10  0.32  1.00  2.00  (then slope 2.2)
+
+		private static float CurveF(float e)
+		{
+			if (e <= 0f) return 0f;
+			if (e < 0.10f) return e * (0.02f / 0.10f);
+			if (e < 0.30f) return 0.02f + (e - 0.10f) * ((0.10f - 0.02f) / 0.20f);
+			if (e < 0.60f) return 0.10f + (e - 0.30f) * ((0.32f - 0.10f) / 0.30f);
+			if (e < 1.00f) return 0.32f + (e - 0.60f) * ((1.00f - 0.32f) / 0.40f);
+			if (e < 1.45f) return 1.00f + (e - 1.00f) * ((2.00f - 1.00f) / 0.45f);
+			return 2.00f + (e - 1.45f) * 2.2f;
+		}
+
+		private static float CurveSlope(float e)
+		{
+			if (e < 0.10f) return 0.02f / 0.10f;
+			if (e < 0.30f) return (0.10f - 0.02f) / 0.20f;
+			if (e < 0.60f) return (0.32f - 0.10f) / 0.30f;
+			if (e < 1.00f) return (1.00f - 0.32f) / 0.40f;
+			if (e < 1.45f) return (2.00f - 1.00f) / 0.45f;
+			return 2.2f;
+		}
+
+		// ── ocean curve ──────────────────────────────────────────────────────
+		// d = depth fraction below water, f in units of OceanDepth. Gentle shelf
+		// near the shore (so slightly-sub-sea inland dips become shallow marshes
+		// and lakes, not 20-block-deep seas), steepening toward the abyss.
+		//   d:    0.00  0.15  0.50  1.00
+		//   f:    0.00  0.03  0.35  1.00
+
+		private static float OceanF(float d)
+		{
+			if (d <= 0f) return 0f;
+			if (d < 0.15f) return d * (0.03f / 0.15f);
+			if (d < 0.50f) return 0.03f + (d - 0.15f) * ((0.35f - 0.03f) / 0.35f);
+			if (d < 1.00f) return 0.35f + (d - 0.50f) * ((1.00f - 0.35f) / 0.50f);
+			return 1f;
+		}
+
+		private static float OceanSlope(float d)
+		{
+			if (d < 0.15f) return 0.03f / 0.15f;
+			if (d < 0.50f) return (0.35f - 0.03f) / 0.35f;
+			return (1.00f - 0.35f) / 0.50f;
+		}
+
+		/// <summary> Normalised height → world block Y (sea level = world Y 0). </summary>
 		public int ToBlockY(float normalised)
 		{
-			return TerraNoise.Round(normalised * WorldHeight) - SeaLevel;
+			if (normalised <= Water)
+			{
+				var d = (Water - normalised) / Water;
+				return -TerraNoise.Round(OceanF(d) * OceanDepth);
+			}
+
+			var e = (normalised - Water) / (1f - Water);
+			return TerraNoise.Round(CurveF(e) * MountainHeight);
+		}
+
+		/// <summary>
+		///     Normalised-height delta that produces `blocks` of world height at
+		///     height h — lets carving (rivers) work in real block units through
+		///     the curve.
+		/// </summary>
+		public float NormForBlocks(float h, float blocks)
+		{
+			float blocksPerNorm;
+			if (h <= Water)
+				blocksPerNorm = OceanSlope((Water - h) / Water) * OceanDepth / Water;
+			else
+				blocksPerNorm = CurveSlope((h - Water) / (1f - Water)) * MountainHeight / (1f - Water);
+			return blocks / blocksPerNorm;
+		}
+
+		/// <summary> Normalised delta for `blocks` of height just above the sea. </summary>
+		public float BlocksAboveSea(float blocks)
+		{
+			return NormForBlocks(Ground, blocks);
 		}
 	}
 }

@@ -14,9 +14,9 @@ namespace _Project.WorldGeneration.TerraGen
 	{
 		public int Seed;
 
-		// ── Vertical mapping ─────────────────────────────────────────────────
-		public int WorldHeight; // blocks of total elevation range (RTF worldHeight)
-		public int SeaLevel;    // block Y (within WorldHeight) that maps to worldY 0
+		// ── Vertical mapping (sea level is ALWAYS world Y 0) ─────────────────
+		public int OceanDepth;     // blocks from sea down to the deepest ocean floor
+		public int MountainHeight; // typical big-mountain elevation; rare peaks ~2×
 
 		// ── Continent (RTF WorldSettings.Continent) ──────────────────────────
 		public int   ContinentScale;        // default 3000
@@ -27,11 +27,13 @@ namespace _Project.WorldGeneration.TerraGen
 		public float ContinentNoiseLacunarity; // default 4.33
 
 		// ── Control points (RTF WorldSettings.ControlPoints) ─────────────────
+		// narrower coastal band than RTF's defaults so land doesn't spend
+		// kilometres blended toward sea level
 		public float DeepOcean;    // default 0.1
-		public float ShallowOcean; // default 0.25
-		public float Beach;        // default 0.327
-		public float Coast;        // default 0.448
-		public float Inland;       // default 0.502
+		public float ShallowOcean; // default 0.32
+		public float Beach;        // default 0.40
+		public float Coast;        // default 0.45
+		public float Inland;       // default 0.50
 
 		// ── Terrain regions (RTF TerrainSettings.General) ────────────────────
 		public int   TerrainRegionSize;     // default 1200
@@ -43,10 +45,10 @@ namespace _Project.WorldGeneration.TerraGen
 		public bool  RiversEnabled;
 		public int   RiverScale;       // voronoi scale of the drainage network, default 1000
 		public float RiverValleyWidth; // fraction of edge-distance forming the valley, default 0.24
-		public float RiverBankWidth;   // default 0.035
-		public float RiverBedWidth;    // default 0.012
-		public int   RiverValleyDepth; // blocks of valley carve at the banks, default 12
-		public int   RiverBedDepth;    // blocks below local water surface, default 3
+		public float RiverBankWidth;   // default 0.025
+		public float RiverBedWidth;    // default 0.010
+		public int   RiverValleyDepth; // real blocks of valley carve at the banks, default 16
+		public int   RiverBedDepth;    // real blocks below the local water surface, default 4
 
 		// ── Filters (RTF FilterSettings — applied per tile) ──────────────────
 		public bool  ErosionEnabled;
@@ -75,8 +77,8 @@ namespace _Project.WorldGeneration.TerraGen
 			       {
 				       Seed = seed,
 
-				       WorldHeight = 256,
-				       SeaLevel    = 63,
+				       OceanDepth     = 256,
+				       MountainHeight = 512,
 
 				       ContinentScale           = 3000,
 				       ContinentJitter          = 0.7f,
@@ -86,10 +88,10 @@ namespace _Project.WorldGeneration.TerraGen
 				       ContinentNoiseLacunarity = 4.33f,
 
 				       DeepOcean    = 0.1f,
-				       ShallowOcean = 0.25f,
-				       Beach        = 0.327f,
-				       Coast        = 0.448f,
-				       Inland       = 0.502f,
+				       ShallowOcean = 0.32f,
+				       Beach        = 0.40f,
+				       Coast        = 0.45f,
+				       Inland       = 0.50f,
 
 				       TerrainRegionSize     = 1200,
 				       GlobalVerticalScale   = 0.985f,
@@ -99,10 +101,10 @@ namespace _Project.WorldGeneration.TerraGen
 				       RiversEnabled    = true,
 				       RiverScale       = 1000,
 				       RiverValleyWidth = 0.24f,
-				       RiverBankWidth   = 0.035f,
-				       RiverBedWidth    = 0.012f,
-				       RiverValleyDepth = 12,
-				       RiverBedDepth    = 3,
+				       RiverBankWidth   = 0.025f,
+				       RiverBedWidth    = 0.010f,
+				       RiverValleyDepth = 16,
+				       RiverBedDepth    = 4,
 
 				       ErosionEnabled          = true,
 				       ErosionDropletsPerChunk = 135,

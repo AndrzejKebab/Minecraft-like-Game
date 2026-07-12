@@ -19,11 +19,10 @@ namespace _Project.WorldGeneration.Systems
 	///     Three phases:
 	///     1. Search  — one-shot Burst spiral search over the heightmap pipeline.
 	///     2. Hold    — pin the player above the spawn column (position + zeroed
-	///        velocity every frame) while chunks stream in around it; once the
-	///        ground chunk is populated, refine the exact surface Y from real block
-	///        data (the droplet erosion shifts the sampled estimate a few blocks).
-	///     3. Release — when the ground chunk has its physics collider, stop
-	///        touching the player and disable the system.
+	///        velocity every frame) while chunks stream in; the exact surface Y is
+	///        read from the generated tile columns (post-erosion ground truth).
+	///     3. Release — when the ground chunk has its physics collider, or after a
+	///        hard timeout so the player can never be locked in place forever.
 	///     Runs before PlayerVisibleChunksSystem so streaming centres on the spawn
 	///     from the very first frame.
 	/// </summary>
@@ -31,14 +30,18 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateBefore(typeof(PlayerVisibleChunksSystem))]
 	public partial struct PlayerSpawnSystem : ISystem
 	{
+		private const int HOLD_TIMEOUT_FRAMES = 600; // ~10 s — never lock movement forever
+
 		private byte phase; // 0 = search, 1 = hold, 2 = done
 		private bool groundRefined;
+		private int  holdFrames;
 		private int3 spawnBlock; // top solid block of the spawn column
 
 		public void OnCreate(ref SystemState state)
 		{
 			state.RequireForUpdate<Player>();
 			state.RequireForUpdate<TerraGenSettings>();
+			state.RequireForUpdate<TerraTileCacheSingleton>();
 			state.RequireForUpdate<ChunkMapSingleton>();
 		}
 
@@ -73,13 +76,23 @@ namespace _Project.WorldGeneration.Systems
 				          $"(criteria matched: {found.w == 1})");
 			}
 
-			var map = SystemAPI.GetSingleton<ChunkMapSingleton>();
-
-			// ── 2. refine surface height from real chunk data (once) ───────────
-			if (!groundRefined && TryFindGroundY(ref state, in map, spawnBlock, out var groundY))
+			// ── 2. refine surface height from the generated tile (once) ────────
+			//     tile columns are the post-erosion ground truth the chunks are
+			//     built from — no need to touch chunk block data
+			if (!groundRefined)
 			{
-				spawnBlock.y  = groundY;
-				groundRefined = true;
+				var  cache     = SystemAPI.GetSingleton<TerraTileCacheSingleton>();
+				int3 chunk     = Utility.WorldToChunkCoord(new float3(spawnBlock.x, 0f, spawnBlock.z));
+				int2 tileCoord = TerraTileConst.TileOfChunk(new int2(chunk.x, chunk.z));
+				if (cache.Tiles.TryGetValue(tileCoord, out TerraTile tile) && tile.GenHandle.IsCompleted)
+				{
+					tile.GenHandle.Complete(); // clears the write dependency for main-thread read
+					int2 origin = TerraTileConst.GenOrigin(tileCoord);
+					var index = spawnBlock.x - origin.x +
+					            (spawnBlock.z - origin.y) * TerraTileConst.GEN_BLOCKS;
+					spawnBlock.y  = tile.Columns[index].SurfaceY;
+					groundRefined = true;
+				}
 			}
 
 			// ── hold: pin position + zero velocity until the ground is solid ───
@@ -89,51 +102,29 @@ namespace _Project.WorldGeneration.Systems
 				SystemAPI.GetComponentRW<KinematicCharacterBody>(player).ValueRW.RelativeVelocity =
 					float3.zero;
 
-			// ── 3. release once the ground chunk is collidable ─────────────────
+			// ── 3. release ─────────────────────────────────────────────────────
+			holdFrames++;
+			if (holdFrames > HOLD_TIMEOUT_FRAMES)
+			{
+				Debug.LogWarning("[PlayerSpawnSystem] Ground collider never appeared — " +
+				                 "releasing the player anyway");
+				phase = 2;
+				return;
+			}
+
 			if (!groundRefined) return;
+
+			var  map         = SystemAPI.GetSingleton<ChunkMapSingleton>();
 			int3 groundChunk = Utility.WorldToChunkCoord(
 				new float3(spawnBlock.x, spawnBlock.y, spawnBlock.z));
 			if (map.ChunkMap.TryGetValue(groundChunk, out Entity groundEntity) &&
-			    SystemAPI.HasComponent<IsPopulated>(groundEntity) &&
-			    SystemAPI.HasComponent<PhysicsCollider>(groundEntity))
-				phase = 2;
-		}
-
-		/// <summary>
-		///     Scans real block data around the estimated surface for the actual top
-		///     solid block. Returns false while the needed chunks aren't populated
-		///     yet (retry next frame). Falls back to the estimate if the window
-		///     contains no solid block (e.g. a cave mouth).
-		/// </summary>
-		private bool TryFindGroundY(ref SystemState state, in ChunkMapSingleton map,
-		                            int3 estimate, out int groundY)
-		{
-			const int window = 8; // erosion shifts surfaces by ±5 at most
-			groundY = estimate.y;
-
-			for (var y = estimate.y + window; y >= estimate.y - window; y--)
+			    (SystemAPI.HasComponent<PhysicsCollider>(groundEntity) ||
+			     SystemAPI.HasComponent<HasCollider>(groundEntity)))
 			{
-				int3 chunkCoord = Utility.WorldToChunkCoord(new float3(estimate.x, y, estimate.z));
-				if (!map.ChunkMap.TryGetValue(chunkCoord, out Entity chunkEntity)) return false;
-				if (!SystemAPI.HasComponent<IsPopulated>(chunkEntity)) return false;
-
-				// don't read block data while a populate/mesh job may still touch it
-				if (SystemAPI.HasComponent<ChunkActiveJob>(chunkEntity) &&
-				    !SystemAPI.GetComponent<ChunkActiveJob>(chunkEntity).Handle.IsCompleted)
-					return false;
-
-				if (!map.ChunkDataLookup.TryGetValue(chunkEntity, out ChunkComponent chunk)) return false;
-
-				int3 local = new int3(estimate.x, y, estimate.z) - chunkCoord * ChunkData.CHUNK_SIZE;
-				var  index = local.x | (local.y << 5) | (local.z << 10);
-				if (chunk.BlockData[index].ID != 0)
-				{
-					groundY = y;
-					return true;
-				}
+				Debug.Log($"[PlayerSpawnSystem] Ground ready at {spawnBlock}, releasing " +
+				          $"after {holdFrames} frames");
+				phase = 2;
 			}
-
-			return true; // window is all air (cave mouth?) — keep the estimate
 		}
 	}
 }

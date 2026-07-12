@@ -80,9 +80,12 @@ deterministic per seed.
 - **Rivers** — RTF builds explicit per-continent river networks (object graphs of
   line segments, cached per region). That doesn't translate to stateless Burst
   jobs, so rivers here follow the edges of a warped drainage voronoi instead:
-  connected branching channels with an RTF-style valley→banks→bed profile and a
-  local water level, fading into the sea across the coast band. No lakes/wetlands
-  yet.
+  connected branching channels with an RTF-style valley→banks→bed profile carved
+  in real block units through the hypsometric curve, and a local water level that
+  follows the banks. They fade into the sea across the coast band and fade out
+  above ~100 blocks of elevation (no network solver = no consistent water levels
+  on steep slopes; mountain valleys come from the droplet erosion instead). Water
+  levels can still step slightly along a channel. No lakes/wetlands yet.
 - **CELL_2D table** — RTF's 256-entry jitter table is replaced by a procedural
   hash (Burst can't access managed static arrays). Same range and character, not
   bit-compatible with Java worlds.
@@ -101,8 +104,13 @@ deterministic per seed.
 Everything lives in `TerraGenSettings` (defaults mirror RTF's preset). Key knobs,
 exposed on the `WorldSettings` MonoBehaviour:
 
-- `WorldHeight` / `SeaLevel` — vertical mapping. Normalised height × WorldHeight,
-  then shifted so `SeaLevel` sits at world Y 0 (the game's water line).
+- `OceanDepth` (256) / `MountainHeight` (512) — vertical mapping. The pipeline
+  runs in a fixed RTF-proportioned space; output heights go through a
+  **hypsometric curve** (like real-world elevation distribution): most land is
+  low and gentle, mountainsides steepen exponentially, typical big mountains hit
+  ~`MountainHeight` and rare peaks reach ~2×. Sea level is ALWAYS world Y 0. The
+  ocean has its own curve with a shallow shelf near shore, so inland dips become
+  marshes instead of deep lakes.
 - `ContinentScale` (3000) — plate size; ocean/land balance comes from the control
   points (`DeepOcean`..`Inland`).
 - `TerrainRegionSize` (1200) — size of plains/hills/mountains provinces.

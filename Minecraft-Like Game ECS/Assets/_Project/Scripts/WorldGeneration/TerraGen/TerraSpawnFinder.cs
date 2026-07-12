@@ -19,8 +19,8 @@ namespace _Project.WorldGeneration.TerraGen
 		private const int STEP      = 48;  // blocks between candidate columns
 		private const int MAX_RINGS = 320; // search radius ≈ 15 km
 
-		private const int   MIN_SURFACE_Y  = 2;  // above beaches
-		private const int   MAX_SURFACE_Y  = 70; // below serious peaks
+		private const int   MIN_SURFACE_Y  = 2;   // above beaches
+		private const int   MAX_SURFACE_Y  = 120; // below serious peaks
 		private const float MIN_RIVER_MASK = 0.6f;
 
 		public TerraGenSettings Settings;
@@ -30,7 +30,7 @@ namespace _Project.WorldGeneration.TerraGen
 
 		public void Execute()
 		{
-			var levels = TerraLevels.Make(Settings.WorldHeight, Settings.SeaLevel);
+			var levels = TerraLevels.Make(Settings.OceanDepth, Settings.MountainHeight);
 
 			for (var ring = 0; ring <= MAX_RINGS; ring++)
 			for (var dz = -ring; dz <= ring; dz++)

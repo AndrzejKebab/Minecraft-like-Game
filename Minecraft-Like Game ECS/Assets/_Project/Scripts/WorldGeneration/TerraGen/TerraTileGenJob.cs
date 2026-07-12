@@ -26,7 +26,7 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			var size   = TerraTileConst.GEN_BLOCKS;
 			int2 origin = TerraTileConst.GenOrigin(TileCoord);
-			var levels = TerraLevels.Make(Settings.WorldHeight, Settings.SeaLevel);
+			var levels = TerraLevels.Make(Settings.OceanDepth, Settings.MountainHeight);
 
 			var cells = new NativeArray<TerraGenCell>(size * size, Allocator.Temp,
 			                                          NativeArrayOptions.UninitializedMemory);

@@ -72,15 +72,20 @@ namespace _Project.WorldGeneration.TerraGen
 			// channels open into the sea instead of stopping at a wall
 			var strength = math.saturate((cell.ContinentEdge - s.ShallowOcean) /
 			                             math.max(1e-6f, s.Coast - s.ShallowOcean));
+
+			// rivers only run through low/mid lands — without a network solver the
+			// per-column water levels can't stay consistent on steep mountainsides
+			// (mountain valleys come from the droplet erosion filter instead)
+			var eAlt = (cell.Height - levels.Water) / (1f - levels.Water);
+			strength *= 1f - math.saturate((eAlt - 0.30f) / 0.20f);
+
 			if (strength <= 0f)
 			{
 				cell.RiverMask = 1f;
 				return;
 			}
 
-			// mountains resist carving a little (no proper uplift data here)
-			var altitude  = math.saturate((cell.Height - levels.Ground) / math.max(1e-6f, 0.7f - levels.Ground));
-			var carveMod  = strength * (1f - altitude * 0.5f);
+			var carveMod = strength;
 
 			var valleyWidth = s.RiverValleyWidth;
 			var bankWidth   = s.RiverBankWidth;
@@ -90,22 +95,27 @@ namespace _Project.WorldGeneration.TerraGen
 
 			if (e >= valleyWidth) return;
 
+			// carving works in REAL block units, converted through the hypsometric
+			// curve at the local height (NormForBlocks) so valleys are properly
+			// incised regardless of altitude
+			var h0 = cell.Height;
+
 			// ── valley: pull terrain down toward the water line ────────────────
 			var valleyAlpha = 1f - e / valleyWidth;
 			valleyAlpha = TerraNoise.InterpQuintic(valleyAlpha);
-			var valleyCarve = valleyAlpha * levels.Scale(s.RiverValleyDepth) * carveMod;
+			var valleyCarve = valleyAlpha * levels.NormForBlocks(h0, s.RiverValleyDepth) * carveMod;
 
-			var banks = math.max(levels.WaterPlus(1), cell.Height - valleyCarve);
+			var banks = math.max(levels.Water + levels.BlocksAboveSea(1f), h0 - valleyCarve);
 
-			// local water surface follows the banks, clamped to sea level
-			var waterSurface = math.max(levels.Water, banks - levels.Scale(2));
+			// local water surface sits ~2 blocks below the banks, clamped to sea
+			var waterSurface = math.max(levels.Water, banks - levels.NormForBlocks(banks, 2f));
 
 			if (e < bankWidth && carveMod > 0.25f)
 			{
 				// ── channel: banks slope down into a bed below the water line ───
 				var t = math.saturate((e - bedWidth) / math.max(1e-6f, bankWidth - bedWidth));
 				t = TerraNoise.InterpHermite(t);
-				var bed     = waterSurface - levels.Scale(s.RiverBedDepth);
+				var bed     = waterSurface - levels.NormForBlocks(waterSurface, s.RiverBedDepth);
 				var channel = math.lerp(bed, banks, t);
 				if (channel < cell.Height) cell.Height = channel;
 
