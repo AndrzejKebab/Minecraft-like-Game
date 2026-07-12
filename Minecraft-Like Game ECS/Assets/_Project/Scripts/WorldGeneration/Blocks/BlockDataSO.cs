@@ -17,16 +17,26 @@ namespace _Project.WorldGeneration.Blocks
 		public BlockTexturesLayer[] TexturesLayer;
 
 #if UNITY_EDITOR
+		// delayCall must be subscribed with a static handler (UDR0004 — instance
+		// subscriptions leak when assets unload). Instances queue themselves and one
+		// static callback processes the batch; delayCall self-clears after firing.
+		private static readonly HashSet<BlockDataSo> PendingIdChecks = new();
+
 		private void OnValidate()
 		{
-			EditorApplication.delayCall += AssignUniqueIdIfNeeded;
-
 			Block.TintColor = TintColor;
+
+			if (PendingIdChecks.Add(this) && PendingIdChecks.Count == 1)
+				EditorApplication.delayCall += ProcessPendingIdChecks;
 		}
 
-		private void OnDisable()
+		private static void ProcessPendingIdChecks()
 		{
-			EditorApplication.delayCall -= AssignUniqueIdIfNeeded;
+			foreach (BlockDataSo so in PendingIdChecks)
+				if (so != null)
+					so.AssignUniqueIdIfNeeded();
+
+			PendingIdChecks.Clear();
 		}
 
 		private void AssignUniqueIdIfNeeded()
