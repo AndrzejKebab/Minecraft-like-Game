@@ -154,15 +154,15 @@ namespace _Project.WorldGeneration.TerraGen
 		// of MountainHeight. Piecewise linear, monotonic, slope increases with
 		// altitude: flat plains, rolling hills, steep peaks.
 		//   e:    0.00  0.10  0.30  0.60  1.00  1.45+
-		//   f:    0.00  0.02  0.10  0.32  1.00  2.00  (then slope 2.2)
+		//   f:    0.00  0.02  0.10  0.30  1.00  2.00  (then slope 2.2)
 
 		private static float CurveF(float e)
 		{
 			if (e <= 0f) return 0f;
 			if (e < 0.10f) return e * (0.02f / 0.10f);
 			if (e < 0.30f) return 0.02f + (e - 0.10f) * ((0.10f - 0.02f) / 0.20f);
-			if (e < 0.60f) return 0.10f + (e - 0.30f) * ((0.32f - 0.10f) / 0.30f);
-			if (e < 1.00f) return 0.32f + (e - 0.60f) * ((1.00f - 0.32f) / 0.40f);
+			if (e < 0.60f) return 0.10f + (e - 0.30f) * ((0.30f - 0.10f) / 0.30f);
+			if (e < 1.00f) return 0.30f + (e - 0.60f) * ((1.00f - 0.30f) / 0.40f);
 			if (e < 1.45f) return 1.00f + (e - 1.00f) * ((2.00f - 1.00f) / 0.45f);
 			return 2.00f + (e - 1.45f) * 2.2f;
 		}
@@ -171,10 +171,47 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			if (e < 0.10f) return 0.02f / 0.10f;
 			if (e < 0.30f) return (0.10f - 0.02f) / 0.20f;
-			if (e < 0.60f) return (0.32f - 0.10f) / 0.30f;
-			if (e < 1.00f) return (1.00f - 0.32f) / 0.40f;
+			if (e < 0.60f) return (0.30f - 0.10f) / 0.30f;
+			if (e < 1.00f) return (1.00f - 0.30f) / 0.40f;
 			if (e < 1.45f) return (2.00f - 1.00f) / 0.45f;
 			return 2.2f;
+		}
+
+		/// <summary> Inverse of CurveF (f in MountainHeight units → e). </summary>
+		private static float CurveInv(float f)
+		{
+			if (f <= 0f) return 0f;
+			if (f < 0.02f) return f * (0.10f / 0.02f);
+			if (f < 0.10f) return 0.10f + (f - 0.02f) * (0.20f / (0.10f - 0.02f));
+			if (f < 0.30f) return 0.30f + (f - 0.10f) * (0.30f / (0.30f - 0.10f));
+			if (f < 1.00f) return 0.60f + (f - 0.30f) * (0.40f / (1.00f - 0.30f));
+			if (f < 2.00f) return 1.00f + (f - 1.00f) * (0.45f / (2.00f - 1.00f));
+			return 1.45f + (f - 2.00f) / 2.2f;
+		}
+
+		/// <summary> Inverse of OceanF (f in OceanDepth units → d). </summary>
+		private static float OceanInv(float f)
+		{
+			if (f <= 0f) return 0f;
+			if (f < 0.03f) return f * (0.15f / 0.03f);
+			if (f < 0.35f) return 0.15f + (f - 0.03f) * (0.35f / (0.35f - 0.03f));
+			return 0.50f + (f - 0.35f) * (0.50f / (1.00f - 0.35f));
+		}
+
+		/// <summary> Normalised height → world blocks (float, no rounding). </summary>
+		public float ToBlocksF(float normalised)
+		{
+			if (normalised <= Water)
+				return -OceanF((Water - normalised) / Water) * OceanDepth;
+			return CurveF((normalised - Water) / (1f - Water)) * MountainHeight;
+		}
+
+		/// <summary> World blocks → normalised height (inverse of ToBlocksF). </summary>
+		public float FromBlocksF(float blocks)
+		{
+			if (blocks <= 0f)
+				return Water - OceanInv(-blocks / OceanDepth) * Water;
+			return Water + CurveInv(blocks / MountainHeight) * (1f - Water);
 		}
 
 		// ── ocean curve ──────────────────────────────────────────────────────

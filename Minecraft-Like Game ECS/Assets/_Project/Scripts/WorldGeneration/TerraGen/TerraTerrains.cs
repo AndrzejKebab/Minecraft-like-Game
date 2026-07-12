@@ -95,13 +95,16 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static float RegionEdgeValue(float distance, float distance2)
 		{
-			// EdgeFunction.DISTANCE_2_DIV then pow 1.5, edge range [0, 0.5]
+			// EdgeFunction.DISTANCE_2_DIV then pow 1.5. RTF uses edge range
+			// [0, 0.5]; we widen to [0, 0.75] so terrain-type transitions (esp.
+			// mountains rising out of plains) get broad blended borders instead
+			// of walls — needed with the taller elevation range
 			var value     = distance / distance2 - 1f; // [-1, 0]
 			var edgeValue = 1f - TerraNoise.Map(value, -1f, 0f, 1f);
 			edgeValue = math.pow(edgeValue, 1.5f);
 			if (edgeValue < 0f) return 0f;
-			if (edgeValue > 0.5f) return 1f;
-			return edgeValue / 0.5f;
+			if (edgeValue > 0.75f) return 1f;
+			return edgeValue / 0.75f;
 		}
 
 		// ── Populators (Populators.java ports) ───────────────────────────────
@@ -304,10 +307,18 @@ namespace _Project.WorldGeneration.TerraGen
 
 		// ── Mountains ────────────────────────────────────────────────────────
 
-		private const int   MOUNTAINS_H  = 610;
+		// horizontal scales widened ~1.6× over RTF — 512-block peaks need
+		// kilometre-wide bases to rise gradually instead of spiking
+		private const int   MOUNTAINS_H  = 980;
 		private const float MOUNTAINS_V  = 1.3f;
-		private const int   MOUNTAINS3_H = 600;
+		private const int   MOUNTAINS3_H = 950;
 		private const float MOUNTAINS3_V = 1.185f;
+
+		// fancy-mountain erosion, retuned for the tall elevation range: RTF's
+		// strength 0.65 / grid 128 carves ~70-block gullies in a 256 world but
+		// 300-block cliffs at 512+ — wider grid, gentler strength
+		private const float FANCY_STRENGTH = 0.45f;
+		private const float FANCY_GRID     = 260f;
 
 		private static float MountainRidgeHeight(float x, float z, int seed, float scaleH,
 		                                         in TerraGenSettings s)
@@ -320,7 +331,8 @@ namespace _Project.WorldGeneration.TerraGen
 			height *= TerraNoise.Alpha(TerraNoise.Perlin(wx, wz, seed + 1, 1f / 24f, 4), 0.075f);
 
 			if (s.FancyMountains)
-				height = TerraNoise.ErodedNoise(x, z, seed + 3, 2, 0.65f, 128f, 0.15f, 3.1f, 0.8f,
+				height = TerraNoise.ErodedNoise(x, z, seed + 3, 2, FANCY_STRENGTH, FANCY_GRID,
+				                                0.15f, 3.1f, 0.8f,
 				                                height, 1f / scaleH, seed, 4, 2.35f, 1.15f);
 			return height;
 		}
@@ -360,10 +372,11 @@ namespace _Project.WorldGeneration.TerraGen
 		public static TerrainSample Mountains2(float x, float z, float ground, in TerraGenSettings s)
 		{
 			var seed   = s.Seed + SEED_MOUNTAIN + 300;
-			var height = MountainCellBase(x, z, seed, 360f);
+			var height = MountainCellBase(x, z, seed, 560f);
 			if (s.FancyMountains)
-				height = TerraNoise.ErodedNoise(x, z, seed + 4, 2, 0.65f, 128f, 0.15f, 3.1f, 0.8f,
-				                                height, 1f / 360f, seed, 4, 2f, 0.5f);
+				height = TerraNoise.ErodedNoise(x, z, seed + 4, 2, FANCY_STRENGTH, FANCY_GRID,
+				                                0.15f, 3.1f, 0.8f,
+				                                height, 1f / 560f, seed, 4, 2f, 0.5f);
 			return Make(TerraTerrain.Mountains2, ground,
 			            height * 0.645f * s.GlobalVerticalScale,
 			            EROSION_L2, math.min(-height, -0.08f));
@@ -379,7 +392,8 @@ namespace _Project.WorldGeneration.TerraGen
 
 			var height = TerraNoise.AdvancedTerrace(mountains, modulation, mask, 0.45f, 0.2f, 0.45f, 24);
 			if (s.FancyMountains)
-				height = TerraNoise.ErodedNoise(x, z, seed + 7, 2, 0.65f, 128f, 0.15f, 3.1f, 0.8f,
+				height = TerraNoise.ErodedNoise(x, z, seed + 7, 2, FANCY_STRENGTH, FANCY_GRID,
+				                                0.15f, 3.1f, 0.8f,
 				                                height, 1f / MOUNTAINS3_H, seed, 4, 2f, 0.5f);
 			return Make(TerraTerrain.Mountains3, ground,
 			            height * MOUNTAINS3_V * s.GlobalVerticalScale,
@@ -498,7 +512,7 @@ namespace _Project.WorldGeneration.TerraGen
 			var wx   = x;
 			var wz   = z;
 			TerraNoise.WarpPerlin(ref wx, ref wz, seed + 1, 333, 2, 250f);
-			var shape = TerraNoise.WorleyEdge(wx, wz, seed, 1f / (1000f * 2.25f),
+			var shape = TerraNoise.WorleyEdge(wx, wz, seed, 1f / 3200f,
 			                                  TerraNoise.EdgeFunc.Distance2Add, TerraNoise.DistFunc.Euclidean);
 			shape = TerraNoise.InterpHermite(math.saturate(shape));
 			shape = math.clamp(shape, 0f, 0.9f);

@@ -45,8 +45,17 @@ namespace _Project.WorldGeneration.Systems
 			if (!q.IsEmpty)
 			{
 				var s = q.GetSingleton<ChunkMapSingleton>();
+				if (s.ChunkDataLookup.IsCreated)
+				{
+					// dispose every chunk's BlockData — without this, play-mode exit
+					// leaks tens of thousands of persistent allocations
+					foreach (KVPair<Entity, ChunkComponent> kv in s.ChunkDataLookup)
+						if (kv.Value.BlockData.IsCreated)
+							kv.Value.BlockData.Dispose();
+					s.ChunkDataLookup.Dispose();
+				}
+
 				if (s.ChunkMap.IsCreated) s.ChunkMap.Dispose();
-				if (s.ChunkDataLookup.IsCreated) s.ChunkDataLookup.Dispose();
 			}
 
 			q.Dispose();

@@ -81,10 +81,14 @@ namespace _Project.WorldGeneration.TerraGen
 
 			TerraClimate.Apply(ref cell, x, z, in s, in levels);
 
-			// beach detection: coast terrain sitting within beach-noise reach of the
-			// waterline becomes actual beach (simplified BeachDetect filter)
-			if (cell.Terrain == TerraTerrain.Coast &&
-			    cell.Height <= levels.Ground + math.abs(cell.BeachNoise))
+			// beach detection: ANY land column within a couple of blocks of the sea
+			// becomes beach (height-based, not category-based — blended mountain
+			// skirts reach the waterline with mountain terrain, which RTF's
+			// coast-override would leave grassy)
+			if (cell.Terrain != TerraTerrain.River && !cell.Terrain.IsSubmerged() &&
+			    cell.Height > levels.Water &&
+			    cell.Height <= levels.Ground +
+			    math.max(levels.BlocksAboveSea(1.5f), math.abs(cell.BeachNoise)))
 				cell.Terrain = TerraTerrain.Beach;
 		}
 
@@ -95,9 +99,11 @@ namespace _Project.WorldGeneration.TerraGen
 		private static TerrainSample SampleLand(ref TerraCell cell, float tx, float tz,
 		                                        float ground, in TerraGenSettings s)
 		{
-			const float blendLower = 0.3f;
-			const float blendUpper = 0.8f;
-			const float split      = 0.575f;
+			// wider blend than RTF (0.3..0.8) — with 512-block peaks the mountains
+			// need broad foothill skirts or they read as spikes
+			const float blendLower = 0.25f;
+			const float blendUpper = 0.85f;
+			const float split      = 0.6f;
 
 			var shape = TerraTerrains.MountainShape(tx, tz, in s);
 
