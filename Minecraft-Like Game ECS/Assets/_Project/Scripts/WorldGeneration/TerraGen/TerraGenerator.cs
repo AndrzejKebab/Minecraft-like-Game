@@ -44,8 +44,10 @@ namespace _Project.WorldGeneration.TerraGen
 			var depth      = surface - worldY;
 			var submerged  = surface < water;
 
+			// river beds are handled by the `submerged` path below (sand under
+			// water); River terrain itself is never dry, so it isn't a `sandy`
+			// surface — its banks are ordinary grass/dirt
 			var sandy = column.Terrain == TerraTerrain.Beach ||
-			            column.Terrain == TerraTerrain.River ||
 			            column.Terrain == TerraTerrain.Badlands ||
 			            column.Biome == TerraBiome.Desert;
 

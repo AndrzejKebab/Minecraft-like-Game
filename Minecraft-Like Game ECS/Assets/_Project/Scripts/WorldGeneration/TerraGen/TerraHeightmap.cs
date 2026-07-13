@@ -34,9 +34,8 @@ namespace _Project.WorldGeneration.TerraGen
 			cell         = TerraCell.Default();
 			cell.Terrain = TerraTerrain.Flats;
 
-			// beach noise: perlin2(20, 1) scaled to ~4 real blocks above the sea
-			cell.BeachNoise = TerraNoise.Perlin(x, z, s.Seed + SEED_BEACH, 1f / 20f, 1)
-			                  * levels.BlocksAboveSea(4f);
+			// beach noise: raw perlin in ±3 blocks, ragged shoreline width
+			cell.BeachNoise = (TerraNoise.Perlin(x, z, s.Seed + SEED_BEACH, 1f / 20f, 1) * 2f - 1f) * 3f;
 
 			TerraContinent.Apply(ref cell, x, z, in s);
 
@@ -107,15 +106,18 @@ namespace _Project.WorldGeneration.TerraGen
 
 			TerraClimate.Apply(ref cell, x, z, in s, in levels);
 
-			// beach detection: ANY land column within a couple of blocks of the sea
-			// becomes beach (height-based, not category-based — blended mountain
-			// skirts reach the waterline with mountain terrain, which RTF's
-			// coast-override would leave grassy)
+			// beach detection: land right at the OCEAN shore becomes sand — block
+			// based (so the very waterline is sand, not a grass line) and gated to
+			// the coastal band so inland river valleys keep grass banks. Mountain
+			// skirts reaching the sea are included (RTF's coast-override skips them).
 			if (cell.Terrain != TerraTerrain.River && !cell.Terrain.IsSubmerged() &&
-			    cell.Height > levels.Water &&
-			    cell.Height <= levels.Ground +
-			    math.max(levels.BlocksAboveSea(1.5f), math.abs(cell.BeachNoise)))
-				cell.Terrain = TerraTerrain.Beach;
+			    cell.ContinentEdge < s.Coast + 0.07f)
+			{
+				var surfY      = levels.ToBlockY(cell.Height);
+				var beachTopY  = 3 + (int)math.round(math.abs(cell.BeachNoise));
+				if (surfY >= 0 && surfY <= beachTopY)
+					cell.Terrain = TerraTerrain.Beach;
+			}
 		}
 
 		/// <summary>

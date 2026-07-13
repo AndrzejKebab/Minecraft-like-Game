@@ -174,24 +174,8 @@ namespace _Project.WorldGeneration.TerraGen
 				waterBlocks[i] = w;
 			}
 
-			// pass 2: solid weir lips at pool-to-pool drops
-			for (var z = 1; z < size - 1; z++)
-			for (var x = 1; x < size - 1; x++)
-			{
-				var i = x + z * size;
-				if (cells[i].Terrain != TerraTerrain.River) continue;
-
-				for (var n = 0; n < 4; n++)
-				{
-					var j = Neighbor(i, n, size);
-					if (cells[j].Terrain != TerraTerrain.River) continue;
-					if (waterBlocks[j] < waterBlocks[i] - 0.5f)
-					{
-						surfBlocks[i] = math.max(surfBlocks[i], waterBlocks[i]);
-						break;
-					}
-				}
-			}
+			// (no weir pass: continuous downhill water needs no dams — river→river
+			//  level changes are ≤1 block and read as small rapids, not sand steps)
 		}
 
 		private static int Neighbor(int index, int direction, int size)

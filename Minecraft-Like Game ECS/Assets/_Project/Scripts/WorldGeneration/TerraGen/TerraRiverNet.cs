@@ -284,8 +284,10 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			if (count == 0) return;
 
-			var surfBlk  = levels.ToBlocksF(cell.Height);
-			var bestMask = 1f;
+			var natural    = levels.ToBlocksF(cell.Height);
+			var bestTarget = natural; // deepest carve across all reaches
+			var bestWater  = 0f;      // water level of the deepest (dominant) reach
+			var bestMask   = 1f;
 
 			for (var si = start; si < start + count; si++)
 			{
@@ -312,58 +314,55 @@ namespace _Project.WorldGeneration.TerraGen
 
 				if (dist >= seg.ValleyRadius) continue;
 
-				// downhill water surface from the reach's monotonic profile,
-				// quantised into flat pools
+				// continuous downhill water surface (monotonic along the reach)
 				var f     = t * (TerraRiverSeg.PROFILE - 1);
 				var k     = math.min((int)f, TerraRiverSeg.PROFILE - 2);
 				var water = math.lerp(seg.Water[k], seg.Water[k + 1], f - k);
-				water = math.max(0f, math.floor(water / 4f) * 4f);
 
-				var bed     = water - seg.BedDepth;
-				var bankTop = water + seg.BankHeight;
+				var bed = water - seg.BedDepth;
 
-				// overburden fade: a straight reach must not plow a sea-level gorge
-				// through a mountain. Where the natural terrain rises far above the
-				// river's bank top, the reach simply isn't there (rivers don't cross
-				// ridges) — carve fades out and the channel disappears into the high
-				// ground, reappearing on the far side.
-				var climb     = surfBlk - bankTop;
+				// overburden fade: don't plow a sea-level gorge through a ridge —
+				// where the natural terrain rises far above the water, the reach
+				// isn't there (fades out, resumes past the ridge)
+				var climb = natural - water;
 				if (climb > MAX_CLIMB) continue;
-				var climbFade = 1f - math.saturate((climb - MAX_CLIMB * 0.4f) / (MAX_CLIMB * 0.6f));
+				var climbFade = 1f - math.saturate((climb - MAX_CLIMB * 0.5f) / (MAX_CLIMB * 0.5f));
+				if (climbFade <= 0.02f) continue;
 
 				if (climbFade > 0.3f)
 					bestMask = math.min(bestMask, dist / seg.ValleyRadius);
 
+				// cross-section: flat bed in the middle, sloping up to the natural
+				// terrain at the valley rim. Everything the slope leaves below the
+				// water line becomes river — so the whole V floods, not just a
+				// central ditch.
 				float target;
 				if (dist < seg.BedWidth)
-				{
 					target = bed;
-				}
-				else if (dist < seg.BankWidth)
-				{
-					var p = Smooth((dist - seg.BedWidth) / math.max(1e-3f, seg.BankWidth - seg.BedWidth));
-					target = math.lerp(water, bankTop, p);
-				}
 				else
 				{
-					var p = Smooth((dist - seg.BankWidth) / math.max(1e-3f, seg.ValleyRadius - seg.BankWidth));
-					target = math.lerp(bankTop, surfBlk, p);
+					var p = Smooth((dist - seg.BedWidth) / math.max(1e-3f, seg.ValleyRadius - seg.BedWidth));
+					target = math.lerp(bed, natural, p);
 				}
 
-				// blend toward natural where the reach climbs into high ground
-				target = math.lerp(surfBlk, target, climbFade);
+				target = math.lerp(natural, target, climbFade);
 
-				if (target < surfBlk)
+				if (target < bestTarget)
 				{
-					surfBlk     = target;
-					cell.Height = levels.FromBlocksF(surfBlk);
+					bestTarget = target;
+					bestWater  = water;
 				}
+			}
 
-				// channel: mark river + water where the bed sits below the surface
-				if (dist < seg.BedWidth && water >= 1f && surfBlk < water && climbFade > 0.5f)
+			if (bestTarget < natural)
+			{
+				cell.Height = levels.FromBlocksF(bestTarget);
+
+				// any column left below the dominant reach's water line is river
+				if (bestWater >= 1f && bestTarget < bestWater - 0.25f)
 				{
 					cell.Terrain         = TerraTerrain.River;
-					cell.RiverWaterLevel = levels.FromBlocksF(water);
+					cell.RiverWaterLevel = levels.FromBlocksF(bestWater);
 				}
 			}
 
