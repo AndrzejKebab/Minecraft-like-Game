@@ -45,6 +45,12 @@ namespace _Project.WorldGeneration
 
 		public bool RiversEnabled = true;
 
+		[Tooltip("RTF-style branching river networks (flow to the sea) vs simple voronoi rivers")]
+		public bool UseRiverNetworks = true;
+
+		[Tooltip("Main rivers per continent (RTF riverCount)")]
+		public int RiverCount = 7;
+
 		[Tooltip("Functional-erosion mountains (RTF fancy mountains) — pricier but prettier")]
 		public bool FancyMountains = true;
 
@@ -164,6 +170,8 @@ namespace _Project.WorldGeneration
 			terraSettings.TerrainRegionSize = TerrainRegionSize;
 			terraSettings.BiomeSize         = BiomeSize;
 			terraSettings.RiversEnabled           = RiversEnabled;
+			terraSettings.UseRiverNetworks        = UseRiverNetworks;
+			terraSettings.RiverCount              = RiverCount;
 			terraSettings.FancyMountains          = FancyMountains;
 			terraSettings.ErosionEnabled          = ErosionEnabled;
 			terraSettings.ErosionDropletsPerChunk = ErosionDropletsPerChunk;

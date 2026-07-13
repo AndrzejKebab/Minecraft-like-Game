@@ -68,7 +68,8 @@ deterministic per seed.
 | `AdvancedContinentGenerator` + `AbstractContinent` | `TerraContinent` |
 | `RegionModule`, `RegionSelector`, `RegionLerper`, `Populators`, `Blender`, `OceanPopulator` | `TerraTerrains` |
 | `ClimateModule`, `Climate`, `BiomeType.getCurve` | `TerraClimate` |
-| `Rivermap` / `RiverGenerator` / `RiverCarver` | `TerraRivers` (see below) |
+| `Rivermap` / `RiverGenerator` / `Network` / `UpliftRiverCarver` | `TerraRiverNet` (branching networks) |
+| voronoi-drainage fallback rivers            | `TerraRivers` (see below) |
 | `Heightmap`                                 | `TerraHeightmap` |
 | `TileGenerator` / `TileCache`               | `TerraTileGenJob` + `TerraTileSystem` |
 | `tile/filter/Erosion` + `Smoothing` + `Modifier` | `TerraErosion` |
@@ -77,15 +78,24 @@ deterministic per seed.
 
 ## Deliberate deviations from RTF
 
-- **Rivers** — RTF builds explicit per-continent river networks (object graphs of
-  line segments, cached per region). That doesn't translate to stateless Burst
-  jobs, so rivers here follow the edges of a warped drainage voronoi instead:
-  connected branching channels with an RTF-style valley→banks→bed profile carved
-  in real block units through the hypsometric curve, and a local water level that
-  follows the banks. They fade into the sea across the coast band and fade out
-  above ~100 blocks of elevation (no network solver = no consistent water levels
-  on steep slopes; mountain valleys come from the droplet erosion instead). Water
-  levels can still step slightly along a channel. No lakes/wetlands yet.
+- **Rivers** — RTF builds explicit per-continent river networks; `TerraRiverNet`
+  ports that architecture to Burst (`TerraRiverSeg` reaches, deterministic
+  `TerraRng`, meander warp, carve zones, flow to sea). Two deviations from RTF:
+  (1) RTF routes rivers with its uplift / water-table field; we approximate that
+  with a **greedy downhill walk** from an upland source to the coast (steepest
+  descent + coastward bias), emitting short reaches — so channels follow real
+  valleys, join, and reach the sea without gouging canyons through ridges. Where
+  a reach would climb a ridge it fades out (`MAX_CLIMB`) and resumes past it.
+  (2) True confluences aren't snapped — tributaries run their own downhill valleys
+  rather than merging into a parent channel. Water surfaces are monotonic
+  (tracked from terrain), quantised into flat pools, and the tile `SettleWater`
+  pass still guarantees no hanging water. A voronoi-drainage fallback
+  (`TerraRivers`, `UseRiverNetworks = false`) remains for cheap rivers. No
+  lakes/wetlands yet.
+
+  Perf note: networks are rebuilt per tile for the continents it overlaps (a few
+  thousand terrain samples per continent, Burst-compiled). A continent-keyed
+  network cache is the obvious follow-up if tile generation hitches.
 - **CELL_2D table** — RTF's 256-entry jitter table is replaced by a procedural
   hash (Burst can't access managed static arrays). Same range and character, not
   bit-compatible with Java worlds.

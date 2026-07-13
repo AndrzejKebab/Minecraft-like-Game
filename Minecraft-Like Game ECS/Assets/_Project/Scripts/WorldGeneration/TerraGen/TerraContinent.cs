@@ -69,18 +69,26 @@ namespace _Project.WorldGeneration.TerraGen
 			// pass 2: distance to the plate boundary (perpendicular bisector of the
 			// segment to each neighbouring plate centre)
 			nearest = float.MaxValue;
+			var sumX = 0f;
+			var sumY = 0f;
 			for (var cy = cellY - 1; cy <= cellY + 1; cy++)
 			for (var cx = cellX - 1; cx <= cellX + 1; cx++)
 			{
 				if (cx == cellX && cy == cellY) continue;
-				float2 vec  = TerraNoise.CellVec(baseSeed + SEED_CELLS, cx, cy);
-				var    ppx  = cx + vec.x * s.ContinentJitter;
-				var    ppy  = cy + vec.y * s.ContinentJitter;
-				var    dist = BorderDistance(px, py, cellPointX, cellPointY, ppx, ppy);
+				float2 vec = TerraNoise.CellVec(baseSeed + SEED_CELLS, cx, cy);
+				var    ppx = cx + vec.x * s.ContinentJitter;
+				var    ppy = cy + vec.y * s.ContinentJitter;
+				sumX += ppx;
+				sumY += ppy;
+				var dist = BorderDistance(px, py, cellPointX, cellPointY, ppx, ppy);
 				if (dist < nearest) nearest = dist;
 			}
 
 			cell.ContinentDistance = math.sqrt(nearest);
+			// corrected continent centre (getCorrectedContinentCenter, CENTER_CORRECTION 0.35)
+			cell.ContinentCenter = new int2(
+				(int)(math.lerp(cellPointX, sumX / 8f, 0.35f) / frequency),
+				(int)(math.lerp(cellPointY, sumY / 8f, 0.35f) / frequency));
 
 			if (ShouldSkip(baseSeed, cellX, cellY)) return; // ocean plate: edge stays 0
 
@@ -94,6 +102,66 @@ namespace _Project.WorldGeneration.TerraGen
 			var cell = TerraCell.Default();
 			Apply(ref cell, x, y, in s);
 			return cell.ContinentEdge;
+		}
+
+		/// <summary> Nearest corrected continent centre for a position. </summary>
+		public static int2 GetNearestCenter(float x, float y, in TerraGenSettings s)
+		{
+			var cell = TerraCell.Default();
+			Apply(ref cell, x, y, in s);
+			return cell.ContinentCenter;
+		}
+
+		/// <summary>
+		///     AbstractContinent.getDistanceToEdge — how far from (cx, cz) along (dx, dz)
+		///     until the nearest continent centre changes (the plate boundary).
+		/// </summary>
+		public static float GetDistanceToEdge(int cx, int cz, float dx, float dz, in TerraGenSettings s)
+		{
+			var distance = (float)(s.ContinentScale * 4);
+			for (var i = 0; i < 10; i++)
+			{
+				var  x      = cx + dx * distance;
+				var  z      = cz + dz * distance;
+				int2 center = GetNearestCenter(x, z, in s);
+				distance += distance;
+				if (center.x == cx && center.y == cz) continue;
+
+				var low  = 0f;
+				var high = distance;
+				for (var j = 0; j < 50; j++)
+				{
+					var mid = (low + high) / 2f;
+					center = GetNearestCenter(cx + dx * mid, cz + dz * mid, in s);
+					if (center.x == cx && center.y == cz) low = mid;
+					else high = mid;
+					if (high - low < 50f) break;
+				}
+
+				return high;
+			}
+
+			return distance;
+		}
+
+		/// <summary>
+		///     AbstractContinent.getDistanceToOcean — how far from (cx, cz) along
+		///     (dx, dz) until the coastline (edge value drops to shallow ocean).
+		/// </summary>
+		public static float GetDistanceToOcean(int cx, int cz, float dx, float dz, in TerraGenSettings s)
+		{
+			var high = GetDistanceToEdge(cx, cz, dx, dz, in s);
+			var low  = 0f;
+			for (var i = 0; i < 50; i++)
+			{
+				var mid  = (low + high) / 2f;
+				var edge = GetEdgeValue(cx + dx * mid, cz + dz * mid, in s);
+				if (edge > s.ShallowOcean) low = mid;
+				else high = mid;
+				if (high - low < 10f) break;
+			}
+
+			return high;
 		}
 
 		private static bool ShouldSkip(int baseSeed, int cellX, int cellY)

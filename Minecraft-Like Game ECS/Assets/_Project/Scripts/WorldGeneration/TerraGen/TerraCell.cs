@@ -71,6 +71,7 @@ namespace _Project.WorldGeneration.TerraGen
 		public float        ContinentId;
 		public float        ContinentEdge;
 		public float        ContinentDistance;
+		public int2         ContinentCenter; // corrected voronoi centre (river networks key)
 		public float        TerrainRegionId;
 		public float        TerrainRegionEdge;
 		public float2       TerrainRegionCenter; // world-space voronoi centre (climate override)

@@ -13,8 +13,23 @@ namespace _Project.WorldGeneration.TerraGen
 	{
 		private const int SEED_BEACH = 900_000;
 
+		/// <summary>
+		///     Standalone per-column sample: terrain → voronoi rivers → climate.
+		///     Used by the spawn finder and tooling. The tile generator instead runs
+		///     SampleTerrain → TerraRiverNet carve → ApplyClimate so the branching
+		///     networks (which need a pre-built segment list) shape the terrain.
+		/// </summary>
 		public static void Sample(out TerraCell cell, float x, float z,
 		                          in TerraGenSettings s, in TerraLevels levels)
+		{
+			SampleTerrain(out cell, x, z, in s, in levels);
+			TerraRivers.Apply(ref cell, x, z, in s, in levels);
+			ApplyClimate(ref cell, x, z, in s, in levels);
+		}
+
+		/// <summary> Stage 1: continent → regions → land/ocean blend (no rivers/climate). </summary>
+		public static void SampleTerrain(out TerraCell cell, float x, float z,
+		                                 in TerraGenSettings s, in TerraLevels levels)
 		{
 			cell         = TerraCell.Default();
 			cell.Terrain = TerraTerrain.Flats;
@@ -63,9 +78,20 @@ namespace _Project.WorldGeneration.TerraGen
 			cell.Erosion   = result.Erosion;
 			cell.Weirdness = result.Weirdness;
 			cell.Terrain   = result.Terrain;
+		}
 
-			TerraRivers.Apply(ref cell, x, z, in s, in levels);
+		/// <summary> Terrain height in blocks (river water-level assignment). </summary>
+		public static float SampleLandHeightBlocks(float x, float z,
+		                                           in TerraGenSettings s, in TerraLevels levels)
+		{
+			SampleTerrain(out TerraCell cell, x, z, in s, in levels);
+			return levels.ToBlocksF(cell.Height);
+		}
 
+		/// <summary> Stage 2: river-valley climate tweaks + climate + beach detection. </summary>
+		public static void ApplyClimate(ref TerraCell cell, float x, float z,
+		                                in TerraGenSettings s, in TerraLevels levels)
+		{
 			// river-valley climate tweaks (Heightmap.applyClimate)
 			if (cell.RiverMask < 0.675f)
 			{

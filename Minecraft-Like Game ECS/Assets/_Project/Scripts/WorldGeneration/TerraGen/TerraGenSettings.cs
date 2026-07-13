@@ -43,12 +43,20 @@ namespace _Project.WorldGeneration.TerraGen
 
 		// ── Rivers (simplified network — see TerraRivers) ────────────────────
 		public bool  RiversEnabled;
-		public int   RiverScale;       // voronoi scale of the drainage network, default 1000
+		public bool  UseRiverNetworks; // true = RTF-style branching networks, false = voronoi
+		public int   RiverScale;       // voronoi scale of the drainage network (fallback), default 1000
 		public float RiverValleyWidth; // fraction of edge-distance forming the valley, default 0.24
 		public float RiverBankWidth;   // default 0.025
 		public float RiverBedWidth;    // default 0.010
 		public int   RiverValleyDepth; // real blocks of valley carve at the banks, default 16
 		public int   RiverBedDepth;    // real blocks below the local water surface, default 4
+
+		// ── River networks (RTF Rivermap / RiverGenerator port) ──────────────
+		public int   RiverCount;         // main rivers per continent, default 7
+		public int   NetBedWidth;        // channel bed half-width, blocks, default 5
+		public int   NetBankWidth;       // bank half-width, blocks, default 16
+		public int   NetValleyRadius;    // outer valley influence, blocks, default 70
+		public int   NetBankHeight;      // banks above water surface, blocks, default 4
 
 		// ── Filters (RTF FilterSettings — applied per tile) ──────────────────
 		public bool  ErosionEnabled;
@@ -99,12 +107,19 @@ namespace _Project.WorldGeneration.TerraGen
 				       FancyMountains        = true,
 
 				       RiversEnabled    = true,
+				       UseRiverNetworks = true,
 				       RiverScale       = 1000,
 				       RiverValleyWidth = 0.24f,
 				       RiverBankWidth   = 0.025f,
 				       RiverBedWidth    = 0.010f,
 				       RiverValleyDepth = 16,
 				       RiverBedDepth    = 4,
+
+				       RiverCount      = 7,
+				       NetBedWidth     = 5,
+				       NetBankWidth    = 16,
+				       NetValleyRadius = 70,
+				       NetBankHeight   = 4,
 
 				       ErosionEnabled          = true,
 				       ErosionDropletsPerChunk = 135,
