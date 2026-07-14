@@ -62,6 +62,9 @@ namespace _Project.WorldGeneration.Jobs
 		public int   MinTrunkHeight;
 		public int   MaxTrunkHeight;
 
+		// solid blocks kept under a water column so caves can't undermine it
+		private const int CAVE_WATER_SEAL = 5;
+
 		public unsafe void Execute(int index)
 		{
 			Entity                  entity        = Entities[index];
@@ -132,16 +135,30 @@ namespace _Project.WorldGeneration.Jobs
 			                               ref CavesNoise, ref chunkWorldPos, ChunkSize, Seed);
 
 			for (var z = 0; z < ChunkSize; z++)
-			for (var y = 0; y < ChunkSize; y++)
 			for (var x = 0; x < ChunkSize; x++)
 			{
-				var        idx   = x | (y << 5) | (z << 10);
-				BlockState block = blockData[idx];
-				if (block.ID == 0) continue;
-				if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid) continue;
+				TerraColumn column = slice.Columns[baseX + x + (baseZ + z) * gen];
 
-				if (caveMap[new int3(x, y, z)] > 0)
-					blockData[idx] = new BlockState { ID = 0, Orientation = 0 };
+				// keep a solid seal under any water column so a cave can't hollow out
+				// its floor and leave the water floating. Water sits from SurfaceY+1 up,
+				// so we protect SurfaceY down to SurfaceY-CAVE_WATER_SEAL+1; caves still
+				// hollow out everything deeper.
+				var hasWater = column.WaterY > column.SurfaceY;
+				var sealDownTo = column.SurfaceY - CAVE_WATER_SEAL;
+
+				for (var y = 0; y < ChunkSize; y++)
+				{
+					var        idx   = x | (y << 5) | (z << 10);
+					BlockState block = blockData[idx];
+					if (block.ID == 0) continue;
+					if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid) continue;
+
+					var worldY = chunkWorldPos.y + y;
+					if (hasWater && worldY > sealDownTo) continue; // seal under water
+
+					if (caveMap[new int3(x, y, z)] > 0)
+						blockData[idx] = new BlockState { ID = 0, Orientation = 0 };
+				}
 			}
 
 			caveMap.Dispose();
