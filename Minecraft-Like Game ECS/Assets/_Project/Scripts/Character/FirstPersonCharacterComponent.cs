@@ -16,6 +16,12 @@ public struct FirstPersonCharacterComponent : IComponentData
 	public bool                                PreventAirAccelerationAgainstUngroundedHits;
 	public BasicStepAndSlopeHandlingParameters StepAndSlopeHandling;
 
+	// ── Creative-style flight (toggled by double-tapping jump) ───────────────
+	public bool  IsFlying;            // persistent flight state
+	public float FlySpeed;            // horizontal flight speed (blocks/s)
+	public float FlyVerticalSpeed;    // ascend/descend speed (blocks/s)
+	public float FlySprintMultiplier; // speed multiplier while sprint is held
+
 	public float MinViewAngle;
 	public float MaxViewAngle;
 
@@ -31,6 +37,11 @@ public struct FirstPersonCharacterControl : IComponentData
 	public float3 MoveVector;
 	public float2 LookDegreesDelta;
 	public bool   Jump;
+
+	// flight controls
+	public float VerticalInput; // +1 ascend (jump), -1 descend (crouch) while flying
+	public bool  Sprint;        // fly faster while held
+	public bool  ToggleFly;     // edge: flip flight state this tick
 }
 
 [Serializable]

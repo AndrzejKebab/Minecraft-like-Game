@@ -136,6 +136,31 @@ public struct FirstPersonCharacterProcessor : IKinematicCharacterProcessor<First
 				math.rotate(characterBody.RotationFromParent, characterBody.RelativeVelocity);
 		}
 
+		// Toggle flight on a double-tap of jump
+		if (characterControl.ToggleFly)
+			characterComponent.IsFlying = !characterComponent.IsFlying;
+
+		// Flight: free 3D movement, no gravity, but still collides with blocks.
+		// Horizontal from WASD (MoveVector is already horizontal), vertical from
+		// jump/crouch. Sprint multiplies both. Fallbacks guard against a stale bake
+		// that predates the flight fields (all-zero speeds).
+		if (characterComponent.IsFlying)
+		{
+			characterBody.IsGrounded = false;
+
+			var flySpeed  = characterComponent.FlySpeed > 0f ? characterComponent.FlySpeed : 18f;
+			var vertSpeed = characterComponent.FlyVerticalSpeed > 0f ? characterComponent.FlyVerticalSpeed : 12f;
+			var sprintMul = characterComponent.FlySprintMultiplier > 0f
+				? characterComponent.FlySprintMultiplier
+				: 2.5f;
+			if (characterControl.Sprint) { flySpeed *= sprintMul; vertSpeed *= sprintMul; }
+
+			float3 flyVelocity = characterControl.MoveVector * flySpeed
+			                     + math.up() * (characterControl.VerticalInput * vertSpeed);
+			characterBody.RelativeVelocity = flyVelocity;
+			return;
+		}
+
 		if (characterBody.IsGrounded)
 		{
 			// Move on ground

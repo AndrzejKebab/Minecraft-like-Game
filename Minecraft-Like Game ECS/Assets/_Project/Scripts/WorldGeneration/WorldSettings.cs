@@ -49,7 +49,7 @@ namespace _Project.WorldGeneration
 		public bool UseRiverNetworks = true;
 
 		[Tooltip("Main rivers per continent (RTF riverCount)")]
-		public int RiverCount = 7;
+		public int RiverCount = 9;
 
 		[Tooltip("Functional-erosion mountains (RTF fancy mountains) — pricier but prettier")]
 		public bool FancyMountains = true;

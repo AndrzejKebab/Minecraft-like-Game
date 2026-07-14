@@ -138,44 +138,80 @@ namespace _Project.WorldGeneration.TerraGen
 			}
 		}
 
+		// max block a river's water surface may drop between two adjacent columns.
+		// Steeper steps are impossible for standing water — they render as a
+		// vertical wall — so the relaxation ramps them out over several columns.
+		private const float MAX_WATER_STEP = 1f;
+
 		/// <summary>
 		///     Tile-level water consistency pass (runs in TerraTileGenJob over the
-		///     bordered grid, in block units). Per-column water levels can disagree
-		///     with their surroundings — quantised pools change level mid-channel and
-		///     terrain can slope across the river — which renders as water hanging in
-		///     the air. Two rules fix it:
-		///     1. spill — water higher than an adjacent land surface is clamped down
-		///        to that surface (it would pour out there),
-		///     2. weirs — where a pool drops to a lower pool, the boundary column's
-		///        bed is raised to the upper water level, forming a solid lip so the
-		///        step face is ground instead of exposed water.
+		///     bordered grid, in block units). Per-column water levels, taken from the
+		///     nearest reach, can disagree with their surroundings — the surface can
+		///     sit above adjacent land (it would pour out) or drop faster than water
+		///     physically can between two columns (a vertical wall of water). Both read
+		///     as water hanging in the air. Relax the surface until neither happens:
+		///
+		///     1. spill  — water above an adjacent LAND surface is clamped to it.
+		///     2. ramp   — water more than MAX_WATER_STEP above an adjacent RIVER
+		///                 column is clamped to neighbour + step, so a steep drop
+		///                 spreads into a gentle downhill ramp instead of a wall.
+		///
+		///     Both rules only ever LOWER water, so a river keeps its natural profile
+		///     wherever that profile is already gentle; only walls get ramped. The
+		///     rules propagate one column per iteration, so we iterate enough to carry
+		///     a low outlet up a long flooded reach. Finally the bed is dropped to stay
+		///     just below the settled surface, so the ramped stretch actually holds
+		///     flowing water rather than turning into a dry ditch.
 		/// </summary>
 		public static void SettleWater(in NativeArray<TerraGenCell> cells,
 		                               ref NativeArray<float> surfBlocks,
 		                               ref NativeArray<float> waterBlocks, int size)
 		{
-			// pass 1: lateral spill clamp against land neighbours
-			for (var z = 1; z < size - 1; z++)
-			for (var x = 1; x < size - 1; x++)
-			{
-				var i = x + z * size;
-				if (cells[i].Terrain != TerraTerrain.River) continue;
+			// enough iterations to ramp out a tall wall across a wide flooded reach
+			const int iterations = 24;
 
-				var w = waterBlocks[i];
-				for (var n = 0; n < 4; n++)
+			for (var it = 0; it < iterations; it++)
+			{
+				var changed = false;
+				for (var z = 1; z < size - 1; z++)
+				for (var x = 1; x < size - 1; x++)
 				{
-					var j = Neighbor(i, n, size);
-					if (cells[j].Terrain == TerraTerrain.River) continue;
-					// submerged land contains up to the sea surface
-					var containment = math.max(surfBlocks[j], 0f);
-					if (containment < w) w = containment;
+					var i = x + z * size;
+					if (cells[i].Terrain != TerraTerrain.River) continue;
+
+					var w = waterBlocks[i];
+					for (var n = 0; n < 4; n++)
+					{
+						var j = Neighbor(i, n, size);
+						float limit;
+						if (cells[j].Terrain == TerraTerrain.River)
+							// downhill ramp: can't stand more than one step over a
+							// lower river neighbour — propagates the low outlet upstream
+							limit = waterBlocks[j] + MAX_WATER_STEP;
+						else
+							// spill: submerged land contains up to the sea surface
+							limit = math.max(surfBlocks[j], 0f);
+						if (limit < w) w = limit;
+					}
+
+					if (w < waterBlocks[i])
+					{
+						waterBlocks[i] = w;
+						changed        = true;
+					}
 				}
 
-				waterBlocks[i] = w;
+				if (!changed) break;
 			}
 
-			// (no weir pass: continuous downhill water needs no dams — river→river
-			//  level changes are ≤1 block and read as small rapids, not sand steps)
+			// keep the bed just under the settled surface so the ramped-down stretch
+			// carries water instead of leaving an exposed dry channel (only lowers)
+			for (var i = 0; i < size * size; i++)
+			{
+				if (cells[i].Terrain != TerraTerrain.River) continue;
+				var floor = waterBlocks[i] - 1f;
+				if (floor < surfBlocks[i]) surfBlocks[i] = floor;
+			}
 		}
 
 		private static int Neighbor(int index, int direction, int size)

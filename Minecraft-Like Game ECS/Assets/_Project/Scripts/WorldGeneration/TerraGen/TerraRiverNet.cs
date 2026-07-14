@@ -157,9 +157,9 @@ namespace _Project.WorldGeneration.TerraGen
 		                                     in TerraGenSettings s, in TerraLevels levels,
 		                                     ref NativeList<TerraRiverSeg> segs, ref TerraRng rng)
 		{
-			if (depth > 2 || count < 3 || segs.Length >= MAX_SEGMENTS) return;
+			if (depth > 1 || count < 3 || segs.Length >= MAX_SEGMENTS) return;
 
-			var tribs   = depth == 0 ? 3 : 2;
+			var tribs   = depth == 0 ? 2 : 1;
 			var maxStep = depth == 0 ? 90 : 55;
 
 			for (var t = 0; t < tribs; t++)

@@ -52,7 +52,7 @@ namespace _Project.WorldGeneration.TerraGen
 		public int   RiverBedDepth;    // real blocks below the local water surface, default 4
 
 		// ── River networks (RTF Rivermap / RiverGenerator port) ──────────────
-		public int   RiverCount;         // main rivers per continent, default 7
+		public int   RiverCount;         // main rivers per continent, default 9
 		public int   NetBedWidth;        // channel bed half-width, blocks, default 5
 		public int   NetBankWidth;       // bank half-width, blocks, default 16
 		public int   NetValleyRadius;    // outer valley influence, blocks, default 70
@@ -115,7 +115,7 @@ namespace _Project.WorldGeneration.TerraGen
 				       RiverValleyDepth = 16,
 				       RiverBedDepth    = 4,
 
-				       RiverCount      = 14,
+				       RiverCount      = 9,
 				       NetBedWidth     = 6,
 				       NetBankWidth    = 16,
 				       NetValleyRadius = 50,

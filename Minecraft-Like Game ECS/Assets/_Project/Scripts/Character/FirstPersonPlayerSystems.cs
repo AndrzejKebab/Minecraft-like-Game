@@ -10,6 +10,10 @@ using UnityEngine.InputSystem;
 [UpdateBefore(typeof(FixedStepSimulationSystemGroup))]
 public partial class FirstPersonPlayerInputsSystem : SystemBase
 {
+	// max seconds between two jump taps to count as a double-tap (toggles flight)
+	private const double DoubleTapWindow = 0.30;
+	private       double m_LastJumpTapTime = double.NegativeInfinity;
+
 	protected override void OnCreate()
 	{
 		RequireForUpdate<FixedTickSystem.Singleton>();
@@ -21,6 +25,22 @@ public partial class FirstPersonPlayerInputsSystem : SystemBase
 	protected override void OnUpdate()
 	{
 		var tick = SystemAPI.GetSingleton<FixedTickSystem.Singleton>().Tick;
+		var now  = SystemAPI.Time.ElapsedTime;
+
+		// double-tap jump → toggle flight (detected once per frame, not per player)
+		var jumpTapped   = Keyboard.current.spaceKey.wasPressedThisFrame;
+		var flyToggled   = false;
+		if (jumpTapped)
+		{
+			if (now - m_LastJumpTapTime <= DoubleTapWindow) flyToggled = true;
+			m_LastJumpTapTime = now;
+		}
+
+		// vertical flight input: jump held ascends, crouch (C / left ctrl) descends
+		var ascend  = Keyboard.current.spaceKey.isPressed;
+		var descend = Keyboard.current.cKey.isPressed || Keyboard.current.leftCtrlKey.isPressed;
+		var vertical = (ascend ? 1f : 0f) + (descend ? -1f : 0f);
+		var sprint   = Keyboard.current.leftShiftKey.isPressed;
 
 		foreach ((RefRW<FirstPersonPlayerInputs> playerInputs, RefRW<PlayerInteractionState> interactState,
 		          RefRO<FirstPersonPlayer> player) in SystemAPI
@@ -34,9 +54,12 @@ public partial class FirstPersonPlayerInputsSystem : SystemBase
 				                                     (Keyboard.current.sKey.isPressed ? -1f : 0f)
 			                                 };
 
-			playerInputs.ValueRW.LookInput = Mouse.current.delta.ReadValue() * player.ValueRO.LookInputSensitivity;
+			playerInputs.ValueRW.LookInput     = Mouse.current.delta.ReadValue() * player.ValueRO.LookInputSensitivity;
+			playerInputs.ValueRW.VerticalInput = vertical;
+			playerInputs.ValueRW.SprintHeld    = sprint;
 
-			if (Keyboard.current.spaceKey.wasPressedThisFrame) playerInputs.ValueRW.JumpPressed.Set(tick);
+			if (jumpTapped) playerInputs.ValueRW.JumpPressed.Set(tick);
+			if (flyToggled) playerInputs.ValueRW.FlyTogglePressed.Set(tick);
 
 			interactState.ValueRW.BreakPressed = Mouse.current.leftButton.wasPressedThisFrame;
 			interactState.ValueRW.PlacePressed = Mouse.current.rightButton.wasPressedThisFrame;
@@ -116,6 +139,11 @@ public partial struct FirstPersonPlayerFixedStepControlSystem : ISystem
 
 				// Jump
 				characterControl.Jump = playerInputs.ValueRO.JumpPressed.IsSet(tick);
+
+				// Flight
+				characterControl.ToggleFly     = playerInputs.ValueRO.FlyTogglePressed.IsSet(tick);
+				characterControl.VerticalInput = playerInputs.ValueRO.VerticalInput;
+				characterControl.Sprint        = playerInputs.ValueRO.SprintHeld;
 
 				SystemAPI.SetComponent(player.ValueRO.ControlledCharacter, characterControl);
 			}

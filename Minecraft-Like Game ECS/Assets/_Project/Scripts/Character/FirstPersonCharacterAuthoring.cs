@@ -24,6 +24,11 @@ public class FirstPersonCharacterAuthoring : MonoBehaviour
 	public float                               MinViewAngle = -90f;
 	public float                               MaxViewAngle = 90f;
 
+	[Header("Flight (double-tap jump to toggle)")]
+	public float FlySpeed            = 18f;
+	public float FlyVerticalSpeed    = 12f;
+	public float FlySprintMultiplier = 2.5f;
+
 	public class Baker : Baker<FirstPersonCharacterAuthoring>
 	{
 		public override void Bake(FirstPersonCharacterAuthoring authoring)
@@ -46,6 +51,11 @@ public class FirstPersonCharacterAuthoring : MonoBehaviour
 				                     StepAndSlopeHandling = authoring.StepAndSlopeHandling,
 				                     MinViewAngle         = authoring.MinViewAngle,
 				                     MaxViewAngle         = authoring.MaxViewAngle,
+
+				                     IsFlying            = false,
+				                     FlySpeed            = authoring.FlySpeed,
+				                     FlyVerticalSpeed    = authoring.FlyVerticalSpeed,
+				                     FlySprintMultiplier = authoring.FlySprintMultiplier,
 
 				                     ViewEntity        = GetEntity(authoring.ViewEntity, TransformUsageFlags.Dynamic),
 				                     ViewPitchDegrees  = 0f,
