@@ -284,10 +284,11 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			if (count == 0) return;
 
-			var natural    = levels.ToBlocksF(cell.Height);
-			var bestTarget = natural; // deepest carve across all reaches
-			var bestWater  = 0f;      // water level of the deepest (dominant) reach
-			var bestMask   = 1f;
+			var natural     = levels.ToBlocksF(cell.Height);
+			var bestTarget  = natural;         // deepest carve across all reaches (height)
+			var nearestDist = float.MaxValue;  // closest channel to this column
+			var nearestWater = 0f;             // that channel's water level (fills the V)
+			var bestMask    = 1f;
 
 			for (var si = start; si < start + count; si++)
 			{
@@ -347,23 +348,27 @@ namespace _Project.WorldGeneration.TerraGen
 
 				target = math.lerp(natural, target, climbFade);
 
-				if (target < bestTarget)
+				// deepest carve sets the ground height
+				if (target < bestTarget) bestTarget = target;
+
+				// the NEAREST channel sets the water level that floods this column —
+				// not the deepest reach (whose water may be far lower, e.g. a
+				// downstream reach or a crossing river), which would leave the V dry
+				if (dist < nearestDist)
 				{
-					bestTarget = target;
-					bestWater  = water;
+					nearestDist  = dist;
+					nearestWater = water;
 				}
 			}
 
 			if (bestTarget < natural)
-			{
 				cell.Height = levels.FromBlocksF(bestTarget);
 
-				// any column left below the dominant reach's water line is river
-				if (bestWater >= 1f && bestTarget < bestWater - 0.25f)
-				{
-					cell.Terrain         = TerraTerrain.River;
-					cell.RiverWaterLevel = levels.FromBlocksF(bestWater);
-				}
+			// river wherever the carved ground sits below the nearest channel's water
+			if (nearestWater >= 1f && bestTarget < nearestWater - 0.25f)
+			{
+				cell.Terrain         = TerraTerrain.River;
+				cell.RiverWaterLevel = levels.FromBlocksF(nearestWater);
 			}
 
 			cell.RiverMask = math.min(cell.RiverMask, bestMask);
