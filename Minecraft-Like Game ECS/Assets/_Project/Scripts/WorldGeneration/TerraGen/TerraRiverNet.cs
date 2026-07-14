@@ -102,6 +102,7 @@ namespace _Project.WorldGeneration.TerraGen
 		private const float INLAND_BIAS = 12f;  // steer the trace toward the interior
 		private const float MAX_RISE    = 30f;  // max blocks the water surface climbs per reach
 		private const int   STALL_STOP  = 20;   // steps without new high ground before the river ends
+		private const float MERGE_DIST  = 30f;  // stop a river when it reaches an existing one (confluence)
 
 		/// <summary>
 		///     Build the whole network for one continent, appending reaches to `segs`.
@@ -146,7 +147,10 @@ namespace _Project.WorldGeneration.TerraGen
 				var mouth     = new float2(center.x + dx * coastDist, center.y + dz * coastDist);
 				if (TerraContinent.GetEdgeValue(mouth.x, mouth.y, in s) < s.Coast) continue;
 
-				TraceUpstream(mouth, center, in s, in levels, ref segs, ref rng);
+				// reaches laid so far — a later river stops when it meets one of these,
+				// so channels form a branching tree and never pile up into a flood hub
+				var mergeLimit = segs.Length;
+				TraceUpstream(mouth, center, mergeLimit, in s, in levels, ref segs, ref rng);
 			}
 		}
 
@@ -164,7 +168,7 @@ namespace _Project.WorldGeneration.TerraGen
 		///        the ground (a carved bed). That is a river flowing downhill to the sea
 		///        with no pooled lake and no standing wall of water.
 		/// </summary>
-		private static unsafe void TraceUpstream(float2 mouth, int2 center,
+		private static unsafe void TraceUpstream(float2 mouth, int2 center, int mergeLimit,
 		                                         in TerraGenSettings s, in TerraLevels levels,
 		                                         ref NativeList<TerraRiverSeg> segs, ref TerraRng rng)
 		{
@@ -219,6 +223,17 @@ namespace _Project.WorldGeneration.TerraGen
 				// don't wander back off the continent
 				if (TerraContinent.GetEdgeValue(next.x, next.y, in s) < s.Coast) break;
 
+				// stop when we reach an already-traced river — that's a confluence.
+				// Prevents independent rivers from piling their reaches into the same
+				// low area and flooding it; instead they join into a branching tree.
+				if (ReachesExistingRiver(next, segs, mergeLimit))
+				{
+					px[n] = next.x; pz[n] = next.y;
+					pt[n] = TerraHeightmap.SampleLandHeightBlocks(next.x, next.y, in s, in levels);
+					n++;
+					break;
+				}
+
 				var nextTerr = TerraHeightmap.SampleLandHeightBlocks(next.x, next.y, in s, in levels);
 				px[n] = next.x; pz[n] = next.y; pt[n] = nextTerr; n++;
 				pos = next; terr = nextTerr;
@@ -253,6 +268,25 @@ namespace _Project.WorldGeneration.TerraGen
 				         w[i], w[i + 1],
 				         s.NetBedWidth, s.NetBankWidth, s.NetValleyRadius,
 				         s.RiverBedDepth, s.NetBankHeight, ref rng);
+		}
+
+		/// <summary> True if `p` is within MERGE_DIST of any reach in [0, limit). </summary>
+		private static bool ReachesExistingRiver(float2 p, in NativeList<TerraRiverSeg> segs, int limit)
+		{
+			for (var i = 0; i < limit; i++)
+			{
+				TerraRiverSeg seg = segs[i];
+				if (p.x < seg.Min.x || p.x > seg.Max.x || p.y < seg.Min.y || p.y > seg.Max.y) continue;
+				var t = math.saturate(((p.x - seg.P1.x) * (seg.P2.x - seg.P1.x) +
+				                       (p.y - seg.P1.y) * (seg.P2.y - seg.P1.y)) * seg.InvLen2);
+				var projX = seg.P1.x + (seg.P2.x - seg.P1.x) * t;
+				var projY = seg.P1.y + (seg.P2.y - seg.P1.y) * t;
+				var dx    = p.x - projX;
+				var dy    = p.y - projY;
+				if (dx * dx + dy * dy < MERGE_DIST * MERGE_DIST) return true;
+			}
+
+			return false;
 		}
 
 		/// <summary> Shortest signed angular difference from → to, in radians. </summary>
@@ -320,11 +354,11 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			if (count == 0) return;
 
-			var natural      = levels.ToBlocksF(cell.Height);
-			var bestTarget   = natural;        // deepest carve across all reaches (ground height)
-			var nearestDist  = float.MaxValue; // closest channel to this column
-			var nearestWater = float.MinValue; // that channel's water surface
-			var bestMask     = 1f;
+			var natural    = levels.ToBlocksF(cell.Height);
+			var bestTarget = natural;         // deepest carve across all reaches (valley shape)
+			var chanBed    = natural;         // deepest bed among channels covering this column
+			var chanWater  = float.MinValue;  // that channel's water surface
+			var bestMask   = 1f;
 
 			for (var si = start; si < start + count; si++)
 			{
@@ -373,24 +407,30 @@ namespace _Project.WorldGeneration.TerraGen
 
 				target = math.lerp(natural, target, climbFade);
 
+				// the whole valley carves the terrain (broad shape)…
 				if (target < bestTarget) bestTarget = target;
-				if (climbFade > 0.3f) bestMask = math.min(bestMask, dist / seg.ValleyRadius);
 
-				if (dist < nearestDist)
+				// …but WATER only fills the inner channel (within the bank width), so a
+				// river running through a natural low basin stays a channel instead of
+				// flooding the whole basin into a lake. Bed and water are tied to the
+				// same deepest channel here, so a column belongs to one river — no
+				// terraced water where two rivers cross.
+				if (dist < seg.BankWidth && target < chanBed)
 				{
-					nearestDist  = dist;
-					nearestWater = water;
+					chanBed   = target;
+					chanWater = water;
 				}
+				if (climbFade > 0.3f) bestMask = math.min(bestMask, dist / seg.ValleyRadius);
 			}
 
 			if (bestTarget < natural)
 				cell.Height = levels.FromBlocksF(bestTarget);
 
-			// river wherever the carved bed sits below the nearest channel's water
-			if (nearestWater > float.MinValue && bestTarget < nearestWater - 0.25f && nearestWater >= 0.5f)
+			// river wherever the (deepest) ground sits below the channel's water surface
+			if (chanWater > float.MinValue && bestTarget < chanWater - 0.25f && chanWater >= 0.5f)
 			{
 				cell.Terrain         = TerraTerrain.River;
-				cell.RiverWaterLevel = levels.FromBlocksF(nearestWater);
+				cell.RiverWaterLevel = levels.FromBlocksF(chanWater);
 			}
 
 			cell.RiverMask = math.min(cell.RiverMask, bestMask);
