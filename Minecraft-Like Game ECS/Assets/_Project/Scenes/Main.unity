@@ -863,7 +863,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3ea3d19ead440dfb4acbfb658a8cf0a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.World.WorldAuthoring
-  Seed: 0
+  Seed: 1337
   ContinentalnessEncoded: IAkQ@B+kMY@BPzAB@BCSQJLgAB@BCQ0AB@CgAACBACQc@AB6RAQDmpkZPwsAAIA/FAMAAMhCDA==
   PeaksAndValleysEncoded: KQkOCSkJGQkNAAQ@BJBwAAQJxFLA==
   ErosionEncoded: FwkeCS4AAQ@BkNAAQ@BJBg@AHpECP////8cAgg@AB6RAgB@BDA==

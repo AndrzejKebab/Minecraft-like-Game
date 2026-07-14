@@ -172,8 +172,16 @@ PrefabInstance:
       value: FirstPersonCharacter
       objectReference: {fileID: 0}
     - target: {fileID: 2674214978767437844, guid: e95be3f6ef9cc8243994bdcda968a0e5, type: 3}
+      propertyPath: FlySpeed
+      value: 20
+      objectReference: {fileID: 0}
+    - target: {fileID: 2674214978767437844, guid: e95be3f6ef9cc8243994bdcda968a0e5, type: 3}
       propertyPath: Gravity.y
       value: -30
+      objectReference: {fileID: 0}
+    - target: {fileID: 2674214978767437844, guid: e95be3f6ef9cc8243994bdcda968a0e5, type: 3}
+      propertyPath: FlyVerticalSpeed
+      value: 20
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

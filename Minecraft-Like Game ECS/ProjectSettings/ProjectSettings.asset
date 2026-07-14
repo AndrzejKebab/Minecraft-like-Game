@@ -841,7 +841,11 @@ PlayerSettings:
   webWasm2023: 1
   webEnableSubmoduleStrippingCompatibility: 0
   webProgressiveAssetLoading: 0
-  scriptingDefineSymbols: {}
+  scriptingDefineSymbols:
+    Android: FN2_USER_SIGNED
+    Server: FN2_USER_SIGNED
+    Standalone: UNITY_PHYSICS_CUSTOM;FN2_USER_SIGNED
+    iPhone: FN2_USER_SIGNED
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:
