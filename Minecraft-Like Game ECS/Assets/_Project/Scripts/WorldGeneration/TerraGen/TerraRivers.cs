@@ -225,8 +225,8 @@ namespace _Project.WorldGeneration.TerraGen
 			}
 		}
 
-		private const float BEACH_MAX_HEIGHT = 6f; // blocks above sea a shore may still be sanded
-		private const int   BEACH_REACH      = 2;  // sand extends this many blocks in from the water
+		private const float BEACH_MAX_HEIGHT = 5f; // blocks above sea a shore may still be sanded
+		private const int   BEACH_REACH      = 6;  // sand extends this many blocks in from the water
 
 		/// <summary>
 		///     Shoreline sand pass (runs in TerraTileGenJob over the bordered grid). This
