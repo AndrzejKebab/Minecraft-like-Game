@@ -22,7 +22,8 @@ namespace _Project.WorldGeneration.Systems
 	///        velocity every frame) while chunks stream in; the exact surface Y is
 	///        read from the generated tile columns (post-erosion ground truth).
 	///     3. Release — when the ground chunk has its physics collider, or after a
-	///        hard timeout so the player can never be locked in place forever.
+	///        hard timeout so the player can never be locked in place forever. Once
+	///        released the player is on their own — we never yank them back.
 	///     Runs before PlayerVisibleChunksSystem so streaming centres on the spawn
 	///     from the very first frame.
 	/// </summary>
@@ -30,13 +31,11 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateBefore(typeof(PlayerVisibleChunksSystem))]
 	public partial struct PlayerSpawnSystem : ISystem
 	{
-		private const int HOLD_TIMEOUT_FRAMES  = 1800; // ~30 s — never lock movement forever
-		private const int GUARD_TIMEOUT_FRAMES = 900;  // post-release fall watch
+		private const int HOLD_TIMEOUT_FRAMES = 1800; // ~30 s — never lock movement forever
 
-		private byte phase; // 0 = search, 1 = hold, 2 = fall guard, 3 = done
+		private byte phase; // 0 = search, 1 = hold, 2 = done
 		private bool groundRefined;
 		private int  holdFrames;
-		private int  guardFrames;
 		private int3 spawnBlock; // top solid block of the spawn column
 
 		public void OnCreate(ref SystemState state)
@@ -51,34 +50,13 @@ namespace _Project.WorldGeneration.Systems
 
 		public void OnUpdate(ref SystemState state)
 		{
-			if (phase == 3)
+			if (phase == 2)
 			{
 				state.Enabled = false;
 				return;
 			}
 
 			Entity player = SystemAPI.GetSingletonEntity<Player>();
-
-			// ── 4. fall guard: after release, catch the player if the collider
-			//      still wasn't ready and they slipped through the ground ────────
-			if (phase == 2)
-			{
-				guardFrames++;
-				var pos = SystemAPI.GetComponentRO<LocalTransform>(player).ValueRO.Position;
-				if (pos.y < spawnBlock.y - 20f)
-				{
-					Debug.LogWarning("[PlayerSpawnSystem] Player fell through unready ground — " +
-					                 "teleporting back to the spawn");
-					SystemAPI.GetComponentRW<LocalTransform>(player).ValueRW.Position =
-						new float3(spawnBlock.x + 0.5f, spawnBlock.y + 2.5f, spawnBlock.z + 0.5f);
-					if (SystemAPI.HasComponent<KinematicCharacterBody>(player))
-						SystemAPI.GetComponentRW<KinematicCharacterBody>(player).ValueRW.RelativeVelocity =
-							float3.zero;
-				}
-
-				if (guardFrames > GUARD_TIMEOUT_FRAMES) phase = 3;
-				return;
-			}
 
 			// ── 1. search ──────────────────────────────────────────────────────
 			if (phase == 0)
@@ -130,7 +108,7 @@ namespace _Project.WorldGeneration.Systems
 			if (holdFrames > HOLD_TIMEOUT_FRAMES)
 			{
 				Debug.LogWarning("[PlayerSpawnSystem] Ground collider never appeared — " +
-				                 "releasing the player with a fall guard");
+				                 "releasing the player anyway");
 				phase = 2;
 				return;
 			}

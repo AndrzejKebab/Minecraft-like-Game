@@ -225,16 +225,17 @@ namespace _Project.WorldGeneration.TerraGen
 			}
 		}
 
-		private const float BEACH_MAX_HEIGHT = 5f; // blocks above sea a shore stays sandy
-		private const int   BEACH_REACH      = 3;  // how close to the water a column must be
+		private const float BEACH_MAX_HEIGHT = 6f; // blocks above sea a shore may still be sanded
+		private const int   BEACH_REACH      = 2;  // sand extends this many blocks in from the water
 
 		/// <summary>
-		///     Shoreline sand pass (runs in TerraTileGenJob over the bordered grid). The
-		///     height-based beach heuristic is patchy on a gradual coastal shelf, leaving
-		///     grass right at the waterline. Here we sand every low land column that sits
-		///     within a few blocks of open sea, so an ocean edge always reads
-		///     water → sand → grass. River banks (and inland water) are left as grass
-		///     because their neighbours are river, not sea.
+		///     Shoreline sand pass (runs in TerraTileGenJob over the bordered grid). This
+		///     is the ONLY beach source: a thin, uniform strip of sand on the land that
+		///     actually touches the sea, so an ocean edge reads water → sand → grass
+		///     everywhere without the wide beaches a height rule made on flat coasts.
+		///     Any land column within BEACH_REACH of an underwater sea column (surface
+		///     below sea level, not a river) becomes sand, unless it is a tall cliff.
+		///     River banks are left as grass — their wet neighbours are river, not sea.
 		/// </summary>
 		public static void ShorelineBeach(ref NativeArray<TerraGenCell> cells,
 		                                  in NativeArray<float> surfBlocks, int size)
@@ -249,7 +250,7 @@ namespace _Project.WorldGeneration.TerraGen
 				var surf = surfBlocks[i];
 				if (surf < 0f || surf > BEACH_MAX_HEIGHT) continue; // underwater, or too high (cliff)
 
-				// is open sea within reach?
+				// open sea within reach? (any column whose surface is below sea level)
 				var nearSea = false;
 				for (var dz = -BEACH_REACH; dz <= BEACH_REACH && !nearSea; dz++)
 				for (var dx = -BEACH_REACH; dx <= BEACH_REACH; dx++)
@@ -258,7 +259,7 @@ namespace _Project.WorldGeneration.TerraGen
 					var nz = z + dz;
 					if (nx < 0 || nx >= size || nz < 0 || nz >= size) continue;
 					var j = nx + nz * size;
-					if (surfBlocks[j] < -0.5f && cells[j].Terrain != TerraTerrain.River)
+					if (surfBlocks[j] < 0f && cells[j].Terrain != TerraTerrain.River)
 					{
 						nearSea = true;
 						break;

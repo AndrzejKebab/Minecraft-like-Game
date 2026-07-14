@@ -106,18 +106,9 @@ namespace _Project.WorldGeneration.TerraGen
 
 			TerraClimate.Apply(ref cell, x, z, in s, in levels);
 
-			// beach detection: land right at the OCEAN shore becomes sand — block
-			// based (so the very waterline is sand, not a grass line) and gated to
-			// the coastal band so inland river valleys keep grass banks. Mountain
-			// skirts reaching the sea are included (RTF's coast-override skips them).
-			if (cell.Terrain != TerraTerrain.River && !cell.Terrain.IsSubmerged() &&
-			    cell.ContinentEdge < s.Coast + 0.07f)
-			{
-				var surfY      = levels.ToBlockY(cell.Height);
-				var beachTopY  = 3 + (int)math.round(math.abs(cell.BeachNoise));
-				if (surfY >= 0 && surfY <= beachTopY)
-					cell.Terrain = TerraTerrain.Beach;
-			}
+			// NOTE: no beach here. Sand is applied per-tile by TerraRivers.ShorelineBeach,
+			// which sands only the land actually touching the sea — a thin, uniform strip
+			// instead of the wide beaches a height-based rule produced on flat coasts.
 		}
 
 		/// <summary>
