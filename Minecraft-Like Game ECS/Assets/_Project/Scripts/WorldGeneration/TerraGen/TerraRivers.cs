@@ -225,17 +225,19 @@ namespace _Project.WorldGeneration.TerraGen
 			}
 		}
 
-		private const float BEACH_MAX_HEIGHT = 5f; // blocks above sea a shore may still be sanded
-		private const int   BEACH_REACH      = 6;  // sand extends this many blocks in from the water
+		private const int BEACH_MAX_HEIGHT = 5; // top block this many above sea still sands
+		private const int BEACH_REACH      = 6; // sand extends this many blocks in from the water
 
 		/// <summary>
 		///     Shoreline sand pass (runs in TerraTileGenJob over the bordered grid). This
-		///     is the ONLY beach source: a thin, uniform strip of sand on the land that
-		///     actually touches the sea, so an ocean edge reads water → sand → grass
-		///     everywhere without the wide beaches a height rule made on flat coasts.
-		///     Any land column within BEACH_REACH of an underwater sea column (surface
-		///     below sea level, not a river) becomes sand, unless it is a tall cliff.
-		///     River banks are left as grass — their wet neighbours are river, not sea.
+		///     is the ONLY beach source: sand on the low land that actually touches the
+		///     sea, so an ocean edge reads water → sand → grass.
+		///
+		///     IMPORTANT: sea/land is decided with the SAME rounding the mesher uses
+		///     (a column renders water when round(surface) &lt; 0). Testing the raw float
+		///     against 0 instead misclassifies every column in [-0.5, 0): the mesher
+		///     draws them as grass at Y0 while this pass thought they were sea, which
+		///     left a grass line at the waterline and pushed the sand one row inland.
 		/// </summary>
 		public static void ShorelineBeach(ref NativeArray<TerraGenCell> cells,
 		                                  in NativeArray<float> surfBlocks, int size)
@@ -247,10 +249,12 @@ namespace _Project.WorldGeneration.TerraGen
 				var c = cells[i];
 				if (c.Terrain == TerraTerrain.River) continue;
 
-				var surf = surfBlocks[i];
-				if (surf < 0f || surf > BEACH_MAX_HEIGHT) continue; // underwater, or too high (cliff)
+				// rendered surface block (matches ClassifyVoxel's SurfaceY)
+				var y = (int)math.round(surfBlocks[i]);
+				if (y < 0 || y > BEACH_MAX_HEIGHT) continue; // sea itself, or too high (cliff)
 
-				// open sea within reach? (any column whose surface is below sea level)
+				// open sea within reach? a neighbour renders water when its rounded
+				// surface is below sea level
 				var nearSea = false;
 				for (var dz = -BEACH_REACH; dz <= BEACH_REACH && !nearSea; dz++)
 				for (var dx = -BEACH_REACH; dx <= BEACH_REACH; dx++)
@@ -259,7 +263,7 @@ namespace _Project.WorldGeneration.TerraGen
 					var nz = z + dz;
 					if (nx < 0 || nx >= size || nz < 0 || nz >= size) continue;
 					var j = nx + nz * size;
-					if (surfBlocks[j] < 0f && cells[j].Terrain != TerraTerrain.River)
+					if ((int)math.round(surfBlocks[j]) < 0 && cells[j].Terrain != TerraTerrain.River)
 					{
 						nearSea = true;
 						break;
