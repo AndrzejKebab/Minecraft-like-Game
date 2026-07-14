@@ -224,5 +224,51 @@ namespace _Project.WorldGeneration.TerraGen
 				default: return index + size;
 			}
 		}
+
+		private const float BEACH_MAX_HEIGHT = 5f; // blocks above sea a shore stays sandy
+		private const int   BEACH_REACH      = 3;  // how close to the water a column must be
+
+		/// <summary>
+		///     Shoreline sand pass (runs in TerraTileGenJob over the bordered grid). The
+		///     height-based beach heuristic is patchy on a gradual coastal shelf, leaving
+		///     grass right at the waterline. Here we sand every low land column that sits
+		///     within a few blocks of open sea, so an ocean edge always reads
+		///     water → sand → grass. River banks (and inland water) are left as grass
+		///     because their neighbours are river, not sea.
+		/// </summary>
+		public static void ShorelineBeach(ref NativeArray<TerraGenCell> cells,
+		                                  in NativeArray<float> surfBlocks, int size)
+		{
+			for (var z = 0; z < size; z++)
+			for (var x = 0; x < size; x++)
+			{
+				var i = x + z * size;
+				var c = cells[i];
+				if (c.Terrain == TerraTerrain.River) continue;
+
+				var surf = surfBlocks[i];
+				if (surf < 0f || surf > BEACH_MAX_HEIGHT) continue; // underwater, or too high (cliff)
+
+				// is open sea within reach?
+				var nearSea = false;
+				for (var dz = -BEACH_REACH; dz <= BEACH_REACH && !nearSea; dz++)
+				for (var dx = -BEACH_REACH; dx <= BEACH_REACH; dx++)
+				{
+					var nx = x + dx;
+					var nz = z + dz;
+					if (nx < 0 || nx >= size || nz < 0 || nz >= size) continue;
+					var j = nx + nz * size;
+					if (surfBlocks[j] < -0.5f && cells[j].Terrain != TerraTerrain.River)
+					{
+						nearSea = true;
+						break;
+					}
+				}
+
+				if (!nearSea) continue;
+				c.Terrain = TerraTerrain.Beach;
+				cells[i]  = c;
+			}
+		}
 	}
 }

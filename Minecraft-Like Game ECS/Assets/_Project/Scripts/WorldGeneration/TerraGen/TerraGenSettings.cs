@@ -115,10 +115,10 @@ namespace _Project.WorldGeneration.TerraGen
 				       RiverValleyDepth = 16,
 				       RiverBedDepth    = 4,
 
-				       RiverCount      = 9,
-				       NetBedWidth     = 6,
-				       NetBankWidth    = 16,
-				       NetValleyRadius = 50,
+				       RiverCount      = 6,
+				       NetBedWidth     = 4,
+				       NetBankWidth    = 10,
+				       NetValleyRadius = 22,
 				       NetBankHeight   = 4,
 
 				       ErosionEnabled          = true,

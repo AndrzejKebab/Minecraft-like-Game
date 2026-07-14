@@ -57,6 +57,9 @@ namespace _Project.WorldGeneration.TerraGen
 
 			TerraRivers.SettleWater(in cells, ref surfBlocks, ref waterBlocks, size);
 
+			// sand the ocean shoreline so the coast reads water → sand → grass
+			TerraRivers.ShorelineBeach(ref cells, in surfBlocks, size);
+
 			// ── quantise to columns ────────────────────────────────────────────
 			for (var i = 0; i < cells.Length; i++)
 			{
