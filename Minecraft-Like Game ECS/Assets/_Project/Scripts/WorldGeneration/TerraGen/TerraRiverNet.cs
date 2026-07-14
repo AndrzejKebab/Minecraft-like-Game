@@ -94,9 +94,11 @@ namespace _Project.WorldGeneration.TerraGen
 	[BurstCompile]
 	public static class TerraRiverNet
 	{
-		private const int   MAX_SEGMENTS = 2400; // whole continent's reaches
+		private const int   MAX_SEGMENTS = 3200; // whole continent's reaches (mains + tributaries)
 		private const float MAX_CLIMB    = 70f;  // blocks a river valley may incise below high ground
 		                                         // before the reach fades out (won't gorge ridges)
+		private const float MAX_FLOOD    = 10f;  // max blocks the water may sit above a column's own
+		                                         // ground — stops tall water walls on steep drops
 
 		private const float STEP     = 100f; // walk step, blocks
 		private const int   MAX_STEP = 160;  // reach cap per river (≈16 km max)
@@ -134,8 +136,56 @@ namespace _Project.WorldGeneration.TerraGen
 				var src     = new float2(center.x + dx * srcDist, center.y + dz * srcDist);
 				if (TerraContinent.GetEdgeValue(src.x, src.y, in s) < s.Inland) continue;
 
-				WalkRiver(src, center, s.NetBedWidth, s.NetBankWidth, s.NetValleyRadius,
+				var mainStart = segs.Length;
+				WalkRiver(src, center, s.NetBedWidth, s.NetBankWidth, s.NetValleyRadius, MAX_STEP,
 				          in s, in levels, ref segs, ref rng);
+
+				// tributaries branch off the trunk (RTF generateForks), recursively —
+				// this is what makes the network dense enough to actually encounter
+				SpawnTributaries(mainStart, segs.Length - mainStart, center, 0.62f, 0,
+				                 in s, in levels, ref segs, ref rng);
+			}
+		}
+
+		/// <summary>
+		///     Spawn tributaries branching off a set of reaches [start, start+count).
+		///     Each starts at a point offset to the side of a parent reach and walks
+		///     downhill (toward the parent's valley / the coast), recursively spawning
+		///     its own tributaries. Depth-capped like RTF's generateForks.
+		/// </summary>
+		private static void SpawnTributaries(int start, int count, int2 center, float widthScale, int depth,
+		                                     in TerraGenSettings s, in TerraLevels levels,
+		                                     ref NativeList<TerraRiverSeg> segs, ref TerraRng rng)
+		{
+			if (depth > 2 || count < 3 || segs.Length >= MAX_SEGMENTS) return;
+
+			var tribs   = depth == 0 ? 3 : 2;
+			var maxStep = depth == 0 ? 90 : 55;
+
+			for (var t = 0; t < tribs; t++)
+			{
+				if (segs.Length >= MAX_SEGMENTS) return;
+
+				// pick a reach along the parent trunk, offset perpendicular to a side
+				var ri = start + 1 + (int)(rng.NextFloat() * (count - 2));
+				ri = math.clamp(ri, start, start + count - 1);
+				TerraRiverSeg pr = segs[ri];
+
+				var side   = rng.NextBool() ? 1f : -1f;
+				var offset = 250f + rng.NextFloat() * 500f;
+				var src    = new float2(pr.P1.x + pr.Norm.x * side * offset,
+				                        pr.P1.y + pr.Norm.y * side * offset);
+				if (TerraContinent.GetEdgeValue(src.x, src.y, in s) < s.Inland) continue;
+
+				var tStart = segs.Length;
+				WalkRiver(src, center,
+				          math.max(2, (int)(s.NetBedWidth * widthScale)),
+				          math.max(5, (int)(s.NetBankWidth * widthScale)),
+				          math.max(18, (int)(s.NetValleyRadius * widthScale)), maxStep,
+				          in s, in levels, ref segs, ref rng);
+
+				SpawnTributaries(tStart, segs.Length - tStart, center, widthScale * 0.7f, depth + 1,
+				                 in s, in levels, ref segs, ref rng);
 			}
 		}
 
@@ -145,7 +195,7 @@ namespace _Project.WorldGeneration.TerraGen
 		///     downhill, so valleys stay shallow and the river never flows uphill.
 		/// </summary>
 		private static void WalkRiver(float2 pos, int2 center,
-		                              int bedWidth, int bankWidth, int valleyRadius,
+		                              int bedWidth, int bankWidth, int valleyRadius, int maxStep,
 		                              in TerraGenSettings s, in TerraLevels levels,
 		                              ref NativeList<TerraRiverSeg> segs, ref TerraRng rng)
 		{
@@ -158,7 +208,7 @@ namespace _Project.WorldGeneration.TerraGen
 			if (float.IsNaN(heading)) heading = rng.NextFloat() * 6.2831855f;
 
 			var stall = 0;
-			for (var step = 0; step < MAX_STEP && segs.Length < MAX_SEGMENTS; step++)
+			for (var step = 0; step < maxStep && segs.Length < MAX_SEGMENTS; step++)
 			{
 				// coastward reference direction (unit)
 				var cvx = pos.x - center.x;
@@ -329,6 +379,12 @@ namespace _Project.WorldGeneration.TerraGen
 				if (climb > MAX_CLIMB) continue;
 				var climbFade = 1f - math.saturate((climb - MAX_CLIMB * 0.5f) / (MAX_CLIMB * 0.5f));
 				if (climbFade <= 0.02f) continue;
+
+				// steep-drop guard: if this column's own ground is well BELOW the
+				// reach's water line, the reach is upslope of a cliff here — flooding
+				// it would raise a tall wall of water. Skip; the water follows the
+				// terrain down as the reach continues, not as a vertical sheet.
+				if (natural < water - MAX_FLOOD) continue;
 
 				if (climbFade > 0.3f)
 					bestMask = math.min(bestMask, dist / seg.ValleyRadius);

@@ -128,10 +128,11 @@ namespace _Project.WorldGeneration.TerraGen
 		                                        float ground, in TerraGenSettings s)
 		{
 			// wider blend than RTF (0.3..0.8) — with 512-block peaks the mountains
-			// need broad foothill skirts or they read as spikes
-			const float blendLower = 0.25f;
-			const float blendUpper = 0.85f;
-			const float split      = 0.6f;
+			// need broad foothill skirts or they read as spikes. High blendUpper so
+			// only the strongest shape becomes a full mountain chain (fewer mountains)
+			const float blendLower = 0.35f;
+			const float blendUpper = 0.92f;
+			const float split      = 0.7f;
 
 			var shape = TerraTerrains.MountainShape(tx, tz, in s);
 
