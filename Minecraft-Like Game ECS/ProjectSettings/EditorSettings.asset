@@ -21,22 +21,22 @@ EditorSettings:
   m_ProjectGenerationRootNamespace: 
   m_EnableTextureStreamingInEditMode: 1
   m_EnableTextureStreamingInPlayMode: 1
-  m_EnableEditorAsyncCPUTextureLoading: 1
+  m_EnableEditorAsyncCPUTextureLoading: 0
   m_AsyncShaderCompilation: 1
   m_BlockShaders: 0
   m_UnlockBlockShaders: 0
   m_PrefabModeAllowAutoSave: 1
   m_EnterPlayModeOptionsEnabled: 1
-  m_EnterPlayModeOptions: 2
+  m_EnterPlayModeOptions: 3
   m_GameObjectNamingDigits: 1
-  m_GameObjectNamingScheme: 2
-  m_AssetNamingUsesSpace: 0
+  m_GameObjectNamingScheme: 0
+  m_AssetNamingUsesSpace: 1
   m_InspectorUseIMGUIDefaultInspector: 0
   m_UseLegacyProbeSampleCount: 0
   m_DisableCookiesInLightmapper: 0
   m_ShadowmaskStitching: 0
   m_AssetPipelineMode: 1
-  m_RefreshImportMode: 1
+  m_RefreshImportMode: 0
   m_CacheServerMode: 0
   m_CacheServerEndpoint: 
   m_CacheServerNamespacePrefix: default
@@ -49,4 +49,5 @@ EditorSettings:
   m_EnableEnlightenBakedGI: 0
   m_ReferencedClipsExactNaming: 1
   m_ForceAssetUnloadAndGCOnSceneLoad: 1
-  m_HideBuildProfileClassicPlatforms: 0
+  m_HideBuildProfileClassicPlatforms: 1
+  m_UseLegacyHierarchy: 0

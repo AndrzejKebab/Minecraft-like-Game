@@ -14,6 +14,6 @@
     "CpuTargetsX32": 6,
     "CpuTargetsX64": -1,
     "OptimizeFor": 1,
-    "FloatMode": 3
+    "FloatMode": 2
   }
 }

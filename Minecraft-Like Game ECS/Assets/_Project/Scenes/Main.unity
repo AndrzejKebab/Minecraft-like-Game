@@ -863,7 +863,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d3ea3d19ead440dfb4acbfb658a8cf0a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.World.WorldAuthoring
-  Seed: 1337
+  Seed: 0
   ContinentalnessEncoded: IAkQ@B+kMY@BPzAB@BCSQJLgAB@BCQ0AB@CgAACBACQc@AB6RAQDmpkZPwsAAIA/FAMAAMhCDA==
   PeaksAndValleysEncoded: KQkOCSkJGQkNAAQ@BJBwAAQJxFLA==
   ErosionEncoded: FwkeCS4AAQ@BkNAAQ@BJBg@AHpECP////8cAgg@AB6RAgB@BDA==
@@ -1058,12 +1058,14 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
-  WorldHeight: 512
-  SeaLevel: 0
+  OceanDepth: 256
+  MountainHeight: 512
   ContinentScale: 3000
   TerrainRegionSize: 1200
   BiomeSize: 800
   RiversEnabled: 1
+  UseRiverNetworks: 1
+  RiverCount: 15
   FancyMountains: 1
   ErosionEnabled: 1
   ErosionDropletsPerChunk: 135
