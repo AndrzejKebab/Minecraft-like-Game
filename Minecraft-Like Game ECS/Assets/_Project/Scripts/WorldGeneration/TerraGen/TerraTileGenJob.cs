@@ -1,32 +1,41 @@
+using System;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using Unity.Mathematics;
 
 namespace _Project.WorldGeneration.TerraGen
 {
 	/// <summary>
-	///     Generates one tile: samples the RTF cell pipeline over the bordered grid,
-	///     carves the branching river networks of the continents overlapping the tile,
-	///     runs the droplet erosion + smoothing filters (RTF WorldFilters order), then
-	///     quantises to TerraColumns. One IJob per tile — tiles parallelise across
-	///     worker threads, and results are cached so the N vertical chunks of every
-	///     column (and all 16 chunk columns of the tile) reuse one generation.
+	///     Generates a BATCH of tiles in one IJobParallelFor: each index samples the RTF
+	///     cell pipeline over one tile's bordered grid, carves the continents' river
+	///     networks, runs the droplet erosion + smoothing filters, then quantises to
+	///     TerraColumns. Batching every needed tile into a single parallel dispatch
+	///     (instead of one IJob.Schedule per tile) spreads the tiles across all worker
+	///     threads with a single schedule call — far less overhead than N separate jobs.
+	///     Each tile's output array is owned by the cache; we write it through a raw
+	///     pointer because IJobParallelFor can't hold a distinct NativeArray per index.
 	/// </summary>
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance, FloatMode = FloatMode.Fast,
 		             FloatPrecision = FloatPrecision.Low)]
-	public struct TerraTileGenJob : IJob
+	public unsafe struct TerraTileGenJob : IJobParallelFor
 	{
-		public int2             TileCoord;
 		public TerraGenSettings Settings;
 
-		/// <summary> Output: bordered GEN_BLOCKS² grid owned by the tile cache. </summary>
-		public NativeArray<TerraColumn> Columns;
+		/// <summary> One entry per tile in the batch: its tile coordinate… </summary>
+		[ReadOnly] public NativeArray<int2> TileCoords;
 
-		public void Execute()
+		/// <summary> …and a raw pointer to its cache-owned GEN_BLOCKS² output array. </summary>
+		[NativeDisableUnsafePtrRestriction] public NativeArray<IntPtr> ColumnPtrs;
+
+		public void Execute(int index)
 		{
+			int2 tileCoord = TileCoords[index];
+			var  columns   = (TerraColumn*)ColumnPtrs[index].ToPointer();
+
 			var  size   = TerraTileConst.GEN_BLOCKS;
-			int2 origin = TerraTileConst.GenOrigin(TileCoord);
+			int2 origin = TerraTileConst.GenOrigin(tileCoord);
 			var  levels = TerraLevels.Make(Settings.OceanDepth, Settings.MountainHeight);
 
 			var cells = new NativeArray<TerraGenCell>(size * size, Allocator.Temp,
@@ -68,7 +77,7 @@ namespace _Project.WorldGeneration.TerraGen
 				if (cell.Terrain == TerraTerrain.River)
 					waterY = math.max(0, TerraNoise.Round(waterBlocks[i]));
 
-				Columns[i] = new TerraColumn
+				columns[i] = new TerraColumn
 				             {
 					             SurfaceY  = TerraNoise.Round(surfBlocks[i]),
 					             WaterY    = waterY,

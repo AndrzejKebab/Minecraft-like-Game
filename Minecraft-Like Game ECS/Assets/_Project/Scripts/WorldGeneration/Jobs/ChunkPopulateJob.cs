@@ -65,6 +65,12 @@ namespace _Project.WorldGeneration.Jobs
 		// solid blocks kept under a water column so caves can't undermine it
 		private const int CAVE_WATER_SEAL = 5;
 
+		// true when column c holds water at world height y (water fills SurfaceY+1..WaterY)
+		private static bool WaterAt(in TerraColumn c, int y)
+		{
+			return y > c.SurfaceY && y <= c.WaterY;
+		}
+
 		public unsafe void Execute(int index)
 		{
 			Entity                  entity        = Entities[index];
@@ -137,13 +143,19 @@ namespace _Project.WorldGeneration.Jobs
 			for (var z = 0; z < ChunkSize; z++)
 			for (var x = 0; x < ChunkSize; x++)
 			{
-				TerraColumn column = slice.Columns[baseX + x + (baseZ + z) * gen];
+				var         ci     = baseX + x + (baseZ + z) * gen;
+				TerraColumn column = slice.Columns[ci];
+
+				// neighbour columns (the tile border guarantees these are in range)
+				TerraColumn nXm = slice.Columns[ci - 1];
+				TerraColumn nXp = slice.Columns[ci + 1];
+				TerraColumn nZm = slice.Columns[ci - gen];
+				TerraColumn nZp = slice.Columns[ci + gen];
 
 				// keep a solid seal under any water column so a cave can't hollow out
-				// its floor and leave the water floating. Water sits from SurfaceY+1 up,
-				// so we protect SurfaceY down to SurfaceY-CAVE_WATER_SEAL+1; caves still
-				// hollow out everything deeper.
-				var hasWater = column.WaterY > column.SurfaceY;
+				// its floor and leave the water floating (SurfaceY down to
+				// SurfaceY-CAVE_WATER_SEAL+1); caves still hollow out everything deeper.
+				var hasWater   = column.WaterY > column.SurfaceY;
 				var sealDownTo = column.SurfaceY - CAVE_WATER_SEAL;
 
 				for (var y = 0; y < ChunkSize; y++)
@@ -154,7 +166,14 @@ namespace _Project.WorldGeneration.Jobs
 					if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid) continue;
 
 					var worldY = chunkWorldPos.y + y;
-					if (hasWater && worldY > sealDownTo) continue; // seal under water
+
+					// under our own water: keep the bed + a few blocks solid
+					if (hasWater && worldY > sealDownTo) continue;
+
+					// beside a neighbour's water: keep this block solid so the water
+					// isn't left with an open (air) side face into the cave
+					if (WaterAt(in nXm, worldY) || WaterAt(in nXp, worldY) ||
+					    WaterAt(in nZm, worldY) || WaterAt(in nZp, worldY)) continue;
 
 					if (caveMap[new int3(x, y, z)] > 0)
 						blockData[idx] = new BlockState { ID = 0, Orientation = 0 };

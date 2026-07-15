@@ -3,6 +3,7 @@ using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using _Project.WorldGeneration.TerraGen;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -26,7 +27,8 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateBefore(typeof(ChunkPopulateSystem))]
 	public partial struct TerraTileSystem : ISystem
 	{
-		private const int MAX_TILE_JOBS_PER_FRAME = 2;
+		// tiles generated per frame — all dispatched together in one parallel job
+		private const int MAX_TILES_PER_FRAME = 8;
 
 		private EntityQuery needQuery;
 
@@ -107,31 +109,47 @@ namespace _Project.WorldGeneration.Systems
 
 			missing.Sort();
 
-			var scheduled = 0;
-			for (var i = 0; i < missing.Length && scheduled < MAX_TILE_JOBS_PER_FRAME; i++, scheduled++)
+			// take the nearest N missing tiles and generate them all in ONE parallel
+			// dispatch (one worker-thread slice per tile) instead of N separate jobs
+			var take = math.min(missing.Length, MAX_TILES_PER_FRAME);
+			var coords  = new NativeArray<int2>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			var ptrs    = new NativeArray<IntPtr>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			var colArrs   = new NativeArray<TerraColumn>[take];
+			var coordVals = new int2[take]; // managed copy so we don't touch the arrays post-schedule
+
+			for (var i = 0; i < take; i++)
 			{
 				int2 coord = missing[i].Coord;
 				var columns = new NativeArray<TerraColumn>(
 					TerraTileConst.GEN_BLOCKS * TerraTileConst.GEN_BLOCKS,
 					Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
-
-				JobHandle handle = new TerraTileGenJob
-				                   {
-					                   TileCoord = coord,
-					                   Settings  = settings,
-					                   Columns   = columns
-				                   }.Schedule();
-
-				cache.Tiles.Add(coord, new TerraTile
-				                       {
-					                       Columns    = columns,
-					                       GenHandle  = handle,
-					                       ReadHandle = default
-				                       });
+				colArrs[i]   = columns;
+				coordVals[i] = coord;
+				coords[i]    = coord;
+				unsafe { ptrs[i] = (IntPtr)columns.GetUnsafePtr(); }
 			}
 
 			missing.Dispose();
-			if (scheduled > 0) JobHandle.ScheduleBatchedJobs();
+
+			JobHandle handle = new TerraTileGenJob
+			                   {
+				                   Settings   = settings,
+				                   TileCoords = coords,
+				                   ColumnPtrs = ptrs
+			                   }.Schedule(take, 1);
+
+			for (var i = 0; i < take; i++)
+				cache.Tiles.Add(coordVals[i], new TerraTile
+				                              {
+					                              Columns    = colArrs[i],
+					                              GenHandle  = handle,
+					                              ReadHandle = default
+				                              });
+
+			coords.Dispose(handle);
+			ptrs.Dispose(handle);
+
+			JobHandle.ScheduleBatchedJobs();
 		}
 
 		private void EvictFarTiles(TerraTileCacheSingleton cache, int2 playerTile)
