@@ -1,5 +1,19 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-6828463457104040873
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb9f2fe3baf0e8c46bf390df937e6187, type: 3}
+  m_Name: ScreenSpaceReflectionRendererFeature
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.ScreenSpaceReflectionRendererFeature
+  m_Active: 1
+  afterOpaque: 0
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -26,7 +40,9 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 7200000, guid: b9a23f869c4fd45f19c5ada54dd82176, type: 3}
   m_RendererFeatures:
   - {fileID: 7833122117494664109}
-  m_RendererFeatureMap: ad6b866f10d7b46cl
+  - {fileID: -6828463457104040873}
+  - {fileID: 813312353907025808}
+  m_RendererFeatureMap: ad6b866f10d7b46c57ec931daa6c3ca190a710da4677490bl
   xrSystemData: {fileID: 0}
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
@@ -55,6 +71,25 @@ MonoBehaviour:
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
   m_TileOnlyMode: 0
+--- !u!114 &813312353907025808
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8406b95d18054752ac25ef8eb7ac2d41, type: 3}
+  m_Name: SurfaceCacheGIRendererFeature
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.SurfaceCacheGIRendererFeature
+  m_Active: 1
+  _parameterSet:
+    PrimaryView: 1
+    DebugLogFocusTarget: 0
+    DebugEnabled: 0
+    DebugViewMode: 0
+    DebugShowSamplePosition: 0
 --- !u!114 &7833122117494664109
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -67,7 +102,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
   m_Name: ScreenSpaceAmbientOcclusion
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   m_Settings:
     AOMethod: 1
     Downsample: 0
@@ -81,6 +116,15 @@ MonoBehaviour:
     BlurQuality: 0
     Falloff: 50
     SampleCount: -1
+    Mode: 1
+    GTAOMinimumRadiusInPixels: 40
+    UseComputeShader: 0
+    GTAOTemporalFilterEnabled: 0
+    GTAOGhostingMitigation: 0.5
+    GTAOHistoryLength: 0.9
+    GTAODirectionCount: 2
+    GTAOStepCount: 4
+    GTAOSpatialFilter: 0
 --- !u!114 &8837384173076581908
 MonoBehaviour:
   m_ObjectHideFlags: 1
