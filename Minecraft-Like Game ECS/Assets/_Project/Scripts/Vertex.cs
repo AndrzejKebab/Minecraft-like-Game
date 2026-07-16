@@ -21,11 +21,16 @@ namespace _Project
 		/// textureFaceIdx is the orientation-remapped slot for texture array lookup.
 		/// uvRot: 0=none, 1=90°CCW, 2=180°, 3=90°CW — applied per-cell in shader.
 		/// </summary>
+		// Position quantization: 1/16-block grid. 32 blocks * 16 = 512, fits the 10-bit
+		// field (max 1023) with headroom, and slab/stair vertices at multiples of 1/16
+		// land exactly. Shader decodes with /16 (GetVertexData.hlsl) — keep in sync.
+		public const float POS_SCALE = 16f;
+
 		public Vertex(float3 pos, Block block, int faceIdx, int textureFaceIdx, int ao, int uvRot = 0)
 		{
-			var px       = (uint)math.round(math.clamp(pos.x * 10f, 0f, 1023f));
-			var py       = (uint)math.round(math.clamp(pos.y * 10f, 0f, 1023f));
-			var pz       = (uint)math.round(math.clamp(pos.z * 10f, 0f, 1023f));
+			var px       = (uint)math.round(math.clamp(pos.x * POS_SCALE, 0f, 1023f));
+			var py       = (uint)math.round(math.clamp(pos.y * POS_SCALE, 0f, 1023f));
+			var pz       = (uint)math.round(math.clamp(pos.z * POS_SCALE, 0f, 1023f));
 			var aoPacked = (uint)ao & 0x3u;
 
 			var data1 = px | (py << 10) | (pz << 20) | (aoPacked << 30);

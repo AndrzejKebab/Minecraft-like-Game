@@ -42,9 +42,10 @@ void UnpackBlockVertex_float(
     uint data3 = v.z;
     uint data4 = v.w;
 
-    float px = (float)( data1        & 0x3FFu) / 10.0f;
-    float py = (float)((data1 >> 10)  & 0x3FFu) / 10.0f;
-    float pz = (float)((data1 >> 20)  & 0x3FFu) / 10.0f;
+    // 1/16-block grid — must match Vertex.POS_SCALE (16) in Vertex.cs.
+    float px = (float)( data1        & 0x3FFu) / 16.0f;
+    float py = (float)((data1 >> 10)  & 0x3FFu) / 16.0f;
+    float pz = (float)((data1 >> 20)  & 0x3FFu) / 16.0f;
 
     uint aoVal = (data1 >> 30) & 0x3u;
     ao = (float)aoVal / 3.0f;
