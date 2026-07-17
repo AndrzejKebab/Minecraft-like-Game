@@ -117,6 +117,28 @@ namespace _Project.WorldGeneration.Systems
 		}
 	}
 
+	/// <summary>
+	///     Sodium's graph-occlusion traversal, ported to this face order
+	///     (0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+; opposite = face^1). A relaxing BFS over chunk
+	///     coords: each chunk carries a 64-bit visibility mask (bit <c>from*8+to</c> = "a
+	///     sightline entering through face <c>from</c> can leave through face <c>to</c>"),
+	///     built at mesh time by flood-filling the chunk's own transparent cells.
+	///
+	///     Two constraints keep it from over-expanding into chunks you can't actually see,
+	///     exactly as Sodium does:
+	///
+	///     • <b>Outward directions</b> — the flood may only step away from the camera plane
+	///       on each axis (monotonic expansion). WIDTH widens this band by a chunk so the
+	///       camera's own neighbourhood isn't clipped.
+	///     • <b>Angle visibility mask</b> — a chunk far off the dominant camera→chunk axis
+	///       can't be seen straight-through on the minor axes, so those straight-through
+	///       face pairs are removed from its mask. SLACK controls how eagerly.
+	///
+	///     REGULAR (WIDTH=0, SLACK=1) is rotation-invariant (depends only on chunk coords,
+	///     not exact camera position/frustum), so the flood is stable under pure rotation
+	///     and only needs rebuilding on a chunk-boundary crossing. Flip to WIDE (WIDTH=1,
+	///     SLACK=3) if a concave vantage (mountain ridge, cliff mouth) ever shows a hole.
+	/// </summary>
 	[BurstCompile]
 	internal struct OcclusionBfsJob : IJob
 	{
@@ -127,75 +149,138 @@ namespace _Project.WorldGeneration.Systems
 		public int          ViewDist;
 		public ChunkBitTree Tree; // by value — Set() mutates shared pointer-backed memory
 
+		// REGULAR variant. Set WIDTH=1, SLACK=3 for Sodium's WIDE fallback.
+		private const int WIDTH = 0;
+		private const int SLACK = 1;
+
 		// Mask with every from→to face pair set (fully transparent / not-yet-meshed chunk).
 		private const ulong AllFacesConnected =
 			(0x3Ful << 0)  | (0x3Ful << 8)  | (0x3Ful << 16) |
 			(0x3Ful << 24) | (0x3Ful << 32) | (0x3Ful << 40);
 
+		// Straight-through face pairs per axis (from*8+to), in this face order.
+		private const ulong X_THROUGH = (1ul << (0 * 8 + 1)) | (1ul << (1 * 8 + 0));
+		private const ulong Y_THROUGH = (1ul << (2 * 8 + 3)) | (1ul << (3 * 8 + 2));
+		private const ulong Z_THROUGH = (1ul << (4 * 8 + 5)) | (1ul << (5 * 8 + 4));
+
 		public void Execute()
 		{
 			var dim   = ChunkBitTree.DIM;
-			var seen  = new NativeArray<byte>(dim * dim * dim, Allocator.Temp, NativeArrayOptions.ClearMemory);
-			var queue = new NativeQueue<int>(Allocator.Temp);
+			var count = dim * dim * dim;
 
-			// Camera's own chunk: always visible, can look out through all 6 faces.
-			if (Tree.TryToLocal(PlayerChunk, out int3 startLocal))
+			// Per-cell set of incoming face-directions already accounted for. Growing this
+			// set is what re-queues a node (relaxation): a chunk reached from a new side may
+			// expose new outgoing sightlines its earlier visit couldn't.
+			var incoming = new NativeArray<byte>(count, Allocator.Temp, NativeArrayOptions.ClearMemory);
+			var queue    = new NativeQueue<int>(Allocator.Temp);
+
+			if (!Tree.TryToLocal(PlayerChunk, out int3 startLocal))
 			{
-				Tree.Set(startLocal);
-				for (var f = 0; f < 6; f++)
-					TryVisit(PlayerChunk, f, seen, ref queue);
+				incoming.Dispose();
+				queue.Dispose();
+				return;
 			}
 
-			while (queue.TryDequeue(out var packed))
-			{
-				var li     = packed >> 3;
-				var inFace = packed & 7;
+			// Camera's own chunk: visible, seeded as if lit from every side so the flood can
+			// leave through any open face.
+			var startLi = (startLocal.z * dim + startLocal.y) * dim + startLocal.x;
+			incoming[startLi] = 0x3F;
+			queue.Enqueue(startLi);
 
-				var  local = new int3(li & 63, (li >> 6) & 63, (li >> 12) & 63);
+			while (queue.TryDequeue(out var li))
+			{
+				var  local = new int3(li % dim, (li / dim) % dim, li / (dim * dim));
 				int3 coord = Tree.ToWorld(local);
 
-				var mask = AllFacesConnected;
-				if (ChunkMap.TryGetValue(coord, out Entity e) && Occlusion.HasComponent(e))
-					mask = Occlusion[e].Mask;
+				int inc = incoming[li];
 
-				// Faces reachable from the one we entered through.
-				var outFaces = (int)((mask >> (inFace * 8)) & 0x3F);
+				// Loaded chunks are the only ones we draw and traverse through; a frontier
+				// coord not in the map has unknown connectivity and nothing to render.
+				var loaded = ChunkMap.TryGetValue(coord, out Entity e);
+				if (!loaded) continue;
+
+				Tree.Set(local);
+
+				ulong mask = Occlusion.HasComponent(e) ? Occlusion[e].Mask : AllFacesConnected;
+				mask &= AngleMask(coord);
+
+				int outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
+
 				for (var f = 0; f < 6; f++)
-					if ((outFaces & (1 << f)) != 0)
-						TryVisit(coord, f, seen, ref queue);
+				{
+					if ((outgoing & (1 << f)) == 0) continue;
+
+					int3 nb = coord + FaceOffset(f);
+					if (math.cmax(math.abs(nb - PlayerChunk)) > ViewDist) continue;
+					if (!Tree.TryToLocal(nb, out int3 nbLocal)) continue;
+
+					var nbLi   = (nbLocal.z * dim + nbLocal.y) * dim + nbLocal.x;
+					var inFace = 1 << (f ^ 1); // enter the neighbour through its opposite face
+					var newInc = incoming[nbLi] | inFace;
+					if (newInc == incoming[nbLi]) continue; // no new sightline — skip
+
+					incoming[nbLi] = (byte)newInc;
+					queue.Enqueue(nbLi);
+				}
 			}
 
-			seen.Dispose();
+			incoming.Dispose();
 			queue.Dispose();
 		}
 
-		private void TryVisit(int3 fromCoord, int face, NativeArray<byte> seen, ref NativeQueue<int> queue)
+		/// <summary> Fold the rows selected by the incoming set into a 6-bit outgoing set. </summary>
+		private static int GetConnections(ulong mask, int incoming)
 		{
-			// Outward-only: never step back toward the camera plane on this axis.
-			var axis  = face >> 1;
-			var sign  = (face & 1) == 1 ? 1 : -1;
-			var delta = fromCoord[axis] - PlayerChunk[axis];
-			if (sign > 0 ? delta < 0 : delta > 0) return;
+			ulong rows = mask & RowMask(incoming);
+			rows |= rows >> 32;
+			rows |= rows >> 16;
+			rows |= rows >> 8;
+			return (int)(rows & 0x3F);
+		}
 
-			int3 nb = fromCoord + FaceOffset(face);
+		/// <summary> Expand each set incoming face-bit into its full 6-bit row in the mask. </summary>
+		private static ulong RowMask(int incoming)
+		{
+			ulong m = 0;
+			for (var i = 0; i < 6; i++)
+				if ((incoming & (1 << i)) != 0)
+					m |= 0x3Ful << (i * 8);
+			return m;
+		}
 
-			// View-distance cap (Chebyshev).
-			int3 d = math.abs(nb - PlayerChunk);
-			if (math.cmax(d) > ViewDist) return;
+		/// <summary>
+		///     Remove straight-through pairs on any axis that isn't the dominant camera→chunk
+		///     axis: a chunk well off to one side can't be seen straight-through on the minor
+		///     axes, so those sightlines are occluded.
+		/// </summary>
+		private ulong AngleMask(int3 coord)
+		{
+			int dx = math.abs(coord.x - PlayerChunk.x);
+			int dy = math.abs(coord.y - PlayerChunk.y);
+			int dz = math.abs(coord.z - PlayerChunk.z);
 
-			if (!Tree.TryToLocal(nb, out int3 nbLocal)) return;
+			ulong occ = 0;
+			if (dy > dx + SLACK || dz > dx + SLACK) occ |= X_THROUGH;
+			if (dx > dy + SLACK || dz > dy + SLACK) occ |= Y_THROUGH;
+			if (dx > dz + SLACK || dy > dz + SLACK) occ |= Z_THROUGH;
+			return ~occ;
+		}
 
-			var inFace = face ^ 1; // we enter the neighbor through its opposite face
-			var li     = (nbLocal.z * 64 + nbLocal.y) * 64 + nbLocal.x;
-			if ((seen[li] & (1 << inFace)) != 0) return;
-			seen[li] = (byte)(seen[li] | (1 << inFace));
+		/// <summary> Faces that point away from the camera plane (monotonic expansion). </summary>
+		private int OutwardDirs(int3 coord)
+		{
+			int rx = coord.x - PlayerChunk.x;
+			int ry = coord.y - PlayerChunk.y;
+			int rz = coord.z - PlayerChunk.z;
 
-			// Only loaded chunks render and can be traversed through; unloaded frontier
-			// chunks aren't marked (nothing to draw, unknown connectivity).
-			if (!ChunkMap.ContainsKey(nb)) return;
-
-			Tree.Set(nbLocal);
-			queue.Enqueue(li * 8 + inFace);
+			var d = 0;
+			if (rx <= WIDTH) d |= 1 << 0;  // X-
+			if (rx >= -WIDTH) d |= 1 << 1; // X+
+			if (ry <= WIDTH) d |= 1 << 2;  // Y-
+			if (ry >= -WIDTH) d |= 1 << 3; // Y+
+			if (rz <= WIDTH) d |= 1 << 4;  // Z-
+			if (rz >= -WIDTH) d |= 1 << 5; // Z+
+			return d;
 		}
 
 		private static int3 FaceOffset(int face)
