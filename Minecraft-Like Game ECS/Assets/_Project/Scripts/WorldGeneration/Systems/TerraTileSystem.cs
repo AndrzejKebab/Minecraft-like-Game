@@ -34,6 +34,7 @@ namespace _Project.WorldGeneration.Systems
 
 		public void OnCreate(ref SystemState state)
 		{
+			state.RequireForUpdate<TerraTileCacheSingleton>();
 			state.RequireForUpdate<Player>();
 			state.RequireForUpdate<TerraGenSettings>();
 
