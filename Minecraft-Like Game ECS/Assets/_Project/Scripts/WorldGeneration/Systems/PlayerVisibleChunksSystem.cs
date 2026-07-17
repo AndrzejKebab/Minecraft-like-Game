@@ -1,4 +1,5 @@
-﻿using _Project.Character;
+﻿using System.Collections.Generic;
+using _Project.Character;
 using _Project.Tags;
 using _Project.WorldGeneration.Blocks;
 using _Project.WorldGeneration.Components;
@@ -138,8 +139,29 @@ namespace _Project.WorldGeneration.Systems
 				}
 			}
 
+			// Drain pops from the tail, so order farthest-first: the nearest missing chunk
+			// is created first and the player's own surroundings fill outward. Without this
+			// the raw y,x,z scan order leaves the far corner at the tail and the player
+			// spawns into an empty hole while distant chunks generate first.
+			pendingCreate.Sort(new FarthestFirst { Player = playerChunk });
+
 			ecb.Playback(em);
 			ecb.Dispose();
+		}
+
+		/// <summary> Orders chunk coords by squared distance to the player, farthest first. </summary>
+		private struct FarthestFirst : IComparer<int3>
+		{
+			public int3 Player;
+
+			public int Compare(int3 a, int3 b)
+			{
+				int3 da = a - Player;
+				int3 db = b - Player;
+				int  sa = da.x * da.x + da.y * da.y + da.z * da.z;
+				int  sb = db.x * db.x + db.y * db.y + db.z * db.z;
+				return sb.CompareTo(sa); // descending — nearest ends up at the tail
+			}
 		}
 
 		/// <summary>
