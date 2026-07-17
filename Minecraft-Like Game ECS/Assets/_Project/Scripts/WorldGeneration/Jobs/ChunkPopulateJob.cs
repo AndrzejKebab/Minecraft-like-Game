@@ -83,11 +83,17 @@ namespace _Project.WorldGeneration.Jobs
 			var            baseX   = chunkWorldPos.x - slice.OriginX;
 			var            baseZ   = chunkWorldPos.z - slice.OriginZ;
 
-			// vertical bounds of this chunk's own 32×32 columns
-			var minSurface = int.MaxValue;
-			var maxTop     = int.MinValue;
-			for (var z = 0; z < ChunkSize; z++)
-			for (var x = 0; x < ChunkSize; x++)
+			// mountain surfaces above this world Y turn to bare stone (also gates
+			// tree placement — trees only root on grass surfaces)
+			var stoneLineY = (int)(TerraSettings.MountainHeight * 0.55f);
+
+			// vertical bounds of this chunk's own 32×32 columns PLUS the tree-canopy
+			// fringe — a tree rooted up to HR blocks outside can reach into this chunk
+			const int fringe     = TreeGeneratorDeterministic.HR_HORIZONTAL;
+			var       minSurface = int.MaxValue;
+			var       maxTop     = int.MinValue;
+			for (var z = -fringe; z < ChunkSize + fringe; z++)
+			for (var x = -fringe; x < ChunkSize + fringe; x++)
 			{
 				TerraColumn column = slice.Columns[baseX + x + (baseZ + z) * gen];
 				minSurface = math.min(minSurface, column.SurfaceY);
@@ -97,8 +103,10 @@ namespace _Project.WorldGeneration.Jobs
 			var worldYMin = chunkWorldPos.y;
 			var worldYMax = chunkWorldPos.y + ChunkSize - 1;
 
-			// ── fast path: fully above terrain and water → empty chunk ─────────
-			if (worldYMin > maxTop)
+			// ── fast path: fully above terrain, water AND any tree that could poke
+			//    up into this chunk → empty chunk ────────────────────────────────
+			var treeHeadroom = MaxTrunkHeight + 1 + TreeGeneratorDeterministic.CANOPY_UP;
+			if (worldYMin > maxTop + treeHeadroom)
 			{
 				var air = new BlockState { ID = 0, Orientation = 0 };
 				for (var i = 0; i < blockData.Length; i++) blockData[i] = air;
@@ -111,8 +119,17 @@ namespace _Project.WorldGeneration.Jobs
 				return;
 			}
 
+			// Above every surface and water column, but within tree headroom: only
+			// trunk tops / canopies can land here — skip terrain, caves and ores.
+			var treesOnly = worldYMin > maxTop;
+
 			// ── 2. Terrain ─────────────────────────────────────────────────────
-			if (worldYMax < minSurface - 4)
+			if (treesOnly)
+			{
+				var air = new BlockState { ID = 0, Orientation = 0 };
+				for (var i = 0; i < blockData.Length; i++) blockData[i] = air;
+			}
+			else if (worldYMax < minSurface - 4)
 			{
 				// fast path: fully below every surface layer → solid stone
 				var stone = new BlockState { ID = TerraGenerator.STONE, Orientation = 0 };
@@ -120,9 +137,6 @@ namespace _Project.WorldGeneration.Jobs
 			}
 			else
 			{
-				// mountain surfaces above this world Y turn to bare stone
-				var stoneLineY = (int)(TerraSettings.MountainHeight * 0.55f);
-
 				for (var z = 0; z < ChunkSize; z++)
 				for (var x = 0; x < ChunkSize; x++)
 				{
@@ -138,59 +152,67 @@ namespace _Project.WorldGeneration.Jobs
 				}
 			}
 
-			// ── 3. Caves ───────────────────────────────────────────────────────
-			NoiseGenerator.GenerateCaveMap(out NativeTexture3D<float> caveMap,
-			                               ref CavesNoise, ref chunkWorldPos, ChunkSize, Seed);
-
-			for (var z = 0; z < ChunkSize; z++)
-			for (var x = 0; x < ChunkSize; x++)
+			// ── 3. Caves + 4. Ores (nothing to carve/seed in a trees-only chunk) ──
+			if (!treesOnly)
 			{
-				var         ci     = baseX + x + (baseZ + z) * gen;
-				TerraColumn column = slice.Columns[ci];
+				NoiseGenerator.GenerateCaveMap(out NativeTexture3D<float> caveMap,
+				                               ref CavesNoise, ref chunkWorldPos, ChunkSize, Seed);
 
-				// neighbour columns (the tile border guarantees these are in range)
-				TerraColumn nXm = slice.Columns[ci - 1];
-				TerraColumn nXp = slice.Columns[ci + 1];
-				TerraColumn nZm = slice.Columns[ci - gen];
-				TerraColumn nZp = slice.Columns[ci + gen];
-
-				// keep a solid seal under any water column so a cave can't hollow out
-				// its floor and leave the water floating (SurfaceY down to
-				// SurfaceY-CAVE_WATER_SEAL+1); caves still hollow out everything deeper.
-				var hasWater   = column.WaterY > column.SurfaceY;
-				var sealDownTo = column.SurfaceY - CAVE_WATER_SEAL;
-
-				for (var y = 0; y < ChunkSize; y++)
+				for (var z = 0; z < ChunkSize; z++)
+				for (var x = 0; x < ChunkSize; x++)
 				{
-					var        idx   = x | (y << 5) | (z << 10);
-					BlockState block = blockData[idx];
-					if (block.ID == 0) continue;
-					if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid) continue;
+					var         ci     = baseX + x + (baseZ + z) * gen;
+					TerraColumn column = slice.Columns[ci];
 
-					var worldY = chunkWorldPos.y + y;
+					// neighbour columns (the tile border guarantees these are in range)
+					TerraColumn nXm = slice.Columns[ci - 1];
+					TerraColumn nXp = slice.Columns[ci + 1];
+					TerraColumn nZm = slice.Columns[ci - gen];
+					TerraColumn nZp = slice.Columns[ci + gen];
 
-					// under our own water: keep the bed + a few blocks solid
-					if (hasWater && worldY > sealDownTo) continue;
+					// keep a solid seal under any water column so a cave can't hollow out
+					// its floor and leave the water floating (SurfaceY down to
+					// SurfaceY-CAVE_WATER_SEAL+1); caves still hollow out everything deeper.
+					var hasWater   = column.WaterY > column.SurfaceY;
+					var sealDownTo = column.SurfaceY - CAVE_WATER_SEAL;
 
-					// beside a neighbour's water: keep this block solid so the water
-					// isn't left with an open (air) side face into the cave
-					if (WaterAt(in nXm, worldY) || WaterAt(in nXp, worldY) ||
-					    WaterAt(in nZm, worldY) || WaterAt(in nZp, worldY)) continue;
+					for (var y = 0; y < ChunkSize; y++)
+					{
+						var        idx   = x | (y << 5) | (z << 10);
+						BlockState block = blockData[idx];
+						if (block.ID == 0) continue;
+						if (block.ID < BlockPrototypes.Length && BlockPrototypes[block.ID].IsFluid) continue;
 
-					if (caveMap[new int3(x, y, z)] > 0)
-						blockData[idx] = new BlockState { ID = 0, Orientation = 0 };
+						var worldY = chunkWorldPos.y + y;
+
+						// under our own water: keep the bed + a few blocks solid
+						if (hasWater && worldY > sealDownTo) continue;
+
+						// beside a neighbour's water: keep this block solid so the water
+						// isn't left with an open (air) side face into the cave
+						if (WaterAt(in nXm, worldY) || WaterAt(in nXp, worldY) ||
+						    WaterAt(in nZm, worldY) || WaterAt(in nZp, worldY)) continue;
+
+						if (caveMap[new int3(x, y, z)] > 0)
+							blockData[idx] = new BlockState { ID = 0, Orientation = 0 };
+					}
 				}
+
+				caveMap.Dispose();
+
+				OreGeneratorLocal.Generate(ref blockData, ref OreTypes, ref chunkWorldPos, ChunkSize, Seed);
 			}
 
-			caveMap.Dispose();
-
-			// ── 4. Ores ────────────────────────────────────────────────────────
-			OreGeneratorLocal.Generate(ref blockData, ref OreTypes, ref chunkWorldPos, ChunkSize, Seed);
-
 			// ── 5. Trees (deterministic tile projection) ───────────────────────
-			//      TODO reenable using slice.Columns — the tile border guarantees the
-			//      full 1-chunk halo (SurfaceY + Biome) is available for foreign trees
-			/*TreeGeneratorDeterministic.ProjectHaloTreesIntoChunk(...);*/
+			//      Each chunk projects every tree rooted in its columns or the canopy
+			//      fringe straight from the tile columns; the tile border guarantees the
+			//      fringe data exists, and the per-column hash guarantees neighbours
+			//      compute the identical tree — so trees span chunk borders seamlessly.
+			TreeGeneratorDeterministic.ProjectTileTreesIntoChunk(
+			                                                     ref blockData, in slice, ref CavesNoise,
+			                                                     chunkWorldPos, ChunkSize, stoneLineY, Seed,
+			                                                     TreeDensity, MinTrunkHeight, MaxTrunkHeight,
+			                                                     AirID, LogID, LeavesID);
 
 			// ── 6. Emptiness check + tags ──────────────────────────────────────
 			var hasBlocks = false;

@@ -1,4 +1,5 @@
-﻿using _Project.WorldGeneration.Blocks;
+using _Project.WorldGeneration.Blocks;
+using _Project.WorldGeneration.TerraGen;
 using FastNoise2.Bindings;
 using Unity.Burst;
 using Unity.Collections;
@@ -7,18 +8,23 @@ using Unity.Mathematics;
 namespace _Project.WorldGeneration
 {
 	/// <summary>
-	///     Deterministic per-chunk tree projection.  Replaces TreeGenerator for the
-	///     fused populate pipeline.  No cross-chunk writes; each chunk independently
-	///     projects trees rooted in itself AND in its 27-neighbour halo into its own
-	///     BlockData, clipping blocks that fall outside.
-	///     Determinism contract:
-	///     ColumnHash(worldX, worldZ, seed) === TreeGenerator.ColumnHash.
-	///     Same world column always produces same tree → identical output across
-	///     regenerations.  Trees rooted in chunk N project into N-1, N+1, etc.
-	///     independently and consistently.
-	///     Surface detection:
-	///     Uses halo heightmap directly (no BlockData scan).  Tree only spawns
-	///     if classified surface block at groundY is grass (not sand/water).
+	///     Deterministic per-chunk tree projection for the fused TerraGen populate
+	///     pipeline. No cross-chunk writes: each chunk independently projects every tree
+	///     rooted within canopy reach (own columns + a <see cref="HR_HORIZONTAL" />-block
+	///     fringe) into its own BlockData, clipping blocks that fall outside.
+	///
+	///     Determinism contract: a tree is a pure function of its root column —
+	///     ColumnHash(worldX, worldZ, seed) seeds the RNG, and the root's ground height,
+	///     surface type and water state come from the shared TerraGen tile columns (the
+	///     same data every chunk of that column reads). So chunk N and its neighbours
+	///     all compute the identical tree and each writes only its own slice of it —
+	///     trunks and canopies span chunk borders, both horizontally and vertically,
+	///     with no cross-chunk communication.
+	///
+	///     Trees spawn only on dry grass surfaces (TerraGenerator.ClassifyVoxel at the
+	///     column surface), never on sand/stone/underwater, and skip columns whose
+	///     surface or trunk base the cave noise carves away (same threshold as the cave
+	///     pass, sampled pointwise).
 	/// </summary>
 	[BurstCompile(OptimizeFor = OptimizeFor.Performance,
 		             FloatMode = FloatMode.Fast,
@@ -27,100 +33,94 @@ namespace _Project.WorldGeneration
 	{
 		public const ushort REPLACE_ANY = ushort.MaxValue;
 
-		// Tree dimensions — used for halo radius calc.  If you change these,
-		// update HALO_RADIUS in ChunkPopulateJob.
+		// Tree dimensions. HR_HORIZONTAL bounds the fringe of neighbour columns a chunk
+		// must consider; CANOPY_UP feeds the populate job's above-terrain fast-path
+		// headroom so canopies aren't clipped at vertical chunk borders.
 		public const int   HR_HORIZONTAL = 3; // canopy half-width
 		public const float VR_VERTICAL   = 2.2f;
 		public const int   CANOPY_UP     = 3; // canopy max +Y from centre
 		public const int   CANOPY_DOWN   = 1;
 
-		[BurstCompile]
-		public static void ProjectHaloTreesIntoChunk(
+		/// <summary>
+		///     Project every tree rooted in this chunk's columns or the surrounding
+		///     canopy fringe into <paramref name="ownData" />. Root data comes straight
+		///     from the tile slice (SurfaceY / WaterY / terrain classification), which the
+		///     tile border guarantees is available for the whole fringe.
+		/// </summary>
+		public static unsafe void ProjectTileTreesIntoChunk(
 			ref NativeArray<BlockState> ownData,
-			ref NativeArray<int>        haloHeights, // (chunkSize*3)² flat
+			in TerraTileSlice           slice,
 			ref FastNoise               caveNoise,
-			ref int3                    chunkWorldPos,
+			int3                        chunkWorldPos,
 			int                         chunkSize,
+			int                         stoneLineY,
 			int                         seed,
 			float                       treeDensity,
 			int                         minTrunkHeight,
 			int                         maxTrunkHeight,
 			ushort                      airID,
-			ushort                      grassID,
 			ushort                      logID,
 			ushort                      leavesID)
 		{
-			var haloSize = chunkSize * 3;
-			var originX  = chunkWorldPos.x - chunkSize;
-			var originZ  = chunkWorldPos.z - chunkSize;
-
-			var chunkMinX = chunkWorldPos.x;
+			var gen       = TerraTileConst.GEN_BLOCKS;
 			var chunkMinY = chunkWorldPos.y;
-			var chunkMinZ = chunkWorldPos.z;
 			var chunkMaxY = chunkWorldPos.y + chunkSize;
 
-			// Y-range early-out: if no halo column's tree could intersect this chunk's Y,
-			// skip the whole pass.  Tree top = groundY + maxTrunkHeight + 1 + CANOPY_UP.
-			// Tree bottom = groundY + 1.
-			// We don't actually iterate column Y — we just check per-column whether any
-			// part of the tree touches this chunk.
-
-			for (var hz = 0; hz < haloSize; hz++)
-			for (var hx = 0; hx < haloSize; hx++)
+			// Only columns whose canopy can reach this chunk: own 32×32 plus HR fringe.
+			for (var wz = chunkWorldPos.z - HR_HORIZONTAL; wz < chunkWorldPos.z + chunkSize + HR_HORIZONTAL; wz++)
+			for (var wx = chunkWorldPos.x - HR_HORIZONTAL; wx < chunkWorldPos.x + chunkSize + HR_HORIZONTAL; wx++)
 			{
-				var worldX  = originX + hx;
-				var worldZ  = originZ + hz;
-				var groundY = haloHeights[hx + hz * haloSize];
+				var         ci     = wx - slice.OriginX + (wz - slice.OriginZ) * gen;
+				TerraColumn column = slice.Columns[ci];
 
-				// Surface must be grass.
-				var surfaceID = NoiseGenerator.ClassifyVoxel(groundY, groundY);
-				if (surfaceID != grassID) continue;
+				// dry land only — no trees in seas, rivers or on their beds
+				if (column.WaterY > column.SurfaceY) continue;
 
-				// Deterministic per-column RNG — MUST match TreeGenerator.ColumnHash.
-				var rng = Random.CreateFromIndex(ColumnHash(worldX, worldZ, seed));
+				// surface must classify as grass (not sand/beach/desert/stone/mountain-top)
+				if (TerraGenerator.ClassifyVoxel(column.SurfaceY, in column, stoneLineY) != TerraGenerator.GRASS)
+					continue;
+
+				// deterministic per-column RNG — same column, same tree, in every chunk
+				var rng = Random.CreateFromIndex(ColumnHash(wx, wz, seed));
 				if (rng.NextFloat() > treeDensity) continue;
 
-				// Cave check — skip if cave carved surface or trunk-base voxel.
-				// Same threshold as CavesPassJob (caveMap > 0 = air).
-				if (IsCaveCarved(ref caveNoise, worldX, groundY, worldZ, seed)) continue;
-				if (IsCaveCarved(ref caveNoise, worldX, groundY + 1, worldZ, seed)) continue;
+				var groundY = column.SurfaceY;
+
+				// skip if the cave noise carves the surface or the trunk base away
+				// (same threshold as the populate cave pass, sampled pointwise)
+				if (IsCaveCarved(ref caveNoise, wx, groundY, wz, seed)) continue;
+				if (IsCaveCarved(ref caveNoise, wx, groundY + 1, wz, seed)) continue;
 
 				var trunkHeight = rng.NextInt(minTrunkHeight, maxTrunkHeight + 1);
 
 				var treeBottomY = groundY + 1;
 				var treeTopY    = groundY + trunkHeight + 1 + CANOPY_UP;
 
-				// Skip if tree doesn't intersect own chunk's Y range.
+				// skip if no part of the tree intersects this chunk's Y range
 				if (treeTopY < chunkMinY || treeBottomY >= chunkMaxY) continue;
 
-				// Skip if horizontally too far (canopy half-width = HR).
-				if (worldX + HR_HORIZONTAL < chunkMinX) continue;
-				if (worldX - HR_HORIZONTAL >= chunkMinX + chunkSize) continue;
-				if (worldZ + HR_HORIZONTAL < chunkMinZ) continue;
-				if (worldZ - HR_HORIZONTAL >= chunkMinZ + chunkSize) continue;
-
-				ProjectTree(ref ownData, worldX, groundY, worldZ, trunkHeight,
-				            ref chunkWorldPos, chunkSize, airID, logID, leavesID);
+				ProjectTree(ref ownData, wx, groundY, wz, trunkHeight,
+				            chunkWorldPos, chunkSize, airID, logID, leavesID);
 			}
 		}
 
-		[BurstCompile]
 		private static void ProjectTree(
 			ref NativeArray<BlockState> ownData,
 			int                         rootX,         int    groundY, int rootZ, int trunkHeight,
-			ref int3                    chunkWorldPos, int    chunkSize,
+			int3                        chunkWorldPos, int    chunkSize,
 			ushort                      airID,         ushort logID, ushort leavesID)
 		{
-			// Trunk
+			// Trunk — replaces anything (grass tufts, leaves of an older neighbour tree).
 			for (var i = 1; i <= trunkHeight; i++)
 			{
 				var wy         = groundY + i;
 				var blockState = new BlockState { ID = logID, Orientation = 0 };
-				WriteIfInside(ref ownData, rootX, wy, rootZ, ref chunkWorldPos, chunkSize,
-				              ref blockState, REPLACE_ANY);
+				WriteIfInside(ref ownData, rootX, wy, rootZ, chunkWorldPos, chunkSize,
+				              blockState, REPLACE_ANY);
 			}
 
-			// Canopy — flattened ellipsoid one above trunk tip.
+			// Canopy — flattened ellipsoid one above trunk tip; fills air only, so it
+			// never eats terrain, water or another tree's trunk.
 			var canopyCentreY = groundY + trunkHeight + 1;
 			var vr            = HR_HORIZONTAL / VR_VERTICAL;
 
@@ -131,23 +131,22 @@ namespace _Project.WorldGeneration
 				var ev = ly * vr;
 				var d  = math.sqrt(lx * lx + ev * ev + lz * lz);
 				if (d > HR_HORIZONTAL) continue;
-				if (lx == 0 && lz == 0 && ly <= 0) continue;
+				if (lx == 0 && lz == 0 && ly <= 0) continue; // trunk occupies the core
 
 				var wx         = rootX + lx;
 				var wy         = canopyCentreY + ly;
 				var wz         = rootZ + lz;
 				var blockState = new BlockState { ID = leavesID, Orientation = 0 };
-				WriteIfInside(ref ownData, wx, wy, wz, ref chunkWorldPos, chunkSize,
-				              ref blockState, airID);
+				WriteIfInside(ref ownData, wx, wy, wz, chunkWorldPos, chunkSize,
+				              blockState, airID);
 			}
 		}
 
-		[BurstCompile]
 		private static void WriteIfInside(
 			ref NativeArray<BlockState> ownData,
-			int                         wx,            int    wy, int wz,
-			ref int3                    chunkWorldPos, int    chunkSize,
-			ref BlockState              newState,      ushort requiredID)
+			int                         wx,            int wy, int wz,
+			int3                        chunkWorldPos, int chunkSize,
+			BlockState                  newState,      ushort requiredID)
 		{
 			var lx = wx - chunkWorldPos.x;
 			var ly = wy - chunkWorldPos.y;
@@ -162,17 +161,15 @@ namespace _Project.WorldGeneration
 			ownData[idx] = newState;
 		}
 
-		// Single-point cave noise sample. Burst-compatible.
-		// FastNoise2 GenSingle3D returns scalar; threshold matches CavesPassJob.
-		[BurstCompile]
+		// Single-point cave noise sample; threshold matches the populate cave pass
+		// (caveMap > 0 = carved to air).
 		private static bool IsCaveCarved(
 			ref FastNoise caveNoise, int wx, int wy, int wz, int seed)
 		{
 			var v = caveNoise.GenSingle3D(wx, wy, wz, seed);
 			return v > 0f;
 		}
-		
-		[BurstCompile]
+
 		private static uint ColumnHash(int x, int z, int seed)
 		{
 			unchecked
