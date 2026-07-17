@@ -24,7 +24,7 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			if (!s.RiversEnabled) return;
 			// deep/shallow ocean override rivers (TerrainCategory.overridesRiver)
-			if (cell.Terrain == TerraTerrain.DeepOcean || cell.Terrain == TerraTerrain.ShallowOcean)
+			if (cell.Terrain is TerraTerrain.DeepOcean or TerraTerrain.ShallowOcean)
 				return;
 
 			var seed = s.Seed + SEED_RIVER;
@@ -125,11 +125,9 @@ namespace _Project.WorldGeneration.TerraGen
 				if (channel < cell.Height) cell.Height = channel;
 
 				var waterSurface = levels.FromBlocksF(waterBlocks);
-				if (cell.Height < waterSurface)
-				{
-					cell.Terrain         = TerraTerrain.River;
-					cell.RiverWaterLevel = waterSurface;
-				}
+				if (!(cell.Height < waterSurface)) return;
+				cell.Terrain         = TerraTerrain.River;
+				cell.RiverWaterLevel = waterSurface;
 			}
 			else
 			{
@@ -194,11 +192,9 @@ namespace _Project.WorldGeneration.TerraGen
 						if (limit < w) w = limit;
 					}
 
-					if (w < waterBlocks[i])
-					{
-						waterBlocks[i] = w;
-						changed        = true;
-					}
+					if (!(w < waterBlocks[i])) continue;
+					waterBlocks[i] = w;
+					changed        = true;
 				}
 
 				if (!changed) break;
@@ -216,13 +212,13 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static int Neighbor(int index, int direction, int size)
 		{
-			switch (direction)
-			{
-				case 0:  return index - 1;
-				case 1:  return index + 1;
-				case 2:  return index - size;
-				default: return index + size;
-			}
+			return direction switch
+			       {
+				       0 => index - 1,
+				       1 => index + 1,
+				       2 => index - size,
+				       _ => index + size
+			       };
 		}
 
 		private const int BEACH_MAX_HEIGHT = 5; // top block this many above sea still sands
@@ -246,12 +242,12 @@ namespace _Project.WorldGeneration.TerraGen
 			for (var x = 0; x < size; x++)
 			{
 				var i = x + z * size;
-				var c = cells[i];
+				TerraGenCell c = cells[i];
 				if (c.Terrain == TerraTerrain.River) continue;
 
 				// rendered surface block (matches ClassifyVoxel's SurfaceY)
 				var y = (int)math.round(surfBlocks[i]);
-				if (y < 0 || y > BEACH_MAX_HEIGHT) continue; // sea itself, or too high (cliff)
+				if (y is < 0 or > BEACH_MAX_HEIGHT) continue; // sea itself, or too high (cliff)
 
 				// open sea within reach? a neighbour renders water when its rounded
 				// surface is below sea level
@@ -263,11 +259,9 @@ namespace _Project.WorldGeneration.TerraGen
 					var nz = z + dz;
 					if (nx < 0 || nx >= size || nz < 0 || nz >= size) continue;
 					var j = nx + nz * size;
-					if ((int)math.round(surfBlocks[j]) < 0 && cells[j].Terrain != TerraTerrain.River)
-					{
-						nearSea = true;
-						break;
-					}
+					if ((int)math.round(surfBlocks[j]) >= 0 || cells[j].Terrain == TerraTerrain.River) continue;
+					nearSea = true;
+					break;
 				}
 
 				if (!nearSea) continue;

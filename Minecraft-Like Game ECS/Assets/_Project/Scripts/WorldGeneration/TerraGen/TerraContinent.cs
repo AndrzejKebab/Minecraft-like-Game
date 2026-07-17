@@ -56,14 +56,12 @@ namespace _Project.WorldGeneration.TerraGen
 				var    ppx   = cx + vec.x * s.ContinentJitter;
 				var    ppy   = cy + vec.y * s.ContinentJitter;
 				var    dist2 = DistSq(px, py, ppx, ppy);
-				if (dist2 < nearest)
-				{
-					cellPointX = ppx;
-					cellPointY = ppy;
-					cellX      = cx;
-					cellY      = cy;
-					nearest    = dist2;
-				}
+				if (!(dist2 < nearest)) continue;
+				cellPointX = ppx;
+				cellPointY = ppy;
+				cellX      = cx;
+				cellY      = cy;
+				nearest    = dist2;
 			}
 
 			// pass 2: distance to the plate boundary (perpendicular bisector of the
@@ -99,7 +97,7 @@ namespace _Project.WorldGeneration.TerraGen
 		/// <summary> Continent edge value only (ClimateModule.getLandValue). </summary>
 		public static float GetEdgeValue(float x, float y, in TerraGenSettings s)
 		{
-			var cell = TerraCell.Default();
+			TerraCell cell = TerraCell.Default();
 			Apply(ref cell, x, y, in s);
 			return cell.ContinentEdge;
 		}
@@ -107,7 +105,7 @@ namespace _Project.WorldGeneration.TerraGen
 		/// <summary> Nearest corrected continent centre for a position. </summary>
 		public static int2 GetNearestCenter(float x, float y, in TerraGenSettings s)
 		{
-			var cell = TerraCell.Default();
+			TerraCell cell = TerraCell.Default();
 			Apply(ref cell, x, y, in s);
 			return cell.ContinentCenter;
 		}
@@ -207,13 +205,11 @@ namespace _Project.WorldGeneration.TerraGen
 
 			var alpha = distance / s.Inland;
 			distance = math.lerp(distance * cliff, distance, alpha);
-			if (distance < s.ShallowOcean)
-			{
-				// bayNoise: simplex(100, 1) * 0.1 + 0.9
-				var bay = TerraNoise.Perlin(worldX, worldY, baseSeed + SEED_BAY, 1f / 100f, 1)
-				          * 0.1f + 0.9f;
-				distance = s.ShallowOcean * bay;
-			}
+			if (!(distance < s.ShallowOcean)) return distance;
+			// bayNoise: simplex(100, 1) * 0.1 + 0.9
+			var bay = TerraNoise.Perlin(worldX, worldY, baseSeed + SEED_BAY, 1f / 100f, 1)
+			          * 0.1f + 0.9f;
+			distance = s.ShallowOcean * bay;
 
 			return distance;
 		}
@@ -234,10 +230,9 @@ namespace _Project.WorldGeneration.TerraGen
 			var dy = by - ay;
 			// bisector line through midpoint with normal (dx, dy)
 			var nx = -dy;
-			var ny = dx;
-			var v  = ((x - mx) * nx + (y - my) * ny) / (nx * nx + ny * ny);
+			var v  = ((x - mx) * nx + (y - my) * dx) / (nx * nx + dx * dx);
 			var ox = mx + nx * v;
-			var oy = my + ny * v;
+			var oy = my + dx * v;
 			return DistSq(x, y, ox, oy);
 		}
 	}

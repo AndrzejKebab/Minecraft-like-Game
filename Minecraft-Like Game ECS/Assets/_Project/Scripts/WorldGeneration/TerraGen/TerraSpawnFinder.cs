@@ -41,11 +41,9 @@ namespace _Project.WorldGeneration.TerraGen
 
 				var x = dx * STEP;
 				var z = dz * STEP;
-				if (Evaluate(x, z, in levels, out var surfaceY))
-				{
-					Result[0] = new int4(x, surfaceY, z, 1);
-					return;
-				}
+				if (!Evaluate(x, z, in levels, out var surfaceY)) continue;
+				Result[0] = new int4(x, surfaceY, z, 1);
+				return;
 			}
 
 			// pathological settings (e.g. all-ocean world): spawn at the origin on

@@ -41,7 +41,7 @@ namespace _Project.WorldGeneration.TerraGen
 			var cells = new NativeArray<TerraGenCell>(size * size, Allocator.Temp,
 			                                          NativeArrayOptions.UninitializedMemory);
 
-			if (Settings.RiversEnabled && Settings.UseRiverNetworks)
+			if (Settings is { RiversEnabled: true, UseRiverNetworks: true })
 				GenerateWithNetworks(ref cells, size, origin, in levels);
 			else
 				GenerateSimple(ref cells, size, origin, in levels);

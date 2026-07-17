@@ -98,7 +98,7 @@ namespace _Project.WorldGeneration.Systems
 		private void Rediff(EntityManager em, ChunkMapSingleton map, int3 playerChunk)
 		{
 			int viewDist     = GameSettings.ViewDistanceInChunks;
-			int populateDist = viewDist + 1;
+			var populateDist = viewDist + 1;
 
 			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
@@ -158,8 +158,8 @@ namespace _Project.WorldGeneration.Systems
 			{
 				int3 da = a - Player;
 				int3 db = b - Player;
-				int  sa = da.x * da.x + da.y * da.y + da.z * da.z;
-				int  sb = db.x * db.x + db.y * db.y + db.z * db.z;
+				var  sa = da.x * da.x + da.y * da.y + da.z * da.z;
+				var  sb = db.x * db.x + db.y * db.y + db.z * db.z;
 				return sb.CompareTo(sa); // descending — nearest ends up at the tail
 			}
 		}
@@ -174,7 +174,7 @@ namespace _Project.WorldGeneration.Systems
 			int viewDist = GameSettings.ViewDistanceInChunks;
 			var made     = 0;
 
-			while (pendingCreate.Length > 0 && made < GameSettings.CHUNK_CREATES_PER_FRAME)
+			while (pendingCreate.Length > 0 && made < GameSettings.ChunkCreatesPerFrame)
 			{
 				int3 coord = pendingCreate[pendingCreate.Length - 1];
 				pendingCreate.RemoveAt(pendingCreate.Length - 1);

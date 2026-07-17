@@ -121,7 +121,7 @@ namespace _Project.WorldGeneration.Systems
 			foreach (KVPair<int3, Entity> kv in map)
 			{
 				if (math.cmax(math.abs(kv.Key - playerChunk)) > viewDist) continue;
-				ulong mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : OcclusionBfsJob.AllFacesConnected;
+				var mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : OcclusionBfsJob.AllFacesConnected;
 				snapshot.TryAdd(kv.Key, mask);
 			}
 		}
@@ -152,8 +152,15 @@ namespace _Project.WorldGeneration.Systems
 			if (renderEntity == Entity.Null || !EntityManager.Exists(renderEntity)) return;
 
 			var hidden = EntityManager.HasComponent<DisableRendering>(renderEntity);
-			if (desired && hidden) ecb.RemoveComponent<DisableRendering>(renderEntity);
-			else if (!desired && !hidden) ecb.AddComponent<DisableRendering>(renderEntity);
+			switch (desired)
+			{
+				case true when hidden:
+					ecb.RemoveComponent<DisableRendering>(renderEntity);
+					break;
+				case false when !hidden:
+					ecb.AddComponent<DisableRendering>(renderEntity);
+					break;
+			}
 		}
 	}
 
@@ -208,13 +215,13 @@ namespace _Project.WorldGeneration.Systems
 
 		public void Execute()
 		{
-			var dim   = ChunkBitTree.DIM;
-			var count = dim * dim * dim;
+			const int dim   = ChunkBitTree.DIM;
+			const int count = dim * dim * dim;
 
 			// Per-cell set of incoming face-directions already accounted for. Growing this
 			// set is what re-queues a node (relaxation): a chunk reached from a new side may
 			// expose new outgoing sightlines its earlier visit couldn't.
-			var incoming = new NativeArray<byte>(count, Allocator.Temp, NativeArrayOptions.ClearMemory);
+			var incoming = new NativeArray<byte>(count, Allocator.Temp);
 			var queue    = new NativeQueue<int>(Allocator.Temp);
 
 			if (!Tree.TryToLocal(PlayerChunk, out int3 startLocal))
@@ -239,13 +246,13 @@ namespace _Project.WorldGeneration.Systems
 
 				// Loaded chunks are the only ones we draw and traverse through; a frontier
 				// coord absent from the snapshot has unknown connectivity and nothing to render.
-				if (!Masks.TryGetValue(coord, out ulong mask)) continue;
+				if (!Masks.TryGetValue(coord, out var mask)) continue;
 
 				Tree.Set(local);
 
 				mask &= AngleMask(coord);
 
-				int outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
+				var outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
 
 				for (var f = 0; f < 6; f++)
 				{
@@ -272,7 +279,7 @@ namespace _Project.WorldGeneration.Systems
 		/// <summary> Fold the rows selected by the incoming set into a 6-bit outgoing set. </summary>
 		private static int GetConnections(ulong mask, int incoming)
 		{
-			ulong rows = mask & RowMask(incoming);
+			var rows = mask & RowMask(incoming);
 			rows |= rows >> 32;
 			rows |= rows >> 16;
 			rows |= rows >> 8;
@@ -296,9 +303,9 @@ namespace _Project.WorldGeneration.Systems
 		/// </summary>
 		private ulong AngleMask(int3 coord)
 		{
-			int dx = math.abs(coord.x - PlayerChunk.x);
-			int dy = math.abs(coord.y - PlayerChunk.y);
-			int dz = math.abs(coord.z - PlayerChunk.z);
+			var dx = math.abs(coord.x - PlayerChunk.x);
+			var dy = math.abs(coord.y - PlayerChunk.y);
+			var dz = math.abs(coord.z - PlayerChunk.z);
 
 			ulong occ = 0;
 			if (dy > dx + SLACK || dz > dx + SLACK) occ |= X_THROUGH;
@@ -310,9 +317,9 @@ namespace _Project.WorldGeneration.Systems
 		/// <summary> Faces that point away from the camera plane (monotonic expansion). </summary>
 		private int OutwardDirs(int3 coord)
 		{
-			int rx = coord.x - PlayerChunk.x;
-			int ry = coord.y - PlayerChunk.y;
-			int rz = coord.z - PlayerChunk.z;
+			var rx = coord.x - PlayerChunk.x;
+			var ry = coord.y - PlayerChunk.y;
+			var rz = coord.z - PlayerChunk.z;
 
 			var d = 0;
 			if (rx <= WIDTH) d |= 1 << 0;  // X-

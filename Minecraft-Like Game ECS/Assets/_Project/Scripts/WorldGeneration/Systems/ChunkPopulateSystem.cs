@@ -46,7 +46,7 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
-			int budget = GameSettings.CHUNKS_PER_POPULATE_JOB;
+			var budget = GameSettings.ChunksPerPopulateJob;
 
 			NativeArray<Entity> entities = candidateQuery.ToEntityArray(Allocator.Temp);
 			NativeArray<ChunkPositionComponent> positions =

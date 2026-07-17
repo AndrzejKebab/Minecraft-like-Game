@@ -121,16 +121,14 @@ namespace _Project.WorldGeneration.TerraGen
 
 			// mountain override: sample climate at the terrain-region centre so a whole
 			// mountain region shares one biome
-			if (cell.Terrain.IsMountain())
-			{
-				var mtnX     = cell.TerrainRegionCenter.x * biomeFreq;
-				var mtnZ     = cell.TerrainRegionCenter.y * biomeFreq;
-				var mtnTemp  = Temperature(mtnX, mtnZ, seed, in s);
-				var mtnMoist = Moisture(mtnX, mtnZ, seed, in s);
-				cell.Biome       = GetBiome(mtnTemp, mtnMoist);
-				cell.Temperature = BiomeTemperature(cell.Biome);
-				cell.Moisture    = BiomeMoisture(cell.Biome);
-			}
+			if (!cell.Terrain.IsMountain()) return;
+			var mtnX     = cell.TerrainRegionCenter.x * biomeFreq;
+			var mtnZ     = cell.TerrainRegionCenter.y * biomeFreq;
+			var mtnTemp  = Temperature(mtnX, mtnZ, seed, in s);
+			var mtnMoist = Moisture(mtnX, mtnZ, seed, in s);
+			cell.Biome       = GetBiome(mtnTemp, mtnMoist);
+			cell.Temperature = BiomeTemperature(cell.Biome);
+			cell.Moisture    = BiomeMoisture(cell.Biome);
 		}
 
 		// ── Temperature / moisture fields (biome-cell space coordinates) ──────
@@ -168,11 +166,15 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static float ModifyTemp(float height, float temp, in TerraLevels levels)
 		{
-			if (height > 0.75f) return math.max(0f, temp - 0.05f);
-			if (height > 0.45f)
+			switch (height)
 			{
-				var delta = (height - 0.45f) / 0.3f;
-				return math.max(0f, temp - delta * 0.05f);
+				case > 0.75f:
+					return math.max(0f, temp - 0.05f);
+				case > 0.45f:
+				{
+					var delta = (height - 0.45f) / 0.3f;
+					return math.max(0f, temp - delta * 0.05f);
+				}
 			}
 
 			height = math.max(levels.Ground, height);
@@ -228,13 +230,19 @@ namespace _Project.WorldGeneration.TerraGen
 			{
 				case 0: return h >= 4 ? TerraBiome.ColdSteppe : TerraBiome.Tundra;
 				case 1:
-					if (h <= 0) return TerraBiome.Grassland;
-					if (h <= 2) return TerraBiome.Steppe;
-					return TerraBiome.Taiga;
+					return h switch
+					       {
+						       <= 0 => TerraBiome.Grassland,
+						       <= 2 => TerraBiome.Steppe,
+						       _    => TerraBiome.Taiga
+					       };
 				case 2:
-					if (h <= 0) return TerraBiome.Grassland;
-					if (h <= 3) return TerraBiome.TemperateForest;
-					return TerraBiome.TemperateRainforest;
+					return h switch
+					       {
+						       <= 0 => TerraBiome.Grassland,
+						       <= 3 => TerraBiome.TemperateForest,
+						       _    => TerraBiome.TemperateRainforest
+					       };
 				case 3:
 					return h <= 2 ? TerraBiome.Savanna : TerraBiome.TropicalRainforest;
 				default:
@@ -244,60 +252,66 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static int TempLevel(float v)
 		{
-			// Temperature LEVEL_0..4 band edges
-			if (v < -0.45f) return 0;
-			if (v < -0.15f) return 1;
-			if (v < 0.2f) return 2;
-			if (v < 0.55f) return 3;
-			return 4;
+			return v switch
+			       {
+				       // Temperature LEVEL_0..4 band edges
+				       < -0.45f => 0,
+				       < -0.15f => 1,
+				       < 0.2f   => 2,
+				       < 0.55f  => 3,
+				       _        => 4
+			       };
 		}
 
 		private static int HumidityLevel(float v)
 		{
-			// Humidity LEVEL_0..4 band edges
-			if (v < -0.35f) return 0;
-			if (v < -0.1f) return 1;
-			if (v < 0.1f) return 2;
-			if (v < 0.3f) return 3;
-			return 4;
+			return v switch
+			       {
+				       // Humidity LEVEL_0..4 band edges
+				       < -0.35f => 0,
+				       < -0.1f  => 1,
+				       < 0.1f   => 2,
+				       < 0.3f   => 3,
+				       _        => 4
+			       };
 		}
 
 		/// <summary> Representative biome temperature (mid of the RTF noise-pair table). </summary>
 		public static float BiomeTemperature(TerraBiome biome)
 		{
-			switch (biome)
-			{
-				case TerraBiome.TropicalRainforest:  return 0.375f;
-				case TerraBiome.Savanna:             return 0.375f;
-				case TerraBiome.Desert:              return 0.775f;
-				case TerraBiome.TemperateRainforest: return 0.025f;
-				case TerraBiome.TemperateForest:     return 0.025f;
-				case TerraBiome.Grassland:           return -0.15f;
-				case TerraBiome.ColdSteppe:          return -0.725f;
-				case TerraBiome.Steppe:              return -0.15f;
-				case TerraBiome.Taiga:               return -0.3f;
-				case TerraBiome.Tundra:              return -0.725f;
-				default:                             return -0.3f; // alpine
-			}
+			return biome switch
+			       {
+				       TerraBiome.TropicalRainforest  => 0.375f,
+				       TerraBiome.Savanna             => 0.375f,
+				       TerraBiome.Desert              => 0.775f,
+				       TerraBiome.TemperateRainforest => 0.025f,
+				       TerraBiome.TemperateForest     => 0.025f,
+				       TerraBiome.Grassland           => -0.15f,
+				       TerraBiome.ColdSteppe          => -0.725f,
+				       TerraBiome.Steppe              => -0.15f,
+				       TerraBiome.Taiga               => -0.3f,
+				       TerraBiome.Tundra              => -0.725f,
+				       _                              => -0.3f
+			       };
 		}
 
 		/// <summary> Representative biome moisture (mid of the RTF noise-pair table). </summary>
 		public static float BiomeMoisture(TerraBiome biome)
 		{
-			switch (biome)
-			{
-				case TerraBiome.TropicalRainforest:  return 0.4f;
-				case TerraBiome.Savanna:             return -0.45f;
-				case TerraBiome.Desert:              return -0.65f;
-				case TerraBiome.TemperateRainforest: return 0.65f;
-				case TerraBiome.TemperateForest:     return 0.1f;
-				case TerraBiome.Grassland:           return -0.45f;
-				case TerraBiome.ColdSteppe:          return 0.65f;
-				case TerraBiome.Steppe:              return -0.1f;
-				case TerraBiome.Taiga:               return 0.3f;
-				case TerraBiome.Tundra:              return -0.2f;
-				default:                             return 0.65f; // alpine
-			}
+			return biome switch
+			       {
+				       TerraBiome.TropicalRainforest  => 0.4f,
+				       TerraBiome.Savanna             => -0.45f,
+				       TerraBiome.Desert              => -0.65f,
+				       TerraBiome.TemperateRainforest => 0.65f,
+				       TerraBiome.TemperateForest     => 0.1f,
+				       TerraBiome.Grassland           => -0.45f,
+				       TerraBiome.ColdSteppe          => 0.65f,
+				       TerraBiome.Steppe              => -0.1f,
+				       TerraBiome.Taiga               => 0.3f,
+				       TerraBiome.Tundra              => -0.2f,
+				       _                              => 0.65f
+			       };
 		}
 	}
 }

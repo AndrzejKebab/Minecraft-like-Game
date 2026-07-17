@@ -53,23 +53,16 @@ namespace _Project.WorldGeneration.TerraGen
 
 			var rocky = surface >= stoneLineY && column.Terrain.IsMountain();
 
-			if (depth == 0)
-			{
-				if (rocky) return STONE;
-				if (submerged)
-					return column.Terrain == TerraTerrain.DeepOcean ? STONE : SAND;
-				return sandy ? SAND : GRASS;
-			}
-
-			if (depth <= 4)
-			{
-				if (rocky) return STONE;
-				if (submerged)
-					return column.Terrain == TerraTerrain.DeepOcean ? STONE : SAND;
-				return sandy ? SAND : DIRT;
-			}
-
-			return STONE;
+			return depth switch
+			       {
+				       0 when rocky        => STONE,
+				       0 when submerged    => column.Terrain == TerraTerrain.DeepOcean ? STONE : SAND,
+				       0                   => sandy ? SAND : GRASS,
+				       <= 4 when rocky     => STONE,
+				       <= 4 when submerged => column.Terrain == TerraTerrain.DeepOcean ? STONE : SAND,
+				       <= 4                => sandy ? SAND : DIRT,
+				       _                   => STONE
+			       };
 		}
 	}
 }

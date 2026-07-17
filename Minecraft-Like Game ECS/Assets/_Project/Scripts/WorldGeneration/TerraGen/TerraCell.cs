@@ -41,12 +41,12 @@ namespace _Project.WorldGeneration.TerraGen
 	{
 		public static bool IsSubmerged(this TerraTerrain t)
 		{
-			return t == TerraTerrain.DeepOcean || t == TerraTerrain.ShallowOcean || t == TerraTerrain.River;
+			return t is TerraTerrain.DeepOcean or TerraTerrain.ShallowOcean or TerraTerrain.River;
 		}
 
 		public static bool IsMountain(this TerraTerrain t)
 		{
-			return t >= TerraTerrain.Mountains1 && t <= TerraTerrain.MountainChain;
+			return t is >= TerraTerrain.Mountains1 and <= TerraTerrain.MountainChain;
 		}
 
 		public static bool IsOverground(this TerraTerrain t)
@@ -159,44 +159,56 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static float CurveF(float e)
 		{
-			if (e <= 0f) return 0f;
-			if (e < 0.10f) return e * (0.02f / 0.10f);
-			if (e < 0.30f) return 0.02f + (e - 0.10f) * ((0.10f - 0.02f) / 0.20f);
-			if (e < 0.60f) return 0.10f + (e - 0.30f) * ((0.30f - 0.10f) / 0.30f);
-			if (e < 1.00f) return 0.30f + (e - 0.60f) * ((1.00f - 0.30f) / 0.40f);
-			if (e < 1.45f) return 1.00f + (e - 1.00f) * ((2.00f - 1.00f) / 0.45f);
-			return 2.00f + (e - 1.45f) * 2.2f;
+			return e switch
+			       {
+				       <= 0f   => 0f,
+				       < 0.10f => e * (0.02f / 0.10f),
+				       < 0.30f => 0.02f + (e - 0.10f) * ((0.10f - 0.02f) / 0.20f),
+				       < 0.60f => 0.10f + (e - 0.30f) * ((0.30f - 0.10f) / 0.30f),
+				       < 1.00f => 0.30f + (e - 0.60f) * ((1.00f - 0.30f) / 0.40f),
+				       < 1.45f => 1.00f + (e - 1.00f) * ((2.00f - 1.00f) / 0.45f),
+				       _       => 2.00f + (e - 1.45f) * 2.2f
+			       };
 		}
 
 		private static float CurveSlope(float e)
 		{
-			if (e < 0.10f) return 0.02f / 0.10f;
-			if (e < 0.30f) return (0.10f - 0.02f) / 0.20f;
-			if (e < 0.60f) return (0.30f - 0.10f) / 0.30f;
-			if (e < 1.00f) return (1.00f - 0.30f) / 0.40f;
-			if (e < 1.45f) return (2.00f - 1.00f) / 0.45f;
-			return 2.2f;
+			return e switch
+			       {
+				       < 0.10f => 0.02f / 0.10f,
+				       < 0.30f => (0.10f - 0.02f) / 0.20f,
+				       < 0.60f => (0.30f - 0.10f) / 0.30f,
+				       < 1.00f => (1.00f - 0.30f) / 0.40f,
+				       < 1.45f => (2.00f - 1.00f) / 0.45f,
+				       _       => 2.2f
+			       };
 		}
 
 		/// <summary> Inverse of CurveF (f in MountainHeight units → e). </summary>
 		private static float CurveInv(float f)
 		{
-			if (f <= 0f) return 0f;
-			if (f < 0.02f) return f * (0.10f / 0.02f);
-			if (f < 0.10f) return 0.10f + (f - 0.02f) * (0.20f / (0.10f - 0.02f));
-			if (f < 0.30f) return 0.30f + (f - 0.10f) * (0.30f / (0.30f - 0.10f));
-			if (f < 1.00f) return 0.60f + (f - 0.30f) * (0.40f / (1.00f - 0.30f));
-			if (f < 2.00f) return 1.00f + (f - 1.00f) * (0.45f / (2.00f - 1.00f));
-			return 1.45f + (f - 2.00f) / 2.2f;
+			return f switch
+			       {
+				       <= 0f   => 0f,
+				       < 0.02f => f * (0.10f / 0.02f),
+				       < 0.10f => 0.10f + (f - 0.02f) * (0.20f / (0.10f - 0.02f)),
+				       < 0.30f => 0.30f + (f - 0.10f) * (0.30f / (0.30f - 0.10f)),
+				       < 1.00f => 0.60f + (f - 0.30f) * (0.40f / (1.00f - 0.30f)),
+				       < 2.00f => 1.00f + (f - 1.00f) * (0.45f / (2.00f - 1.00f)),
+				       _       => 1.45f + (f - 2.00f) / 2.2f
+			       };
 		}
 
 		/// <summary> Inverse of OceanF (f in OceanDepth units → d). </summary>
 		private static float OceanInv(float f)
 		{
-			if (f <= 0f) return 0f;
-			if (f < 0.03f) return f * (0.15f / 0.03f);
-			if (f < 0.35f) return 0.15f + (f - 0.03f) * (0.35f / (0.35f - 0.03f));
-			return 0.50f + (f - 0.35f) * (0.50f / (1.00f - 0.35f));
+			return f switch
+			       {
+				       <= 0f   => 0f,
+				       < 0.03f => f * (0.15f / 0.03f),
+				       < 0.35f => 0.15f + (f - 0.03f) * (0.35f / (0.35f - 0.03f)),
+				       _       => 0.50f + (f - 0.35f) * (0.50f / (1.00f - 0.35f))
+			       };
 		}
 
 		/// <summary> Normalised height → world blocks (float, no rounding). </summary>
@@ -224,18 +236,24 @@ namespace _Project.WorldGeneration.TerraGen
 
 		private static float OceanF(float d)
 		{
-			if (d <= 0f) return 0f;
-			if (d < 0.15f) return d * (0.03f / 0.15f);
-			if (d < 0.50f) return 0.03f + (d - 0.15f) * ((0.35f - 0.03f) / 0.35f);
-			if (d < 1.00f) return 0.35f + (d - 0.50f) * ((1.00f - 0.35f) / 0.50f);
-			return 1f;
+			return d switch
+			       {
+				       <= 0f   => 0f,
+				       < 0.15f => d * (0.03f / 0.15f),
+				       < 0.50f => 0.03f + (d - 0.15f) * ((0.35f - 0.03f) / 0.35f),
+				       < 1.00f => 0.35f + (d - 0.50f) * ((1.00f - 0.35f) / 0.50f),
+				       _       => 1f
+			       };
 		}
 
 		private static float OceanSlope(float d)
 		{
-			if (d < 0.15f) return 0.03f / 0.15f;
-			if (d < 0.50f) return (0.35f - 0.03f) / 0.35f;
-			return (1.00f - 0.35f) / 0.50f;
+			return d switch
+			       {
+				       < 0.15f => 0.03f / 0.15f,
+				       < 0.50f => (0.35f - 0.03f) / 0.35f,
+				       _       => (1.00f - 0.35f) / 0.50f
+			       };
 		}
 
 		/// <summary> Normalised height → world block Y (sea level = world Y 0). </summary>

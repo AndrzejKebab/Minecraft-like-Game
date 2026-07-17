@@ -160,7 +160,7 @@ namespace _Project.WorldGeneration.TerraGen
 				var alpha = TerraNoise.InterpHermite((edge - min) / (mid - min));
 				TerrainSample deep    = TerraTerrains.DeepOcean(tx, tz, in levels, in s);
 				TerrainSample shallow = TerraTerrains.ShallowOcean(in levels);
-				var result = shallow;
+				TerrainSample result = shallow;
 				result.Height = math.lerp(deep.Height, shallow.Height, alpha);
 				return result;
 			}
@@ -169,7 +169,7 @@ namespace _Project.WorldGeneration.TerraGen
 				var alpha = TerraNoise.InterpHermite((edge - mid) / (max - mid));
 				TerrainSample shallow = TerraTerrains.ShallowOcean(in levels);
 				TerrainSample coast   = TerraTerrains.Coast(in levels);
-				var result = coast;
+				TerrainSample result = coast;
 				result.Height = math.lerp(shallow.Height, coast.Height, alpha);
 				return result;
 			}

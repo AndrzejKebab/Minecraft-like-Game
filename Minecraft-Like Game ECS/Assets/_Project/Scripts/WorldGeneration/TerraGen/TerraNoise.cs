@@ -65,17 +65,17 @@ namespace _Project.WorldGeneration.TerraGen
 			hash ^= Y_PRIME * y;
 			hash =  hash * hash * hash * 60493;
 			hash ^= hash >> 13;
-			switch (hash & 0x7)
-			{
-				case 0:  return new float2(-1f, -1f);
-				case 1:  return new float2(1f, -1f);
-				case 2:  return new float2(-1f, 1f);
-				case 3:  return new float2(1f, 1f);
-				case 4:  return new float2(0f, -1f);
-				case 5:  return new float2(-1f, 0f);
-				case 6:  return new float2(0f, 1f);
-				default: return new float2(1f, 0f);
-			}
+			return (hash & 0x7) switch
+			       {
+				       0 => new float2(-1f, -1f),
+				       1 => new float2(1f, -1f),
+				       2 => new float2(-1f, 1f),
+				       3 => new float2(1f, 1f),
+				       4 => new float2(0f, -1f),
+				       5 => new float2(-1f, 0f),
+				       6 => new float2(0f, 1f),
+				       _ => new float2(1f, 0f)
+			       };
 		}
 
 		private static float GradCoord2D(int seed, int x, int y, float xd, float yd)
@@ -122,8 +122,7 @@ namespace _Project.WorldGeneration.TerraGen
 
 		public static float CopySign(float value, float sign)
 		{
-			if (sign < 0f && value > 0f) return -value;
-			if (sign > 0f && value < 0f) return -value;
+			if (sign < 0f && value > 0f || sign > 0f && value < 0f) return -value;
 			return value;
 		}
 
@@ -136,12 +135,12 @@ namespace _Project.WorldGeneration.TerraGen
 
 		public static float ApplyInterp(float t, Interp interp)
 		{
-			switch (interp)
-			{
-				case Interp.Curve3: return InterpHermite(t);
-				case Interp.Curve4: return InterpQuintic(t);
-				default:            return t;
-			}
+			return interp switch
+			       {
+				       Interp.Curve3 => InterpHermite(t),
+				       Interp.Curve4 => InterpQuintic(t),
+				       _             => t
+			       };
 		}
 
 		// ── Perlin (RTF gradient noise, exact port) ───────────────────────────
@@ -167,16 +166,16 @@ namespace _Project.WorldGeneration.TerraGen
 		/// <summary> RTF Perlin octave amplitude normalisation table. </summary>
 		private static float Signal(int octaves)
 		{
-			switch (math.min(octaves, 6))
-			{
-				case 0:  return 1f;
-				case 1:  return 0.9f;
-				case 2:  return 0.83f;
-				case 3:  return 0.75f;
-				case 4:  return 0.64f;
-				case 5:  return 0.62f;
-				default: return 0.61f;
-			}
+			return math.min(octaves, 6) switch
+			       {
+				       0 => 1f,
+				       1 => 0.9f,
+				       2 => 0.83f,
+				       3 => 0.75f,
+				       4 => 0.64f,
+				       5 => 0.62f,
+				       _ => 0.61f
+			       };
 		}
 
 		/// <summary> Fractal perlin normalised to [0,1] (RTF Perlin module). </summary>
@@ -292,13 +291,11 @@ namespace _Project.WorldGeneration.TerraGen
 
 		public static float DistApply(DistFunc f, float dx, float dy)
 		{
-			switch (f)
-			{
-				case DistFunc.Natural:
-					return math.abs(dx) + math.abs(dy) + (dx * dx + dy * dy);
-				default:
-					return dx * dx + dy * dy;
-			}
+			return f switch
+			       {
+				       DistFunc.Natural => math.abs(dx) + math.abs(dy) + (dx * dx + dy * dy),
+				       _                => dx * dx + dy * dy
+			       };
 		}
 
 		/// <summary>
@@ -527,12 +524,10 @@ namespace _Project.WorldGeneration.TerraGen
 						cache[cacheIndex] = height;
 					}
 
-					if (height < lowestNeighbour)
-					{
-						lowestNeighbour = height;
-						bx              = cx;
-						by              = cy;
-					}
+					if (!(height < lowestNeighbour)) continue;
+					lowestNeighbour = height;
+					bx              = cx;
+					by              = cy;
 				}
 
 				var height2 = SegmentDist2(x, y, ax, ay, bx, by);

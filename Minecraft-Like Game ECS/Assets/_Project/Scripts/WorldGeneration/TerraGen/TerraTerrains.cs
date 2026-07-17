@@ -49,10 +49,8 @@ namespace _Project.WorldGeneration.TerraGen
 			var frequency = 1f / s.TerrainRegionSize;
 
 			// domain warp: two simplex(400) fields, strength 200
-			var wx = x;
-			var wz = z;
-			var ox = TerraNoise.PerlinSigned(wx, wz, seed + 101, 1f / REGION_WARP_SCALE, 1) * REGION_WARP_STRENGTH;
-			var oz = TerraNoise.PerlinSigned(wx, wz, seed + 202, 1f / REGION_WARP_SCALE, 1) * REGION_WARP_STRENGTH;
+			var ox = TerraNoise.PerlinSigned(x, z, seed + 101, 1f / REGION_WARP_SCALE, 1) * REGION_WARP_STRENGTH;
+			var oz = TerraNoise.PerlinSigned(x, z, seed + 202, 1f / REGION_WARP_SCALE, 1) * REGION_WARP_STRENGTH;
 			var px = (x + ox) * frequency;
 			var pz = (z + oz) * frequency;
 
@@ -102,9 +100,12 @@ namespace _Project.WorldGeneration.TerraGen
 			var value     = distance / distance2 - 1f; // [-1, 0]
 			var edgeValue = 1f - TerraNoise.Map(value, -1f, 0f, 1f);
 			edgeValue = math.pow(edgeValue, 1.5f);
-			if (edgeValue < 0f) return 0f;
-			if (edgeValue > 0.75f) return 1f;
-			return edgeValue / 0.75f;
+			return edgeValue switch
+			       {
+				       < 0f    => 0f,
+				       > 0.75f => 1f,
+				       _       => edgeValue / 0.75f
+			       };
 		}
 
 		// ── Populators (Populators.java ports) ───────────────────────────────
@@ -467,23 +468,24 @@ namespace _Project.WorldGeneration.TerraGen
 		{
 			const int maxIndex = 13;
 			var index = math.clamp(TerraNoise.Round(identity * maxIndex), 0, maxIndex);
-			switch (index)
-			{
-				case 0:  return Steppe(x, z, ground, in s);
-				case 1:  return Plains(x, z, ground, in s);
-				case 2:  return Dales(x, z, ground, in s);
-				case 3:  return Hills1(x, z, ground, in s);
-				case 4:  return Plains(x, z, ground, in s);
-				case 5:  return Torridonian(x, z, ground, in s);
-				case 6:  return Plateau(x, z, ground, in s);
-				case 7:  return Badlands(x, z, ground, in s);
-				case 8:  return Hills2(x, z, ground, in s);
-				case 9:  return Mountains1(x, z, ground, in s);
-				case 10: return Steppe(x, z, ground, in s);
-				case 11: return Hills2(x, z, ground, in s);   // was Mountains2 — fewer mountains
-				case 12: return Plateau(x, z, ground, in s);
-				default: return Mountains3(x, z, ground, in s);
-			}
+			return index switch
+			       {
+				       0  => Steppe(x, z, ground, in s),
+				       1  => Plains(x, z, ground, in s),
+				       2  => Dales(x, z, ground, in s),
+				       3  => Hills1(x, z, ground, in s),
+				       4  => Plains(x, z, ground, in s),
+				       5  => Torridonian(x, z, ground, in s),
+				       6  => Plateau(x, z, ground, in s),
+				       7  => Badlands(x, z, ground, in s),
+				       8  => Hills2(x, z, ground, in s),
+				       9  => Mountains1(x, z, ground, in s),
+				       10 => Steppe(x, z, ground, in s),
+				       11 => Hills2(x, z, ground, in s) // was Mountains2 — fewer mountains
+				       ,
+				       12 => Plateau(x, z, ground, in s),
+				       _  => Mountains3(x, z, ground, in s)
+			       };
 		}
 
 		/// <summary> RTF makeBorder — plains-scaled filler between terrain regions. </summary>
@@ -495,9 +497,15 @@ namespace _Project.WorldGeneration.TerraGen
 		/// <summary> RegionLerper — blends border ↔ region terrain by region edge. </summary>
 		public static TerrainSample LerpRegion(in TerrainSample lower, in TerrainSample upper, float alpha)
 		{
-			if (alpha <= 0f) return lower;
-			if (alpha >= 1f) return upper;
-			var result = upper; // categorical fields follow the region terrain
+			switch (alpha)
+			{
+				case <= 0f:
+					return lower;
+				case >= 1f:
+					return upper;
+			}
+
+			TerrainSample result = upper; // categorical fields follow the region terrain
 			result.Height    = math.lerp(lower.Height, upper.Height, alpha);
 			result.Erosion   = math.lerp(lower.Erosion, upper.Erosion, alpha);
 			result.Weirdness = math.lerp(lower.Weirdness, upper.Weirdness, alpha);
@@ -529,7 +537,7 @@ namespace _Project.WorldGeneration.TerraGen
 			if (select < min) return lower;
 			if (select > max) return upper;
 			var alpha  = (select - min) / (max - min);
-			var result = select < min + (max - min) * split ? lower : upper;
+			TerrainSample result = select < min + (max - min) * split ? lower : upper;
 			result.Height    = math.lerp(lower.Height, upper.Height, alpha);
 			result.Erosion   = math.lerp(lower.Erosion, upper.Erosion, alpha);
 			result.Weirdness = math.lerp(lower.Weirdness, upper.Weirdness, alpha);

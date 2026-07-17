@@ -179,7 +179,7 @@ namespace _Project.WorldGeneration.TerraGen
 			var pz = stackalloc float[MAX_STEP + 1];
 			var pt = stackalloc float[MAX_STEP + 1];
 
-			var pos  = mouth;
+			float2 pos  = mouth;
 			var terr = TerraHeightmap.SampleLandHeightBlocks(pos.x, pos.y, in s, in levels);
 			px[0] = pos.x; pz[0] = pos.y; pt[0] = terr;
 			var n = 1;
@@ -208,11 +208,9 @@ namespace _Project.WorldGeneration.TerraGen
 					var p  = new float2(pos.x + ax * STEP, pos.y + az * STEP);
 					var th = TerraHeightmap.SampleLandHeightBlocks(p.x, p.y, in s, in levels);
 					var score = th + INLAND_BIAS * (ax * ivx + az * ivz);
-					if (score > bestScore)
-					{
-						bestScore = score;
-						bestAngle = a;
-					}
+					if (!(score > bestScore)) continue;
+					bestScore = score;
+					bestAngle = a;
 				}
 
 				heading += AngleDelta(heading, bestAngle) * 0.55f;
@@ -304,10 +302,10 @@ namespace _Project.WorldGeneration.TerraGen
 		                                    int bedWidth, int bankWidth, int valleyRadius,
 		                                    int bedDepth, int bankHeight, ref TerraRng rng)
 		{
-			var d   = p2 - p1;
+			float2 d   = p2 - p1;
 			var len = math.length(d);
 			if (len < 1e-3f) return;
-			var dir  = d / len;
+			float2 dir  = d / len;
 			var norm = new float2(dir.y, -dir.x);
 
 			// subtle meander only — the trace already follows the valley

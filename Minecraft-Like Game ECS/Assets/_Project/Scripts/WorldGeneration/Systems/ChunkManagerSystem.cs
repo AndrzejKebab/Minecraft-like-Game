@@ -43,7 +43,7 @@ namespace _Project.WorldGeneration.Systems
 			// only once its own job — and every neighbour job that might still be reading its
 			// BlockData — has finished on its own (IsCompleted). Not-ready chunks stay marked
 			// and are revisited next frame, so there's no main-thread stall waiting on a job.
-			int budget    = GameSettings.CHUNK_DESTROYS_PER_FRAME;
+			var budget    = GameSettings.ChunkDestroysPerFrame;
 			var destroyed = 0;
 
 			for (var index = 0; index < chunkEntities.Length && destroyed < budget; index++)
