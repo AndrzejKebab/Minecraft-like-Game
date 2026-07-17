@@ -142,61 +142,79 @@ MonoBehaviour:
   m_Name: SurfaceCacheGIVolumeOverride
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.SurfaceCacheGIVolumeOverride
   active: 1
+  <displayName>k__BackingField: 
   enabled:
+    <fieldHash>k__BackingField: -1128440488
     m_OverrideState: 1
     m_Value: 1
   multiBounce:
+    <fieldHash>k__BackingField: -889090096
     m_OverrideState: 1
     m_Value: 1
   bouncePatchAllocation:
+    <fieldHash>k__BackingField: -649739704
     m_OverrideState: 1
     m_Value: 1
   sampleCount:
+    <fieldHash>k__BackingField: -410389312
     m_OverrideState: 1
     m_Value: 2
   temporalSmoothing:
+    <fieldHash>k__BackingField: -171038920
     m_OverrideState: 1
     m_Value: 0.8
   spatialFilterEnabled:
+    <fieldHash>k__BackingField: 68311472
     m_OverrideState: 1
     m_Value: 1
   spatialSampleCount:
+    <fieldHash>k__BackingField: 307661864
     m_OverrideState: 1
     m_Value: 4
   spatialRadius:
+    <fieldHash>k__BackingField: 547012256
     m_OverrideState: 1
     m_Value: 1
   temporalPostFilter:
+    <fieldHash>k__BackingField: 786362648
     m_OverrideState: 1
     m_Value: 1
   lookupSampleCount:
+    <fieldHash>k__BackingField: 1025713040
     m_OverrideState: 1
     m_Value: 6
   upsamplingKernelSize:
+    <fieldHash>k__BackingField: 1265063432
     m_OverrideState: 1
     m_Value: 4
   upsamplingSampleCount:
+    <fieldHash>k__BackingField: 1504413824
     m_OverrideState: 1
     m_Value: 2
   volumeSize:
+    <fieldHash>k__BackingField: 1743764216
     m_OverrideState: 1
     m_Value: 128
   volumeResolution:
+    <fieldHash>k__BackingField: 1983114608
     m_OverrideState: 1
     m_Value: 32
   volumeCascadeCount:
+    <fieldHash>k__BackingField: -2072502296
     m_OverrideState: 1
     m_Value: 4
   cascadeMovement:
+    <fieldHash>k__BackingField: -1833151904
     m_OverrideState: 1
     m_Value: 1
   defragCount:
+    <fieldHash>k__BackingField: -1593801512
     m_OverrideState: 1
     m_Value: 2
   renderingLayerMask:
+    <fieldHash>k__BackingField: -1354451120
     m_OverrideState: 1
     m_Value:
-      serializedVersion: 0
       m_Bits: 4294967295
 --- !u!114 &-3742387105160211104
 MonoBehaviour:
@@ -211,67 +229,89 @@ MonoBehaviour:
   m_Name: ScreenSpaceAmbientOcclusionVolumeOverride
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.ScreenSpaceAmbientOcclusionVolumeOverride
   active: 1
+  <displayName>k__BackingField: 
   m_Mode:
+    <fieldHash>k__BackingField: 321001624
     m_OverrideState: 1
     m_Value: 2
   m_Quality:
+    <fieldHash>k__BackingField: 560352016
     m_OverrideState: 1
     m_Value: 2
   m_Intensity:
+    <fieldHash>k__BackingField: 799702408
     m_OverrideState: 1
     m_Value: 1
   m_Radius:
+    <fieldHash>k__BackingField: 1039052800
     m_OverrideState: 1
     m_Value: 0.3
   m_DirectLightingStrength:
+    <fieldHash>k__BackingField: 1423609976
     m_OverrideState: 1
     m_Value: 0
   m_FalloffDistance:
+    <fieldHash>k__BackingField: 1662960368
     m_OverrideState: 1
     m_Value: 100
   m_SampleCount:
+    <fieldHash>k__BackingField: 1902310760
     m_OverrideState: 1
     m_Value: 2
   m_Downsample:
+    <fieldHash>k__BackingField: 2141661152
     m_OverrideState: 1
     m_Value: 0
   m_AfterOpaque:
+    <fieldHash>k__BackingField: -1913955752
     m_OverrideState: 1
     m_Value: 0
   m_BlurQuality:
+    <fieldHash>k__BackingField: -1674605360
     m_OverrideState: 1
     m_Value: 2
   m_Method:
+    <fieldHash>k__BackingField: -1435254968
     m_OverrideState: 1
     m_Value: 1
   m_DepthSource:
+    <fieldHash>k__BackingField: -1195904576
     m_OverrideState: 1
     m_Value: 1
   m_NormalQuality:
+    <fieldHash>k__BackingField: -956554184
     m_OverrideState: 1
     m_Value: 2
   m_MinimumRadiusInPixels:
+    <fieldHash>k__BackingField: -717203792
     m_OverrideState: 1
     m_Value: 40
   m_UseComputeShader:
+    <fieldHash>k__BackingField: -477853400
     m_OverrideState: 1
     m_Value: 0
   m_SpatialFilter:
+    <fieldHash>k__BackingField: -238503008
     m_OverrideState: 0
     m_Value: 0
   m_TemporalFilter:
+    <fieldHash>k__BackingField: 847384
     m_OverrideState: 0
     m_Value: 0
   m_GhostingMitigation:
+    <fieldHash>k__BackingField: 240197776
     m_OverrideState: 0
     m_Value: 0.5
   m_HistoryLength:
+    <fieldHash>k__BackingField: 479548168
     m_OverrideState: 0
     m_Value: 0.9
   m_DirectionCount:
+    <fieldHash>k__BackingField: 718898560
     m_OverrideState: 0
     m_Value: 2
   m_StepCount:
+    <fieldHash>k__BackingField: 958248952
     m_OverrideState: 0
     m_Value: 4
 --- !u!114 &-3357603926938260329
@@ -319,9 +359,6 @@ MonoBehaviour:
   - {fileID: -7893295128165547882}
   - {fileID: 7391319092446245454}
   - {fileID: -3357603926938260329}
-  - {fileID: -3742387105160211104}
-  - {fileID: -8527289720481816793}
-  - {fileID: -7252135824123945102}
 --- !u!114 &849379129802519247
 MonoBehaviour:
   m_ObjectHideFlags: 3

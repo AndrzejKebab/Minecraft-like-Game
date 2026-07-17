@@ -83,17 +83,14 @@ MonoBehaviour:
       - rid: 6852985685364965392
       - rid: 6852985685364965394
       - rid: 8712630790384254976
-      - rid: 8059619756272779264
       - rid: 8059619756272779266
+      - rid: 8059619756272779268
       - rid: 8059619756272779269
       - rid: 8059619756272779270
       - rid: 8059619756272779275
       - rid: 8059619756272779277
-      - rid: 8059619756272779278
       - rid: 1380550183873413120
       - rid: 1380550183873413121
-      - rid: 2663516723970572388
-      - rid: 2663516723970572389
   m_AssetVersion: 11
   m_ObsoleteDefaultVolumeProfile: {fileID: 0}
   m_RenderingLayerNames:
@@ -124,6 +121,8 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
     - rid: 1380550183873413120
       type: {class: ScreenSpaceReflectionPersistentResources, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.Runtime}
       data:
@@ -415,7 +414,6 @@ MonoBehaviour:
       type: {class: ScreenSpaceAmbientOcclusionCoreResources, ns: UnityEngine.Rendering.Universal, asm: Unity.RenderPipelines.Universal.Runtime}
       data:
         m_RasterizationShader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
-        m_GTAOComputeShader: {fileID: 7200000, guid: 0e79c0fbcc6ffc642834ff60779ad086, type: 3}
         m_Version: 0
     - rid: 8059619756272779269
       type: {class: URPReflectionProbeSettings, ns: UnityEngine.Rendering, asm: Unity.RenderPipelines.Universal.Runtime}
