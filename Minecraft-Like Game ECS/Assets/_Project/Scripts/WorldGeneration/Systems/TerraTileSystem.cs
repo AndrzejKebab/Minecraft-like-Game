@@ -132,12 +132,70 @@ namespace _Project.WorldGeneration.Systems
 
 			missing.Dispose();
 
-			JobHandle handle = new TerraTileGenJob
+			// Four chained jobs; the noise-heavy per-column stages (1 and 3) are parallel
+			// over ROWS (take × 192 indices), so even a single tile spreads across every
+			// worker instead of pinning one worker for the whole tile. Stages 2 and 4 are
+			// per-tile (river networks are cheap; droplet erosion is a sequential walk
+			// over the whole tile and can't split further).
+			var cellsLen = take * TerraTileGen.CELLS;
+			var full     = new NativeArray<TerraCell>(cellsLen, Allocator.Persistent,
+			                                          NativeArrayOptions.UninitializedMemory);
+			var genCells = new NativeArray<TerraGenCell>(cellsLen, Allocator.Persistent,
+			                                             NativeArrayOptions.UninitializedMemory);
+			var segs = new NativeArray<TerraRiverSeg>(take * TerraTileGen.SEG_CAP, Allocator.Persistent,
+			                                          NativeArrayOptions.UninitializedMemory);
+			var centers = new NativeArray<int2>(take * TerraTileGen.CENTER_CAP, Allocator.Persistent,
+			                                    NativeArrayOptions.UninitializedMemory);
+			var ranges = new NativeArray<int2>(take * TerraTileGen.CENTER_CAP, Allocator.Persistent,
+			                                   NativeArrayOptions.UninitializedMemory);
+			var centerCounts = new NativeArray<int>(take, Allocator.Persistent,
+			                                        NativeArrayOptions.UninitializedMemory);
+
+			var rows = take * TerraTileGen.SIZE;
+
+			JobHandle h = new TerraTileSampleJob
+			              {
+				              Settings   = settings,
+				              TileCoords = coords,
+				              Full       = full
+			              }.Schedule(rows, TerraTileGen.ROW_BATCH);
+
+			h = new TerraTileNetworkJob
+			    {
+				    Settings     = settings,
+				    Full         = full,
+				    Segs         = segs,
+				    Centers      = centers,
+				    Ranges       = ranges,
+				    CenterCounts = centerCounts
+			    }.Schedule(take, 1, h);
+
+			h = new TerraTileCarveJob
+			    {
+				    Settings     = settings,
+				    TileCoords   = coords,
+				    Segs         = segs,
+				    Centers      = centers,
+				    Ranges       = ranges,
+				    CenterCounts = centerCounts,
+				    Full         = full,
+				    GenCells     = genCells
+			    }.Schedule(rows, TerraTileGen.ROW_BATCH, h);
+
+			JobHandle handle = new TerraTileFilterJob
 			                   {
 				                   Settings   = settings,
 				                   TileCoords = coords,
+				                   GenCells   = genCells,
 				                   ColumnPtrs = ptrs
-			                   }.Schedule(take, 1);
+			                   }.Schedule(take, 1, h);
+
+			full.Dispose(handle);
+			genCells.Dispose(handle);
+			segs.Dispose(handle);
+			centers.Dispose(handle);
+			ranges.Dispose(handle);
+			centerCounts.Dispose(handle);
 
 			for (var i = 0; i < take; i++)
 				cache.Tiles.Add(coordVals[i], new TerraTile
