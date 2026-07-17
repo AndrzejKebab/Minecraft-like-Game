@@ -11,47 +11,63 @@ using Unity.Transforms;
 namespace _Project.WorldGeneration.Systems
 {
 	/// <summary>
+	///     The committed occlusion result, shared with ChunkRenderUploadSystem so a chunk
+	///     meshed while inside a hidden region spawns hidden instead of flashing visible
+	///     until the next pass. Front is only ever swapped on the main thread after the
+	///     BFS completes — in-flight jobs write the back tree, never this one.
+	/// </summary>
+	public struct ChunkOcclusionTreeSingleton : IComponentData
+	{
+		public ChunkBitTree Front;
+		public bool         Valid; // false until the first pass has completed
+	}
+
+	/// <summary>
 	///     Graph-based occlusion culling (Sodium-style). Flood-fills outward from the
 	///     player's chunk through per-chunk face-connectivity masks (<see cref="ChunkOcclusion" />,
-	///     built at mesh time), marking every chunk with an open sightline into a
-	///     <see cref="ChunkBitTree" />. Chunks the flood never reaches (no line of sight
-	///     through the terrain — behind hills, sealed caves, past a wall) are hidden by
-	///     toggling <see cref="DisableRendering" /> on their render companions.
+	///     computed at populate time from BlockData and refreshed on re-mesh), marking every
+	///     chunk with an open sightline into a <see cref="ChunkBitTree" />. Chunks the flood
+	///     never reaches (behind hills, sealed caves, past a wall) are hidden by toggling
+	///     <see cref="DisableRendering" /> on their render companions.
 	///
 	///     Frustum and per-instance culling stay with Entities Graphics; this only adds the
 	///     "can you actually see through the world to get here" test that frustum culling
-	///     can't. Because sightline reachability doesn't change when you merely rotate, the
-	///     flood is rebuilt only when the player crosses a chunk boundary — near-free while
-	///     stationary.
+	///     can't answer. The result is rotation-invariant by design, so rebuilds happen on
+	///     chunk-boundary crossings and (throttled) whenever chunk masks change — newly
+	///     generated terrain is culled without waiting for the player to move.
 	///
-	///     ISystem, not SystemBase: nothing here needs managed dispatch. ChunkManagedMesh is
-	///     a plain unmanaged IComponentData (UnityObjectRef&lt;Mesh&gt; is the blittable
-	///     handle wrapper made for exactly this), so EntityManager/ComponentLookup/ECB access
-	///     works the same as any other struct system in this pipeline.
-	///
-	///     v1 limitations (safe, documented): uses only the outward-only "regular" variant
-	///     (Sodium also runs WIDE/LOCAL to fix concave edge cases), so it can over-cull in
-	///     rare concave sightlines; and a chunk meshed while the player stands still stays
-	///     rendered until the next boundary crossing (over-render, never under-render).
+	///     The pass is fully async (snapshot → background BFS → reconcile on completion).
+	///     Reconcile is a DIFF against the previous pass: the two bit-trees are compared
+	///     row-by-row (origin shift = an x bit-shift + z/y row offset), so only chunks whose
+	///     visibility actually flipped pay a structural change — not the whole render set.
 	/// </summary>
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	[UpdateAfter(typeof(ChunkRenderUploadSystem))]
 	public partial struct ChunkOcclusionSystem : ISystem
 	{
-		private ChunkBitTree               tree;
-		private NativeHashMap<int3, ulong> snapshot; // reused per-pass coord → mask snapshot
+		/// <summary> Min seconds between mask-change re-floods (crossings re-flood immediately). </summary>
+		private const float REFLOOD_INTERVAL = 0.25f;
+
+		private ChunkBitTree               frontTree; // committed result (enforced on entities)
+		private ChunkBitTree               backTree;  // written by the in-flight BFS
+		private NativeHashMap<int3, ulong> snapshot;  // reused per-pass coord → mask snapshot
 		private int3                       lastPlayerChunk;
 		private EntityQuery                renderedQuery;
+		private EntityQuery                maskChangedQuery; // changed-version filter on ChunkOcclusion
 
 		private JobHandle bfsHandle;
 		private bool      jobRunning;
+		private bool      firstPassDone;
+		private bool      masksDirty;
+		private double    lastFloodTime;
 
 		public void OnCreate(ref SystemState state)
 		{
 			state.RequireForUpdate<Player>();
 			state.RequireForUpdate<ChunkMapSingleton>();
 
-			tree            = new ChunkBitTree(Allocator.Persistent);
+			frontTree       = new ChunkBitTree(Allocator.Persistent);
+			backTree        = new ChunkBitTree(Allocator.Persistent);
 			lastPlayerChunk = new int3(int.MaxValue);
 
 			var diameter = GameSettings.ViewDistanceInChunks * 2 + 1;
@@ -60,28 +76,51 @@ namespace _Project.WorldGeneration.Systems
 			renderedQuery = SystemAPI.QueryBuilder()
 			                         .WithAll<ChunkManagedMesh, ChunkPositionComponent>()
 			                         .Build();
+
+			// matches only chunks whose ChunkOcclusion was added/updated since our last run —
+			// the "terrain changed, the visible set is stale" signal
+			maskChangedQuery = SystemAPI.QueryBuilder().WithAll<ChunkOcclusion>().Build();
+			maskChangedQuery.SetChangedVersionFilter(ComponentType.ReadOnly<ChunkOcclusion>());
+
+			state.EntityManager.AddComponentData(state.EntityManager.CreateEntity(),
+			                                     new ChunkOcclusionTreeSingleton { Front = frontTree, Valid = false });
 		}
 
 		public void OnDestroy(ref SystemState state)
 		{
 			if (jobRunning) bfsHandle.Complete();
-			if (tree.IsCreated) tree.Dispose();
+			if (frontTree.IsCreated) frontTree.Dispose();
+			if (backTree.IsCreated) backTree.Dispose();
 			if (snapshot.IsCreated) snapshot.Dispose();
 		}
 
 		public void OnUpdate(ref SystemState state)
 		{
+			// Accumulate the dirty signal every frame (the changed filter compares against
+			// this system's last run, so it must be sampled even while a pass is in flight).
+			masksDirty |= !maskChangedQuery.IsEmpty;
+
 			// ── 1. Finish an in-flight pass without stalling. ──
-			// The BFS runs across frames on its private snapshot. Poll IsCompleted; only when
-			// it has finished on its own do we Complete() (cheap — just releases the fence)
-			// and reconcile. While it's still running we do nothing, so there's no
-			// per-boundary main-thread stall waiting on the flood.
+			// Poll IsCompleted; only when the BFS finished on its own do we Complete()
+			// (cheap — releases the fence), apply the diff, and commit the new tree.
 			if (jobRunning)
 			{
 				if (!bfsHandle.IsCompleted) return;
 				bfsHandle.Complete();
 				jobRunning = false;
-				Reconcile(ref state);
+
+				if (firstPassDone)
+				{
+					DiffReconcile(ref state);
+				}
+				else
+				{
+					FullReconcile(ref state); // no enforced previous state to diff against
+					firstPassDone = true;
+				}
+
+				(frontTree, backTree) = (backTree, frontTree);
+				SystemAPI.SetSingleton(new ChunkOcclusionTreeSingleton { Front = frontTree, Valid = true });
 			}
 
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
@@ -89,29 +128,38 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
-			// Sightline reachability only changes when the camera moves to a new chunk.
-			if (playerChunk.Equals(lastPlayerChunk)) return;
+			// ── 2. Decide whether a new pass is due. ──
+			// Crossing a chunk boundary changes reachability → re-flood immediately.
+			// Mask changes (terrain generated / edited) → re-flood, throttled.
+			var    crossed = !playerChunk.Equals(lastPlayerChunk);
+			double now     = SystemAPI.Time.ElapsedTime;
+			if (!crossed && !(masksDirty && now - lastFloodTime >= REFLOOD_INTERVAL)) return;
 			lastPlayerChunk = playerChunk;
 
-			// ── 2. Snapshot inputs on the main thread, then schedule the BFS async. ──
+			// ── 3. Snapshot inputs on the main thread, then schedule the BFS async. ──
 			BuildSnapshot(ref state, playerChunk);
-			tree.ResetTo(playerChunk);
+			backTree.ResetTo(playerChunk);
 
 			bfsHandle = new OcclusionBfsJob
 			            {
 				            Masks       = snapshot,
 				            PlayerChunk = playerChunk,
 				            ViewDist    = GameSettings.ViewDistanceInChunks,
-				            Tree        = tree
+				            Tree        = backTree
 			            }.Schedule();
-			jobRunning = true;
+			jobRunning    = true;
+			masksDirty    = false;
+			lastFloodTime = now;
 		}
 
 		/// <summary>
 		///     Copy every loaded chunk within view distance into <see cref="snapshot" /> as
-		///     coord → visibility mask (AllFacesConnected for chunks not yet meshed). The BFS
-		///     reads only this private copy, so it can run across frames while the simulation
-		///     group mutates the live ChunkMap without a job-safety conflict.
+		///     coord → visibility mask. Populated chunks always have a real mask (produced by
+		///     ChunkPopulateJob, refreshed by GreedyMeshJob); a chunk without one is still
+		///     generating — treated as OPAQUE (0), so streaming regions never leak sightlines
+		///     to terrain the player can't actually see. The BFS reads only this private
+		///     copy, so it can run across frames while the simulation group mutates the live
+		///     ChunkMap without a job-safety conflict.
 		/// </summary>
 		private void BuildSnapshot(ref SystemState state, int3 playerChunk)
 		{
@@ -126,12 +174,60 @@ namespace _Project.WorldGeneration.Systems
 			foreach (KVPair<int3, Entity> kv in map)
 			{
 				if (math.cmax(math.abs(kv.Key - playerChunk)) > viewDist) continue;
-				var mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : OcclusionBfsJob.AllFacesConnected;
+				var mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : 0ul;
 				snapshot.TryAdd(kv.Key, mask);
 			}
 		}
 
-		private void Reconcile(ref SystemState state)
+		/// <summary>
+		///     Toggle only chunks whose visibility flipped between the committed front tree
+		///     and the just-finished back tree. The trees may have different origins (the
+		///     player moved), so front rows are fetched at the shifted (z, y) and their x
+		///     bits aligned with a shift; XOR then yields exactly the changed chunks.
+		/// </summary>
+		private void DiffReconcile(ref SystemState state)
+		{
+			NativeHashMap<int3, Entity> map = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
+			EntityManager               em  = state.EntityManager;
+			var                         ecb = new EntityCommandBuffer(Allocator.Temp);
+
+			int3 delta    = backTree.Origin - frontTree.Origin; // front local = back local + delta
+			var  xInRange = math.abs(delta.x) < ChunkBitTree.DIM;
+
+			for (var z = 0; z < ChunkBitTree.DIM; z++)
+			for (var y = 0; y < ChunkBitTree.DIM; y++)
+			{
+				var backRow  = backTree.Row(z, y);
+				var frontRow = xInRange ? frontTree.Row(z + delta.z, y + delta.y) : 0ul;
+				var aligned  = delta.x >= 0 ? frontRow >> delta.x : frontRow << -delta.x;
+
+				var changed = aligned ^ backRow;
+				while (changed != 0)
+				{
+					var x = math.tzcnt(changed);
+					changed &= changed - 1;
+
+					int3 world   = backTree.ToWorld(new int3(x, y, z));
+					var  desired = (backRow & (1ul << x)) != 0;
+
+					if (!map.TryGetValue(world, out Entity e)) continue;
+					if (!em.HasComponent<ChunkManagedMesh>(e)) continue;
+
+					var mm = em.GetComponentData<ChunkManagedMesh>(e);
+					ToggleRender(em, mm.SolidEntity, desired, ecb);
+					ToggleRender(em, mm.FluidEntity, desired, ecb);
+				}
+			}
+
+			ecb.Playback(em);
+			ecb.Dispose();
+		}
+
+		/// <summary>
+		///     Walk the whole rendered set and enforce the back tree. Only used for the very
+		///     first pass, where no previously-enforced state exists to diff against.
+		/// </summary>
+		private void FullReconcile(ref SystemState state)
 		{
 			EntityManager       em   = state.EntityManager;
 			NativeArray<Entity> ents = renderedQuery.ToEntityArray(Allocator.Temp);
@@ -143,7 +239,7 @@ namespace _Project.WorldGeneration.Systems
 				var    mm    = em.GetComponentData<ChunkManagedMesh>(e);
 				int3   coord = em.GetComponentData<ChunkPositionComponent>(e).ChunkCoord;
 
-				var desired = tree.TestWorld(coord);
+				var desired = backTree.TestWorld(coord);
 				ToggleRender(em, mm.SolidEntity, desired, ecb);
 				ToggleRender(em, mm.FluidEntity, desired, ecb);
 			}
@@ -175,7 +271,7 @@ namespace _Project.WorldGeneration.Systems
 	///     (0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+; opposite = face^1). A relaxing BFS over chunk
 	///     coords: each chunk carries a 64-bit visibility mask (bit <c>from*8+to</c> = "a
 	///     sightline entering through face <c>from</c> can leave through face <c>to</c>"),
-	///     built at mesh time by flood-filling the chunk's own transparent cells.
+	///     flood-filled from the chunk's own BlockData at populate time.
 	///
 	///     Two constraints keep it from over-expanding into chunks you can't actually see,
 	///     exactly as Sodium does:
@@ -188,17 +284,18 @@ namespace _Project.WorldGeneration.Systems
 	///       face pairs are removed from its mask. SLACK controls how eagerly.
 	///
 	///     REGULAR (WIDTH=0, SLACK=1) is rotation-invariant (depends only on chunk coords,
-	///     not exact camera position/frustum), so the flood is stable under pure rotation
-	///     and only needs rebuilding on a chunk-boundary crossing. Flip to WIDE (WIDTH=1,
-	///     SLACK=3) if a concave vantage (mountain ridge, cliff mouth) ever shows a hole.
+	///     not exact camera position/frustum), so the flood is stable under pure rotation.
+	///     Flip to WIDE (WIDTH=1, SLACK=3) if a concave vantage (mountain ridge, cliff
+	///     mouth) ever shows a hole.
 	/// </summary>
 	[BurstCompile]
 	internal struct OcclusionBfsJob : IJob
 	{
-		// Private per-pass snapshot: loaded chunk coord → its visibility mask. Presence in
-		// the map means "loaded". Snapshotting on the main thread at schedule time lets this
-		// job run across frames without racing the live ChunkMap/ComponentLookup that the
-		// simulation group mutates — so it never has to be force-completed synchronously.
+		// Private per-pass snapshot: loaded chunk coord → its visibility mask (0 = still
+		// generating, treated as opaque). Presence in the map means "loaded". Snapshotting
+		// on the main thread at schedule time lets this job run across frames without
+		// racing the live ChunkMap/ComponentLookup that the simulation group mutates — so
+		// it never has to be force-completed synchronously.
 		[ReadOnly] public NativeHashMap<int3, ulong> Masks;
 
 		public int3         PlayerChunk;
@@ -209,11 +306,6 @@ namespace _Project.WorldGeneration.Systems
 		private const int WIDTH = 0;
 		private const int SLACK = 1;
 
-		// Mask with every from→to face pair set (fully transparent / not-yet-meshed chunk).
-		public const ulong AllFacesConnected =
-			(0x3Ful << 0)  | (0x3Ful << 8)  | (0x3Ful << 16) |
-			(0x3Ful << 24) | (0x3Ful << 32) | (0x3Ful << 40);
-
 		// Straight-through face pairs per axis (from*8+to), in this face order.
 		private const ulong X_THROUGH = (1ul << (0 * 8 + 1)) | (1ul << (1 * 8 + 0));
 		private const ulong Y_THROUGH = (1ul << (2 * 8 + 3)) | (1ul << (3 * 8 + 2));
@@ -221,13 +313,13 @@ namespace _Project.WorldGeneration.Systems
 
 		public void Execute()
 		{
-			const int dim   = ChunkBitTree.DIM;
-			const int count = dim * dim * dim;
+			var dim   = ChunkBitTree.DIM;
+			var count = dim * dim * dim;
 
 			// Per-cell set of incoming face-directions already accounted for. Growing this
 			// set is what re-queues a node (relaxation): a chunk reached from a new side may
 			// expose new outgoing sightlines its earlier visit couldn't.
-			var incoming = new NativeArray<byte>(count, Allocator.Temp);
+			var incoming = new NativeArray<byte>(count, Allocator.Temp, NativeArrayOptions.ClearMemory);
 			var queue    = new NativeQueue<int>(Allocator.Temp);
 
 			if (!Tree.TryToLocal(PlayerChunk, out int3 startLocal))
@@ -258,7 +350,7 @@ namespace _Project.WorldGeneration.Systems
 
 				mask &= AngleMask(coord);
 
-				var outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
+				int outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
 
 				for (var f = 0; f < 6; f++)
 				{
@@ -285,7 +377,7 @@ namespace _Project.WorldGeneration.Systems
 		/// <summary> Fold the rows selected by the incoming set into a 6-bit outgoing set. </summary>
 		private static int GetConnections(ulong mask, int incoming)
 		{
-			var rows = mask & RowMask(incoming);
+			ulong rows = mask & RowMask(incoming);
 			rows |= rows >> 32;
 			rows |= rows >> 16;
 			rows |= rows >> 8;
@@ -309,9 +401,9 @@ namespace _Project.WorldGeneration.Systems
 		/// </summary>
 		private ulong AngleMask(int3 coord)
 		{
-			var dx = math.abs(coord.x - PlayerChunk.x);
-			var dy = math.abs(coord.y - PlayerChunk.y);
-			var dz = math.abs(coord.z - PlayerChunk.z);
+			int dx = math.abs(coord.x - PlayerChunk.x);
+			int dy = math.abs(coord.y - PlayerChunk.y);
+			int dz = math.abs(coord.z - PlayerChunk.z);
 
 			ulong occ = 0;
 			if (dy > dx + SLACK || dz > dx + SLACK) occ |= X_THROUGH;
@@ -323,9 +415,9 @@ namespace _Project.WorldGeneration.Systems
 		/// <summary> Faces that point away from the camera plane (monotonic expansion). </summary>
 		private int OutwardDirs(int3 coord)
 		{
-			var rx = coord.x - PlayerChunk.x;
-			var ry = coord.y - PlayerChunk.y;
-			var rz = coord.z - PlayerChunk.z;
+			int rx = coord.x - PlayerChunk.x;
+			int ry = coord.y - PlayerChunk.y;
+			int rz = coord.z - PlayerChunk.z;
 
 			var d = 0;
 			if (rx <= WIDTH) d |= 1 << 0;  // X-

@@ -78,6 +78,10 @@ namespace _Project.WorldGeneration.Systems
 				materialsRegistered = true;
 			}
 
+			// committed occlusion result (front tree) — never written by in-flight jobs,
+			// so it's safe to read here; Valid is false until the first pass completes
+			var occValid = SystemAPI.TryGetSingleton(out ChunkOcclusionTreeSingleton occState) && occState.Valid;
+
 			NativeArray<Entity> entities = uploadQuery.ToEntityArray(Allocator.Temp);
 			var                 ecb      = new EntityCommandBuffer(Allocator.Temp);
 
@@ -106,8 +110,9 @@ namespace _Project.WorldGeneration.Systems
 				var fluidICount = totalI - solidICount;
 
 				// ── world position for render entities ─────────────────────────
-				int3 wPos   = EntityManager.GetComponentData<ChunkPositionComponent>(entity).WorldPosition;
-				var  wPosF3 = new float3(wPos.x, wPos.y, wPos.z);
+				var  posComp = EntityManager.GetComponentData<ChunkPositionComponent>(entity);
+				int3 wPos    = posComp.WorldPosition;
+				var  wPosF3  = new float3(wPos.x, wPos.y, wPos.z);
 
 				// ── retrieve or create ChunkManagedMesh ────────────────────────
 				var              isFirstUpload = !EntityManager.HasComponent<ChunkManagedMesh>(entity);
@@ -221,6 +226,15 @@ namespace _Project.WorldGeneration.Systems
 				// struct component: persist MeshBatchID / SolidEntity / FluidEntity
 				EntityManager.SetComponentData(entity, managed);
 
+				// Enforce the committed occlusion result on every (re)upload: a chunk
+				// meshed inside a hidden region spawns hidden instead of flashing visible
+				// until the next occlusion pass. The diff reconcile only touches chunks
+				// whose visibility CHANGED between passes, so it relies on uploads leaving
+				// entities consistent with the current front tree.
+				var visible = !occValid || occState.Front.TestWorld(posComp.ChunkCoord);
+				ApplyOcclusion(managed.SolidEntity, visible);
+				ApplyOcclusion(managed.FluidEntity, visible);
+
 				ecb.RemoveComponent<MeshRequiresUpload>(entity);
 				if (!EntityManager.HasComponent<HasMesh>(entity))
 					ecb.AddComponent<HasMesh>(entity);
@@ -229,6 +243,15 @@ namespace _Project.WorldGeneration.Systems
 			entities.Dispose();
 			ecb.Playback(EntityManager);
 			ecb.Dispose();
+		}
+
+		private void ApplyOcclusion(Entity renderEntity, bool visible)
+		{
+			if (renderEntity == Entity.Null || !EntityManager.Exists(renderEntity)) return;
+
+			var hidden = EntityManager.HasComponent<DisableRendering>(renderEntity);
+			if (visible && hidden) EntityManager.RemoveComponent<DisableRendering>(renderEntity);
+			else if (!visible && !hidden) EntityManager.AddComponent<DisableRendering>(renderEntity);
 		}
 	}
 

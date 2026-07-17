@@ -91,6 +91,17 @@ namespace _Project.WorldGeneration
 			return TryToLocal(worldChunk, out int3 l) && Test(l);
 		}
 
+		/// <summary>
+		///     Raw 64-bit x-row at (z, y); 0 outside the volume. Lets a diff between two
+		///     trees with different origins compare whole rows (with an x bit-shift) instead
+		///     of testing 256k individual bits.
+		/// </summary>
+		public ulong Row(int z, int y)
+		{
+			if ((uint)z >= DIM || (uint)y >= DIM) return 0;
+			return _leaf.Ptr[z * DIM + y];
+		}
+
 		/// <summary> True if any bit is set anywhere. </summary>
 		public bool AnySet
 		{

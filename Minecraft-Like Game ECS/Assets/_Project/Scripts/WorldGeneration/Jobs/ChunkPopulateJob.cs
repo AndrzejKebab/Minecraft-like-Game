@@ -106,6 +106,8 @@ namespace _Project.WorldGeneration.Jobs
 				ECB.RemoveComponent<NeedsPopulation>(index, entity);
 				ECB.AddComponent<IsPopulated>(index, entity);
 				ECB.AddComponent<IsEmpty>(index, entity);
+				ECB.AddComponent(index, entity,
+				                 new ChunkOcclusion { Mask = ChunkVisibility.AllFacesConnected });
 				return;
 			}
 
@@ -204,6 +206,17 @@ namespace _Project.WorldGeneration.Jobs
 
 			if (hasBlocks) ECB.AddComponent<NeedsMeshSync>(index, entity);
 			else ECB.AddComponent<IsEmpty>(index, entity);
+
+			// Occlusion visibility mask straight from the fresh BlockData (needs no
+			// neighbour halo, unlike meshing) — the occlusion graph gets a real mask the
+			// moment a chunk is populated, so streaming regions stop leaking sightlines
+			// while they wait to mesh. GreedyMeshJob refreshes it on re-mesh after edits.
+			ECB.AddComponent(index, entity, new ChunkOcclusion
+			                                {
+				                                Mask = hasBlocks
+					                                ? ChunkVisibility.ComputeMask(in blockData, in BlockPrototypes)
+					                                : ChunkVisibility.AllFacesConnected
+			                                });
 		}
 	}
 }
