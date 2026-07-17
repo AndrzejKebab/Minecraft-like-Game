@@ -35,7 +35,12 @@ namespace _Project.WorldGeneration.Systems
 			NativeArray<ChunkPositionComponent> chunkPositionComponents =
 				chunksToDestroy.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
-			for (var index = 0; index < chunkEntities.Length; index++)
+			// Budget destruction per frame — the whole shell is marked at once when the
+			// player crosses a boundary, but tearing it all down in one frame (a .Complete()
+			// stall + BlockData/collider/mesh free per chunk) is a hitch. Drain it steadily.
+			var toDestroy = math.min(chunkEntities.Length, GameSettings.CHUNK_DESTROYS_PER_FRAME);
+
+			for (var index = 0; index < toDestroy; index++)
 			{
 				Entity entity = chunkEntities[index];
 				int3   pos    = chunkPositionComponents[index].ChunkCoord;
@@ -59,6 +64,10 @@ namespace _Project.WorldGeneration.Systems
 
 
 				DestroyMesh(ref state, entity, ecb);
+
+				// remove from the loaded map here (marking no longer does) so a chunk stays
+				// revivable until this point; after this it's gone and re-entry recreates it
+				mapSingleton.ValueRW.ChunkMap.Remove(pos);
 
 				ecb.DestroyEntity(entity);
 			}

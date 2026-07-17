@@ -15,7 +15,8 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateBefore(typeof(PlayerInteractionSystem))]
 	public partial struct PlayerVisibleChunksSystem : ISystem
 	{
-		private int3 lastPlayerChunk;
+		private int3             lastPlayerChunk;
+		private NativeList<int3> pendingCreate; // coords that still need an entity, drained per frame
 
 		public void OnCreate(ref SystemState state)
 		{
@@ -37,10 +38,13 @@ namespace _Project.WorldGeneration.Systems
 			                                                });
 
 			lastPlayerChunk = new int3(int.MaxValue);
+			pendingCreate   = new NativeList<int3>(4096, Allocator.Persistent);
 		}
 
 		public void OnDestroy(ref SystemState state)
 		{
+			if (pendingCreate.IsCreated) pendingCreate.Dispose();
+
 			EntityQuery q = state.EntityManager.CreateEntityQuery(ComponentType.ReadWrite<ChunkMapSingleton>());
 			if (!q.IsEmpty)
 			{
@@ -65,60 +69,98 @@ namespace _Project.WorldGeneration.Systems
 		{
 			Entity playerEntity = SystemAPI.GetSingletonEntity<Player>();
 			float3 playerPos    = SystemAPI.GetComponentRO<LocalTransform>(playerEntity).ValueRO.Position;
+			int3   playerChunk  = Utility.WorldToChunkCoord(playerPos);
 
-			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
-			if (playerChunk.Equals(lastPlayerChunk)) return;
-			lastPlayerChunk = playerChunk;
+			// ChunkMapSingleton's hashmaps are pointer-backed, so a by-value copy still
+			// mutates the shared maps — no ref needed, and nothing to invalidate across
+			// the structural changes we make below.
+			var           map = SystemAPI.GetSingleton<ChunkMapSingleton>();
+			EntityManager em  = state.EntityManager;
 
-			ref ChunkMapSingleton mapSingleton = ref SystemAPI.GetSingletonRW<ChunkMapSingleton>().ValueRW;
+			// Reachability only changes when the player crosses into a new chunk — only
+			// then do we re-diff the desired set. Creation itself is budgeted every frame.
+			if (!playerChunk.Equals(lastPlayerChunk))
+			{
+				lastPlayerChunk = playerChunk;
+				Rediff(em, map, playerChunk);
+			}
 
+			DrainPendingCreates(em, map, playerChunk);
+		}
+
+		/// <summary>
+		///     On a boundary crossing: mark chunks that fell out of range for destruction,
+		///     revive any in-range chunk that was pending destruction (so re-entering an
+		///     area never duplicates it), and queue the newly-in-range chunks for creation.
+		///     All structural changes are batched into one ECB playback (one sync point).
+		/// </summary>
+		private void Rediff(EntityManager em, ChunkMapSingleton map, int3 playerChunk)
+		{
 			int viewDist     = GameSettings.ViewDistanceInChunks;
-			var populateDist = viewDist + 1;
-			var diameter     = populateDist * 2 + 1;
+			int populateDist = viewDist + 1;
 
-			EntityManager em = state.EntityManager;
+			var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-			var desired = new NativeHashMap<int3, bool>(diameter * diameter * diameter, Allocator.Temp);
+			// mark loaded chunks now outside the populate box (kept in the map until the
+			// ChunkManager actually destroys them, so they can be revived on the way back)
+			foreach (KVPair<int3, Entity> kvp in map.ChunkMap)
+			{
+				int3 d = math.abs(kvp.Key - playerChunk);
+				if (math.cmax(d) > populateDist && !em.HasComponent<MarkedToDestroy>(kvp.Value))
+				{
+					ecb.AddComponent<MarkedToDestroy>(kvp.Value);
+					ecb.RemoveComponent<IsInViewRange>(kvp.Value); // stops collider baking on it
+				}
+			}
 
+			// scan the box: revive/refresh existing chunks, queue missing ones for creation
+			pendingCreate.Clear();
 			for (var y = -populateDist; y <= populateDist; y++)
 			for (var x = -populateDist; x <= populateDist; x++)
 			for (var z = -populateDist; z <= populateDist; z++)
 			{
-				int3 c        = playerChunk + new int3(x, y, z);
+				int3 coord    = playerChunk + new int3(x, y, z);
 				var  isRender = math.abs(x) < viewDist && math.abs(y) < viewDist && math.abs(z) < viewDist;
-				desired.TryAdd(c, isRender);
-			}
 
-			var toRemove = new NativeList<int3>(64, Allocator.Temp);
-			foreach (KVPair<int3, Entity> kvp in mapSingleton.ChunkMap)
-				if (!desired.ContainsKey(kvp.Key))
-					toRemove.Add(kvp.Key);
-
-			foreach (int3 coord in toRemove)
-			{
-				Entity entity = mapSingleton.ChunkMap[coord];
-				em.AddComponentData(entity, new MarkedToDestroy());
-				em.RemoveComponent<IsInViewRange>(entity);
-				if (em.HasComponent<NeedsRender>(entity)) em.RemoveComponent<NeedsRender>(entity);
-				mapSingleton.ChunkMap.Remove(coord);
-			}
-
-			foreach (KVPair<int3, bool> kvp in desired)
-			{
-				int3 coord    = kvp.Key;
-				var  isRender = kvp.Value;
-				var  dist     = math.distance(playerChunk, coord);
-
-				if (mapSingleton.ChunkMap.TryGetValue(coord, out Entity existingEntity))
+				if (map.ChunkMap.TryGetValue(coord, out Entity e))
 				{
-					em.SetComponentData(existingEntity, new ChunkPriorityComponent { Distance = dist, Importance = 1 });
-					if (isRender && !em.HasComponent<NeedsRender>(existingEntity))
-						em.AddComponentData(existingEntity, new NeedsRender());
-					continue;
+					if (em.HasComponent<MarkedToDestroy>(e)) // revive a chunk on its way out
+					{
+						ecb.RemoveComponent<MarkedToDestroy>(e);
+						ecb.AddComponent<IsInViewRange>(e);
+					}
+
+					if (isRender && !em.HasComponent<NeedsRender>(e)) ecb.AddComponent<NeedsRender>(e);
 				}
+				else
+				{
+					pendingCreate.Add(coord);
+				}
+			}
+
+			ecb.Playback(em);
+			ecb.Dispose();
+		}
+
+		/// <summary>
+		///     Create up to CHUNK_CREATES_PER_FRAME queued chunks this frame. Spreading the
+		///     shell over frames turns the boundary-crossing hitch (a shell of ~1000 chunks,
+		///     each a 128 KB alloc + several structural changes) into a smooth trickle.
+		/// </summary>
+		private void DrainPendingCreates(EntityManager em, ChunkMapSingleton map, int3 playerChunk)
+		{
+			int viewDist = GameSettings.ViewDistanceInChunks;
+			var made     = 0;
+
+			while (pendingCreate.Length > 0 && made < GameSettings.CHUNK_CREATES_PER_FRAME)
+			{
+				int3 coord = pendingCreate[pendingCreate.Length - 1];
+				pendingCreate.RemoveAt(pendingCreate.Length - 1);
+
+				if (map.ChunkMap.ContainsKey(coord)) continue; // already created or revived
+				var isRender = math.cmax(math.abs(coord - playerChunk)) < viewDist;
 
 				Entity entity = em.CreateEntity();
-				em.SetName(entity, "Chunk");
 				em.AddComponentData(entity, new ChunkPositionComponent { ChunkCoord = coord });
 
 				var chunkComp = new ChunkComponent
@@ -131,11 +173,10 @@ namespace _Project.WorldGeneration.Systems
 				                };
 
 				em.AddComponentData(entity, chunkComp);
-				mapSingleton.ChunkDataLookup.Add(entity, chunkComp);
+				map.ChunkDataLookup.Add(entity, chunkComp);
 
 				em.AddComponentData(entity, new ChunkActiveJob { Handle = default });
 				em.AddComponentData(entity, new IsInViewRange());
-				em.AddComponentData(entity, new ChunkPriorityComponent { Distance = dist, Importance = 1 });
 				em.AddComponentData(entity, LocalTransform.FromPosition(new float3(
 				                                                         coord.x * ChunkData.CHUNK_SIZE,
 				                                                         coord.y * ChunkData.CHUNK_SIZE,
@@ -143,14 +184,11 @@ namespace _Project.WorldGeneration.Systems
 
 				if (isRender) em.AddComponentData(entity, new NeedsRender());
 
-				// Single tag, replaces NeedsTerrainTag/NeedsDecorationTag.
 				em.AddComponentData(entity, new NeedsPopulation());
 
-				mapSingleton.ChunkMap.Add(coord, entity);
+				map.ChunkMap.Add(coord, entity);
+				made++;
 			}
-
-			toRemove.Dispose();
-			desired.Dispose();
 		}
 	}
 }
