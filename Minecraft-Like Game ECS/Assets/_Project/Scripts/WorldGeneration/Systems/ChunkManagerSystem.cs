@@ -36,19 +36,27 @@ namespace _Project.WorldGeneration.Systems
 				chunksToDestroy.ToComponentDataArray<ChunkPositionComponent>(Allocator.Temp);
 
 			// Budget destruction per frame — the whole shell is marked at once when the
-			// player crosses a boundary, but tearing it all down in one frame (a .Complete()
-			// stall + BlockData/collider/mesh free per chunk) is a hitch. Drain it steadily.
-			var toDestroy = math.min(chunkEntities.Length, GameSettings.CHUNK_DESTROYS_PER_FRAME);
+			// player crosses a boundary, but tearing it all down in one frame (a structural
+			// change + BlockData/collider/mesh free per chunk) is a hitch. Drain it steadily.
+			//
+			// And never force-complete a job to tear its chunk down. A chunk is destroyed
+			// only once its own job — and every neighbour job that might still be reading its
+			// BlockData — has finished on its own (IsCompleted). Not-ready chunks stay marked
+			// and are revisited next frame, so there's no main-thread stall waiting on a job.
+			int budget    = GameSettings.CHUNK_DESTROYS_PER_FRAME;
+			var destroyed = 0;
 
-			for (var index = 0; index < toDestroy; index++)
+			for (var index = 0; index < chunkEntities.Length && destroyed < budget; index++)
 			{
 				Entity entity = chunkEntities[index];
 				int3   pos    = chunkPositionComponents[index].ChunkCoord;
 
-				if (SystemAPI.TryGetComponent(entity, out ChunkActiveJob job))
-					job.Handle.Complete();
+				if (!ReadyToDestroy(ref state, mapSingleton, entity, pos)) continue;
 
-				TryCompleteNeighbors(ref state, mapSingleton, pos);
+				if (SystemAPI.TryGetComponent(entity, out ChunkActiveJob job))
+					job.Handle.Complete(); // already IsCompleted — releases the fence, no stall
+
+				TryCompleteNeighbors(ref state, mapSingleton, pos); // all IsCompleted — cheap
 
 				if (SystemAPI.TryGetComponent(entity, out ChunkComponent chunk))
 				{
@@ -70,6 +78,7 @@ namespace _Project.WorldGeneration.Systems
 				mapSingleton.ValueRW.ChunkMap.Remove(pos);
 
 				ecb.DestroyEntity(entity);
+				destroyed++;
 			}
 
 			chunkEntities.Dispose();
@@ -99,6 +108,29 @@ namespace _Project.WorldGeneration.Systems
 			// Release the Mesh asset.
 			if (mesh.Mesh.Value != null)
 				Object.Destroy(mesh.Mesh.Value);
+		}
+
+		/// <summary>
+		///     True only when this chunk's own job and every neighbour job that could still
+		///     be reading its BlockData (mesh/collider jobs sample the 3×3×3 neighbourhood)
+		///     have finished on their own. Polls IsCompleted — never blocks — so a chunk whose
+		///     jobs are still in flight is simply left marked and retried a later frame.
+		/// </summary>
+		private bool ReadyToDestroy(ref SystemState state, RefRW<ChunkMapSingleton> mapSingleton, Entity entity, int3 pos)
+		{
+			if (SystemAPI.TryGetComponent(entity, out ChunkActiveJob job) && !job.Handle.IsCompleted)
+				return false;
+
+			NativeHashMap<int3, Entity> map = mapSingleton.ValueRO.ChunkMap;
+			for (var x = -1; x <= 1; x++)
+			for (var y = -1; y <= 1; y++)
+			for (var z = -1; z <= 1; z++)
+				if (map.TryGetValue(pos + new int3(x, y, z), out Entity neighbor))
+					if (SystemAPI.TryGetComponent(neighbor, out ChunkActiveJob neighborJob) &&
+					    !neighborJob.Handle.IsCompleted)
+						return false;
+
+			return true;
 		}
 
 		private void TryCompleteNeighbors(ref SystemState state, RefRW<ChunkMapSingleton> mapSingleton, int3 pos)

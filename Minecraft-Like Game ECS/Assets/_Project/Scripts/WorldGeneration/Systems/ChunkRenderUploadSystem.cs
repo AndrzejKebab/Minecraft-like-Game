@@ -2,6 +2,7 @@ using _Project.Tags;
 using _Project.WorldGeneration.Components;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
@@ -84,9 +85,17 @@ namespace _Project.WorldGeneration.Systems
 			{
 				Entity entity = entities[i];
 
-				// ── complete any in-flight job for this chunk ──────────────────
+				// ── don't stall on the mesh job ────────────────────────────────
+				// If the mesh job for this chunk is still running, leave MeshRequiresUpload
+				// on it and pick it up a later frame. Force-completing a running job here is
+				// a main-thread block — the upload-time hitch. Completing one that already
+				// reports IsCompleted just releases the fence and doesn't stall.
 				if (EntityManager.HasComponent<ChunkActiveJob>(entity))
-					EntityManager.GetComponentData<ChunkActiveJob>(entity).Handle.Complete();
+				{
+					JobHandle h = EntityManager.GetComponentData<ChunkActiveJob>(entity).Handle;
+					if (!h.IsCompleted) continue;
+					h.Complete();
+				}
 
 				if (!EntityManager.HasComponent<ChunkMeshData>(entity)) continue;
 				var meshData = EntityManager.GetComponentData<ChunkMeshData>(entity);
