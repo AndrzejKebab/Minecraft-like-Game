@@ -91,9 +91,9 @@ namespace _Project.WorldGeneration.Systems
 
 			// 2) Drain urgent first, then normal. Skip if any of 6 neighbors not populated.
 			count = TryEnqueue(urgent, count, budget, validEntities, validPositions,
-			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state, true);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
 			count = TryEnqueue(normal, count, budget, validEntities, validPositions,
-			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state, false);
+			                   ecbPre, chunkMap, chunkLookup, populatedLookup, ref state);
 
 			urgent.Dispose();
 			normal.Dispose();
@@ -172,16 +172,20 @@ namespace _Project.WorldGeneration.Systems
 			NativeHashMap<int3, Entity>  chunkMap,
 			ChunkMapSingleton            chunkLookup,
 			ComponentLookup<IsPopulated> populatedLookup,
-			ref SystemState              state,
-			bool                         isUrgentList)
+			ref SystemState              state)
 		{
 			for (var i = 0; i < src.Length && count < budget; i++)
 			{
 				int3   pos = src[i].Coord;
 				Entity ent = src[i].Entity;
 
-				// Skip normal mesh generation if there is an active job that hasn't completed yet.
-				if (!isUrgentList && state.EntityManager.HasComponent<ChunkActiveJob>(ent))
+				// Never enqueue a chunk whose active job is still running — urgent included.
+				// A chunk's handle is the whole batch chain (mesh batch → neighbour populate
+				// batch → tile batch), so force-completing it below would drag a 100ms+
+				// TerraTileGenJob onto the main thread. Skipping keeps the NeedsMeshSync /
+				// UrgentMeshSync tags (they're only removed on enqueue), so the chunk is
+				// retried next frame; urgency then only affects ordering, never stalls.
+				if (state.EntityManager.HasComponent<ChunkActiveJob>(ent))
 				{
 					if (!state.EntityManager.GetComponentData<ChunkActiveJob>(ent).Handle.IsCompleted)
 						continue;
@@ -209,8 +213,9 @@ namespace _Project.WorldGeneration.Systems
 				ecbPre.RemoveComponent<UrgentMeshSync>(ent);
 
 				if (!state.EntityManager.HasComponent<ChunkMeshData>(ent)) continue;
-				// Old mesh data must be disposed BEFORE new job overwrites field.
-				// Complete prior handle first to avoid disposing while consumer reads.
+				// Old mesh data must be disposed BEFORE new job overwrites field. The gate
+				// above guarantees the handle already reports IsCompleted, so this Complete
+				// only releases the fence for the safety system — it never blocks.
 				if (state.EntityManager.HasComponent<ChunkActiveJob>(ent))
 					state.EntityManager.GetComponentData<ChunkActiveJob>(ent).Handle.Complete();
 				state.EntityManager.GetComponentData<ChunkMeshData>(ent).Dispose();

@@ -118,7 +118,6 @@ namespace _Project.WorldGeneration.Systems
 			if (isJobActive) return oldToDispose;
 			var                         candEntities  = new NativeList<Entity>(64, Allocator.Temp);
 			var                         candPositions = new NativeList<int3>(64, Allocator.Temp);
-			var                         hasUrgent     = false;
 			NativeHashMap<int3, Entity> chunkMap      = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 
 			for (var x = -COLLIDER_RADIUS; x <= COLLIDER_RADIUS; x++)
@@ -134,14 +133,13 @@ namespace _Project.WorldGeneration.Systems
 						    !state.EntityManager.HasComponent<IsInViewRange>(entity)) continue;
 
 						var hasCollider = state.EntityManager.HasComponent<HasCollider>(entity);
-						var isUrgent    = state.EntityManager.HasComponent<UrgentColliderSync>(entity);
-						var needsRebake = state.EntityManager.HasComponent<NeedsColliderSync>(entity) || isUrgent;
+						var needsRebake = state.EntityManager.HasComponent<NeedsColliderSync>(entity) ||
+						                  state.EntityManager.HasComponent<UrgentColliderSync>(entity);
 
 						if (hasCollider && !needsRebake) continue;
 
 						candEntities.Add(entity);
 						candPositions.Add(pos);
-						if (isUrgent) hasUrgent = true;
 					}
 				}
 			}
@@ -153,12 +151,12 @@ namespace _Project.WorldGeneration.Systems
 
 				ScheduleBatch(ref state);
 
-				if (hasUrgent)
-				{
-					activeJobHandle.Complete();
-					ApplyBatch(ref state, ecb, ref oldToDispose);
-					isJobActive = false;
-				}
+				// No same-tick force-complete for urgent chunks: the batch's dependencies
+				// chain through neighbour populate/tile batch handles, so Complete() here
+				// can drag 100ms+ of terrain generation onto the main thread — inside the
+				// fixed-step group, which catches up and repeats the stall within one frame.
+				// CompleteCurrentJobs applies the batch as soon as IsCompleted next tick;
+				// urgency now means "first in the next batch", never "stall the frame".
 			}
 
 			candEntities.Dispose();
@@ -204,30 +202,18 @@ namespace _Project.WorldGeneration.Systems
 			ref NativeList<BlobAssetReference<Collider>> oldToDispose)
 		{
 			if (!isJobActive) return oldToDispose;
-			var forceComplete = activeJobHandle.IsCompleted;
 
-			if (!forceComplete)
-				for (var i = 0; i < activeEntities.Length; i++)
-				{
-					if (!state.EntityManager.Exists(activeEntities[i]) ||
-					    !state.EntityManager.HasComponent<UrgentColliderSync>(activeEntities[i])) continue;
-					forceComplete = true;
-					break;
-				}
+			// Apply only once the batch has finished on its own. Urgent chunks used to
+			// force-complete here, but the batch's dependency chain reaches back through
+			// populate/tile batch handles — a 100ms+ main-thread stall, repeated by
+			// fixed-step catch-up. Waiting one more tick is always cheaper than that.
+			if (!activeJobHandle.IsCompleted) return oldToDispose;
 
-			if (!forceComplete && !urgentQuery.IsEmptyIgnoreFilter)
-			{
-				forceComplete = true;
-			}
-
-			if (!forceComplete) return oldToDispose;
-			{
-				for (var i = 0; i < activeEntities.Length; i++)
-					justBaked.Add(activeEntities[i]);
-				activeJobHandle.Complete();
-				ApplyBatch(ref state, ecb, ref oldToDispose);
-				isJobActive = false;
-			}
+			for (var i = 0; i < activeEntities.Length; i++)
+				justBaked.Add(activeEntities[i]);
+			activeJobHandle.Complete(); // already finished — releases the fence, no stall
+			ApplyBatch(ref state, ecb, ref oldToDispose);
+			isJobActive = false;
 
 			return oldToDispose;
 		}

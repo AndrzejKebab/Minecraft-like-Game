@@ -57,11 +57,16 @@ namespace _Project.WorldGeneration.Systems
 
 			for (var i = 0; i < entities.Length; i++)
 			{
-				// only chunks whose TerraGen tile exists (scheduled or done) can
-				// populate; TerraTileSystem creates missing tiles nearest-first
+				// Only chunks whose TerraGen tile has FINISHED generating can populate
+				// (TerraTileSystem creates missing tiles nearest-first). Scheduling against
+				// a still-running tile would chain its 100ms+ GenHandle into this batch —
+				// and the EndSimulation ECB system completes producer handles before
+				// playback, so that chain becomes an end-of-frame main-thread stall.
+				// Tiles keep generating in the background; their chunks populate next frame.
 				int2 tileCoord = TerraTileConst.TileOfChunk(new int2(positions[i].ChunkCoord.x,
 				                                                     positions[i].ChunkCoord.z));
-				if (!cache.Tiles.ContainsKey(tileCoord)) continue;
+				if (!cache.Tiles.TryGetValue(tileCoord, out TerraTile candTile) ||
+				    !candTile.GenHandle.IsCompleted) continue;
 
 				int3 d        = positions[i].ChunkCoord - playerChunk;
 				var  ds       = d.x * d.x + d.y * d.y + d.z * d.z;
