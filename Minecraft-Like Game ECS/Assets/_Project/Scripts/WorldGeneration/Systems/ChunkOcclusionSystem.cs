@@ -33,9 +33,13 @@ namespace _Project.WorldGeneration.Systems
 	[UpdateAfter(typeof(ChunkRenderUploadSystem))]
 	public partial class ChunkOcclusionSystem : SystemBase
 	{
-		private ChunkBitTree tree;
-		private int3         lastPlayerChunk;
-		private EntityQuery  renderedQuery;
+		private ChunkBitTree              tree;
+		private NativeHashMap<int3, ulong> snapshot; // reused per-pass coord → mask snapshot
+		private int3                      lastPlayerChunk;
+		private EntityQuery               renderedQuery;
+
+		private JobHandle bfsHandle;
+		private bool      jobRunning;
 
 		protected override void OnCreate()
 		{
@@ -45,6 +49,9 @@ namespace _Project.WorldGeneration.Systems
 			tree            = new ChunkBitTree(Allocator.Persistent);
 			lastPlayerChunk = new int3(int.MaxValue);
 
+			var diameter = GameSettings.ViewDistanceInChunks * 2 + 1;
+			snapshot = new NativeHashMap<int3, ulong>(diameter * diameter * diameter, Allocator.Persistent);
+
 			renderedQuery = GetEntityQuery(
 			                               ComponentType.ReadOnly<ChunkManagedMesh>(),
 			                               ComponentType.ReadOnly<ChunkPositionComponent>());
@@ -52,11 +59,26 @@ namespace _Project.WorldGeneration.Systems
 
 		protected override void OnDestroy()
 		{
+			if (jobRunning) bfsHandle.Complete();
 			if (tree.IsCreated) tree.Dispose();
+			if (snapshot.IsCreated) snapshot.Dispose();
 		}
 
 		protected override void OnUpdate()
 		{
+			// ── 1. Finish an in-flight pass without stalling. ──
+			// The BFS runs across frames on its private snapshot. Poll IsCompleted; only when
+			// it has finished on its own do we Complete() (cheap — just releases the fence)
+			// and reconcile. While it's still running we do nothing, so there's no
+			// per-boundary main-thread stall waiting on the flood.
+			if (jobRunning)
+			{
+				if (!bfsHandle.IsCompleted) return;
+				bfsHandle.Complete();
+				jobRunning = false;
+				Reconcile();
+			}
+
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
 			                                                            SystemAPI.GetSingletonEntity<Player>()).ValueRO
 			                            .Position;
@@ -66,24 +88,42 @@ namespace _Project.WorldGeneration.Systems
 			if (playerChunk.Equals(lastPlayerChunk)) return;
 			lastPlayerChunk = playerChunk;
 
-			// ── 1. Rebuild the visible set via outward BFS. ──
+			// ── 2. Snapshot inputs on the main thread, then schedule the BFS async. ──
+			BuildSnapshot(playerChunk);
+			tree.ResetTo(playerChunk);
+
+			bfsHandle = new OcclusionBfsJob
+			            {
+				            Masks       = snapshot,
+				            PlayerChunk = playerChunk,
+				            ViewDist    = GameSettings.ViewDistanceInChunks,
+				            Tree        = tree
+			            }.Schedule();
+			jobRunning = true;
+		}
+
+		/// <summary>
+		///     Copy every loaded chunk within view distance into <see cref="snapshot" /> as
+		///     coord → visibility mask (AllFacesConnected for chunks not yet meshed). The BFS
+		///     reads only this private copy, so it can run across frames while the simulation
+		///     group mutates the live ChunkMap without a job-safety conflict.
+		/// </summary>
+		private void BuildSnapshot(int3 playerChunk)
+		{
+			snapshot.Clear();
+
 			ComponentLookup<ChunkOcclusion> occ = SystemAPI.GetComponentLookup<ChunkOcclusion>(true);
 			occ.Update(this);
 
-			tree.ResetTo(playerChunk);
+			int                         viewDist = GameSettings.ViewDistanceInChunks;
+			NativeHashMap<int3, Entity> map      = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 
-			var bfs = new OcclusionBfsJob
-			          {
-				          ChunkMap    = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap,
-				          Occlusion   = occ,
-				          PlayerChunk = playerChunk,
-				          ViewDist    = GameSettings.ViewDistanceInChunks,
-				          Tree        = tree
-			          };
-			bfs.Schedule().Complete();
-
-			// ── 2. Reconcile DisableRendering against the visible set. ──
-			Reconcile();
+			foreach (KVPair<int3, Entity> kv in map)
+			{
+				if (math.cmax(math.abs(kv.Key - playerChunk)) > viewDist) continue;
+				ulong mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : OcclusionBfsJob.AllFacesConnected;
+				snapshot.TryAdd(kv.Key, mask);
+			}
 		}
 
 		private void Reconcile()
@@ -142,8 +182,11 @@ namespace _Project.WorldGeneration.Systems
 	[BurstCompile]
 	internal struct OcclusionBfsJob : IJob
 	{
-		[ReadOnly] public NativeHashMap<int3, Entity>     ChunkMap;
-		[ReadOnly] public ComponentLookup<ChunkOcclusion> Occlusion;
+		// Private per-pass snapshot: loaded chunk coord → its visibility mask. Presence in
+		// the map means "loaded". Snapshotting on the main thread at schedule time lets this
+		// job run across frames without racing the live ChunkMap/ComponentLookup that the
+		// simulation group mutates — so it never has to be force-completed synchronously.
+		[ReadOnly] public NativeHashMap<int3, ulong> Masks;
 
 		public int3         PlayerChunk;
 		public int          ViewDist;
@@ -154,7 +197,7 @@ namespace _Project.WorldGeneration.Systems
 		private const int SLACK = 1;
 
 		// Mask with every from→to face pair set (fully transparent / not-yet-meshed chunk).
-		private const ulong AllFacesConnected =
+		public const ulong AllFacesConnected =
 			(0x3Ful << 0)  | (0x3Ful << 8)  | (0x3Ful << 16) |
 			(0x3Ful << 24) | (0x3Ful << 32) | (0x3Ful << 40);
 
@@ -195,13 +238,11 @@ namespace _Project.WorldGeneration.Systems
 				int inc = incoming[li];
 
 				// Loaded chunks are the only ones we draw and traverse through; a frontier
-				// coord not in the map has unknown connectivity and nothing to render.
-				var loaded = ChunkMap.TryGetValue(coord, out Entity e);
-				if (!loaded) continue;
+				// coord absent from the snapshot has unknown connectivity and nothing to render.
+				if (!Masks.TryGetValue(coord, out ulong mask)) continue;
 
 				Tree.Set(local);
 
-				ulong mask = Occlusion.HasComponent(e) ? Occlusion[e].Mask : AllFacesConnected;
 				mask &= AngleMask(coord);
 
 				int outgoing = GetConnections(mask, inc) & OutwardDirs(coord);
