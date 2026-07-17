@@ -171,12 +171,12 @@ namespace _Project.WorldGeneration.Systems
 
 		private void TryVisit(int3 fromCoord, int face, NativeArray<byte> seen, ref NativeQueue<int> queue)
 		{
-			// Outward-only: never step back toward the camera plane on this axis.
-			var axis  = face >> 1;
-			var sign  = (face & 1) == 1 ? 1 : -1;
-			var delta = fromCoord[axis] - PlayerChunk[axis];
-			if (sign > 0 ? delta < 0 : delta > 0) return;
-
+			// NOTE: no outward-only constraint. Sodium's REGULAR variant forbids stepping
+			// back toward the camera plane, which is fast but over-culls the concave
+			// sightlines that hills/mountains/caves produce — chunks you can plainly see
+			// get hidden (holes in the terrain from a high vantage). A full connectivity
+			// flood never hides a chunk with a real line of sight through open air, and
+			// still culls whatever is sealed behind solid rock (caves, behind a mountain).
 			int3 nb = fromCoord + FaceOffset(face);
 
 			// View-distance cap (Chebyshev).

@@ -51,7 +51,7 @@ namespace _Project.WorldGeneration.Systems
 			                            .Position;
 			int3 playerChunk = Utility.WorldToChunkCoord(playerPos);
 
-			const int budget = GameSettings.CHUNKS_PER_MESH_JOB;
+			int budget = GameSettings.CHUNKS_PER_MESH_JOB;
 
 			NativeHashMap<int3, Entity>     chunkMap        = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 			var                             chunkLookup     = SystemAPI.GetSingleton<ChunkMapSingleton>();
