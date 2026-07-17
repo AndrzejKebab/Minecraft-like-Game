@@ -113,8 +113,12 @@ namespace _Project.WorldGeneration.Systems
 			// take the nearest N missing tiles and generate them all in ONE parallel
 			// dispatch (one worker-thread slice per tile) instead of N separate jobs
 			var take = math.min(missing.Length, MAX_TILES_PER_FRAME);
-			var coords  = new NativeArray<int2>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-			var ptrs    = new NativeArray<IntPtr>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			// Persistent, not TempJob: the four-stage generation chain (sample -> network
+			// -> carve -> filter) can legitimately run past the 4-frame TempJob safety
+			// window under load, since nothing force-completes it anymore. Still disposed
+			// deterministically via .Dispose(handle) once the chain finishes.
+			var coords  = new NativeArray<int2>(take, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+			var ptrs    = new NativeArray<IntPtr>(take, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 			var colArrs   = new NativeArray<TerraColumn>[take];
 			var coordVals = new int2[take]; // managed copy so we don't touch the arrays post-schedule
 

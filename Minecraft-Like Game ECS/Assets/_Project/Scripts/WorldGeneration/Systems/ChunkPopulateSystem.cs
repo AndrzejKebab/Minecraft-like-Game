@@ -83,11 +83,15 @@ namespace _Project.WorldGeneration.Systems
 			urgent.Sort();
 			normal.Sort();
 
+			// Persistent, not TempJob: this batch's ChunkPopulateJob depends on the tile
+			// generation chain (TerraTileSystem) and is only completed via IsCompleted
+			// polling downstream — it can legitimately outlive the 4-frame TempJob safety
+			// window under load. Still disposed deterministically via .Dispose(handle).
 			var take = math.min(budget, urgent.Length + normal.Length);
 			var batchEntities =
-				new NativeArray<Entity>(take, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+				new NativeArray<Entity>(take, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 			var batchPositions =
-				new NativeArray<ChunkPositionComponent>(take, Allocator.TempJob,
+				new NativeArray<ChunkPositionComponent>(take, Allocator.Persistent,
 				                                        NativeArrayOptions.UninitializedMemory);
 
 			var written = 0;
@@ -123,7 +127,7 @@ namespace _Project.WorldGeneration.Systems
 
 			// resolve tile slices for the batch; populate depends on tile generation
 			var batchSlices =
-				new NativeArray<TerraTileSlice>(take, Allocator.TempJob,
+				new NativeArray<TerraTileSlice>(take, Allocator.Persistent,
 				                                NativeArrayOptions.UninitializedMemory);
 			var usedTiles = new NativeHashSet<int2>(8, Allocator.Temp);
 			for (var i = 0; i < take; i++)

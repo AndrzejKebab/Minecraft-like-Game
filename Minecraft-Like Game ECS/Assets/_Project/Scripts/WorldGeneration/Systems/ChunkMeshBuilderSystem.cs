@@ -83,8 +83,11 @@ namespace _Project.WorldGeneration.Systems
 			urgent.Sort();
 			normal.Sort();
 
-			var validEntities  = new NativeArray<Entity>(budget, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
-			var validPositions = new NativeArray<int3>(budget, Allocator.TempJob, NativeArrayOptions.UninitializedMemory);
+			// Persistent, not TempJob: GreedyMeshJob is only completed via IsCompleted
+			// polling in ChunkRenderUploadSystem, so it can outlive the 4-frame TempJob
+			// safety window under load. Still disposed deterministically via .Dispose(handle).
+			var validEntities  = new NativeArray<Entity>(budget, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
+			var validPositions = new NativeArray<int3>(budget, Allocator.Persistent, NativeArrayOptions.UninitializedMemory);
 
 			var ecbPre = new EntityCommandBuffer(Allocator.Temp);
 			var count  = 0;
