@@ -24,6 +24,11 @@ namespace _Project.WorldGeneration.Systems
 	///     flood is rebuilt only when the player crosses a chunk boundary — near-free while
 	///     stationary.
 	///
+	///     ISystem, not SystemBase: nothing here needs managed dispatch. ChunkManagedMesh is
+	///     a plain unmanaged IComponentData (UnityObjectRef&lt;Mesh&gt; is the blittable
+	///     handle wrapper made for exactly this), so EntityManager/ComponentLookup/ECB access
+	///     works the same as any other struct system in this pipeline.
+	///
 	///     v1 limitations (safe, documented): uses only the outward-only "regular" variant
 	///     (Sodium also runs WIDE/LOCAL to fix concave edge cases), so it can over-cull in
 	///     rare concave sightlines; and a chunk meshed while the player stands still stays
@@ -31,20 +36,20 @@ namespace _Project.WorldGeneration.Systems
 	/// </summary>
 	[UpdateInGroup(typeof(PresentationSystemGroup))]
 	[UpdateAfter(typeof(ChunkRenderUploadSystem))]
-	public partial class ChunkOcclusionSystem : SystemBase
+	public partial struct ChunkOcclusionSystem : ISystem
 	{
-		private ChunkBitTree              tree;
+		private ChunkBitTree               tree;
 		private NativeHashMap<int3, ulong> snapshot; // reused per-pass coord → mask snapshot
-		private int3                      lastPlayerChunk;
-		private EntityQuery               renderedQuery;
+		private int3                       lastPlayerChunk;
+		private EntityQuery                renderedQuery;
 
 		private JobHandle bfsHandle;
 		private bool      jobRunning;
 
-		protected override void OnCreate()
+		public void OnCreate(ref SystemState state)
 		{
-			RequireForUpdate<Player>();
-			RequireForUpdate<ChunkMapSingleton>();
+			state.RequireForUpdate<Player>();
+			state.RequireForUpdate<ChunkMapSingleton>();
 
 			tree            = new ChunkBitTree(Allocator.Persistent);
 			lastPlayerChunk = new int3(int.MaxValue);
@@ -52,19 +57,19 @@ namespace _Project.WorldGeneration.Systems
 			var diameter = GameSettings.ViewDistanceInChunks * 2 + 1;
 			snapshot = new NativeHashMap<int3, ulong>(diameter * diameter * diameter, Allocator.Persistent);
 
-			renderedQuery = GetEntityQuery(
-			                               ComponentType.ReadOnly<ChunkManagedMesh>(),
-			                               ComponentType.ReadOnly<ChunkPositionComponent>());
+			renderedQuery = SystemAPI.QueryBuilder()
+			                         .WithAll<ChunkManagedMesh, ChunkPositionComponent>()
+			                         .Build();
 		}
 
-		protected override void OnDestroy()
+		public void OnDestroy(ref SystemState state)
 		{
 			if (jobRunning) bfsHandle.Complete();
 			if (tree.IsCreated) tree.Dispose();
 			if (snapshot.IsCreated) snapshot.Dispose();
 		}
 
-		protected override void OnUpdate()
+		public void OnUpdate(ref SystemState state)
 		{
 			// ── 1. Finish an in-flight pass without stalling. ──
 			// The BFS runs across frames on its private snapshot. Poll IsCompleted; only when
@@ -76,7 +81,7 @@ namespace _Project.WorldGeneration.Systems
 				if (!bfsHandle.IsCompleted) return;
 				bfsHandle.Complete();
 				jobRunning = false;
-				Reconcile();
+				Reconcile(ref state);
 			}
 
 			float3 playerPos = SystemAPI.GetComponentRO<LocalTransform>(
@@ -89,7 +94,7 @@ namespace _Project.WorldGeneration.Systems
 			lastPlayerChunk = playerChunk;
 
 			// ── 2. Snapshot inputs on the main thread, then schedule the BFS async. ──
-			BuildSnapshot(playerChunk);
+			BuildSnapshot(ref state, playerChunk);
 			tree.ResetTo(playerChunk);
 
 			bfsHandle = new OcclusionBfsJob
@@ -108,12 +113,12 @@ namespace _Project.WorldGeneration.Systems
 		///     reads only this private copy, so it can run across frames while the simulation
 		///     group mutates the live ChunkMap without a job-safety conflict.
 		/// </summary>
-		private void BuildSnapshot(int3 playerChunk)
+		private void BuildSnapshot(ref SystemState state, int3 playerChunk)
 		{
 			snapshot.Clear();
 
 			ComponentLookup<ChunkOcclusion> occ = SystemAPI.GetComponentLookup<ChunkOcclusion>(true);
-			occ.Update(this);
+			occ.Update(ref state);
 
 			int                         viewDist = GameSettings.ViewDistanceInChunks;
 			NativeHashMap<int3, Entity> map      = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
@@ -126,32 +131,33 @@ namespace _Project.WorldGeneration.Systems
 			}
 		}
 
-		private void Reconcile()
+		private void Reconcile(ref SystemState state)
 		{
+			EntityManager       em   = state.EntityManager;
 			NativeArray<Entity> ents = renderedQuery.ToEntityArray(Allocator.Temp);
 			var                 ecb  = new EntityCommandBuffer(Allocator.Temp);
 
 			for (var i = 0; i < ents.Length; i++)
 			{
 				Entity e     = ents[i];
-				var    mm    = EntityManager.GetComponentData<ChunkManagedMesh>(e);
-				int3   coord = EntityManager.GetComponentData<ChunkPositionComponent>(e).ChunkCoord;
+				var    mm    = em.GetComponentData<ChunkManagedMesh>(e);
+				int3   coord = em.GetComponentData<ChunkPositionComponent>(e).ChunkCoord;
 
 				var desired = tree.TestWorld(coord);
-				ToggleRender(mm.SolidEntity, desired, ecb);
-				ToggleRender(mm.FluidEntity, desired, ecb);
+				ToggleRender(em, mm.SolidEntity, desired, ecb);
+				ToggleRender(em, mm.FluidEntity, desired, ecb);
 			}
 
-			ecb.Playback(EntityManager);
+			ecb.Playback(em);
 			ecb.Dispose();
 			ents.Dispose();
 		}
 
-		private void ToggleRender(Entity renderEntity, bool desired, EntityCommandBuffer ecb)
+		private static void ToggleRender(EntityManager em, Entity renderEntity, bool desired, EntityCommandBuffer ecb)
 		{
-			if (renderEntity == Entity.Null || !EntityManager.Exists(renderEntity)) return;
+			if (renderEntity == Entity.Null || !em.Exists(renderEntity)) return;
 
-			var hidden = EntityManager.HasComponent<DisableRendering>(renderEntity);
+			var hidden = em.HasComponent<DisableRendering>(renderEntity);
 			switch (desired)
 			{
 				case true when hidden:
