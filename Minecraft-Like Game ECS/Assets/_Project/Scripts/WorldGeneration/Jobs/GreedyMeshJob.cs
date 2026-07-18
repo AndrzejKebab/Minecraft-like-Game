@@ -154,10 +154,18 @@ namespace _Project.WorldGeneration.Jobs
 						var currentTransparent = IsTransparent(current);
 						var compareTransparent = IsTransparent(compare);
 
+						// Two touching transparent blocks of the SAME id (leaves-leaves,
+						// glass-glass) never need the face between them — it's pure overdraw,
+						// invisible either way since both sides are the identical material.
+						// A different transparent neighbor (leaves-glass) still renders both
+						// faces, same as an opaque/air boundary.
+						var sameTransparentPair =
+							currentTransparent && compareTransparent && current.ID == compare.ID;
+
 						uint mFront = 0;
 						if (currentType != 0 && currentType != 3)
 						{
-							var faceVisible = compareTransparent;
+							var faceVisible = compareTransparent && !sameTransparentPair;
 							if (currentType == compareType && currentType == 2) faceVisible = false;
 							if (faceVisible)
 							{
@@ -169,7 +177,7 @@ namespace _Project.WorldGeneration.Jobs
 						uint mBack = 0;
 						if (compareType != 0 && compareType != 3)
 						{
-							var faceVisible = currentTransparent;
+							var faceVisible = currentTransparent && !sameTransparentPair;
 							if (compareType == currentType && compareType == 2) faceVisible = false;
 							if (faceVisible)
 							{
