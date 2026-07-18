@@ -134,10 +134,14 @@ namespace _Project.WorldGeneration.Systems
 			var    crossed = !playerChunk.Equals(lastPlayerChunk);
 			double now     = SystemAPI.Time.ElapsedTime;
 			if (!crossed && !(masksDirty && now - lastFloodTime >= REFLOOD_INTERVAL)) return;
-			lastPlayerChunk = playerChunk;
 
 			// ── 3. Snapshot inputs on the main thread, then schedule the BFS async. ──
-			BuildSnapshot(ref state, playerChunk);
+			// If the player's chunk isn't even loaded (spawn/teleport window), committing a
+			// pass now would flood from a void seed and hide the whole world — keep the
+			// last committed pass and retry next frame instead (lastPlayerChunk stays
+			// stale so the crossing keeps re-triggering until the world is ready).
+			if (!BuildSnapshot(ref state, playerChunk)) return;
+			lastPlayerChunk = playerChunk;
 			backTree.ResetTo(playerChunk);
 
 			bfsHandle = new OcclusionBfsJob
@@ -160,8 +164,10 @@ namespace _Project.WorldGeneration.Systems
 		///     to terrain the player can't actually see. The BFS reads only this private
 		///     copy, so it can run across frames while the simulation group mutates the live
 		///     ChunkMap without a job-safety conflict.
+		///
+		///     Returns false (pass must be skipped) when the player's chunk isn't loaded.
 		/// </summary>
-		private void BuildSnapshot(ref SystemState state, int3 playerChunk)
+		private bool BuildSnapshot(ref SystemState state, int3 playerChunk)
 		{
 			snapshot.Clear();
 
@@ -171,12 +177,23 @@ namespace _Project.WorldGeneration.Systems
 			int                         viewDist = GameSettings.ViewDistanceInChunks;
 			NativeHashMap<int3, Entity> map      = SystemAPI.GetSingleton<ChunkMapSingleton>().ChunkMap;
 
+			if (!map.ContainsKey(playerChunk)) return false;
+
 			foreach (KVPair<int3, Entity> kv in map)
 			{
 				if (math.cmax(math.abs(kv.Key - playerChunk)) > viewDist) continue;
 				var mask = occ.HasComponent(kv.Value) ? occ[kv.Value].Mask : 0ul;
 				snapshot.TryAdd(kv.Key, mask);
 			}
+
+			// The camera sits INSIDE the player's chunk — it can always see out of it, so
+			// seed it fully connected (Sodium treats the origin section the same way). A
+			// missing mask (entity mid-recreate) or a legitimately solid one (player briefly
+			// embedded during spawn/teleport) would otherwise kill the flood at its seed and
+			// hide the entire world in one pass.
+			snapshot[playerChunk] = ChunkVisibility.AllFacesConnected;
+
+			return true;
 		}
 
 		/// <summary>
