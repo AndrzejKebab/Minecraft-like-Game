@@ -153,6 +153,9 @@ MonoBehaviour:
   blendDistance: 0
   weight: 1
   sharedProfile: {fileID: 11400000, guid: 10fc4df2da32a41aaa32d77bc913491c, type: 2}
+  m_SceneObjectReference:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
 --- !u!4 &203835890
 Transform:
   m_ObjectHideFlags: 0
@@ -721,6 +724,9 @@ MonoBehaviour:
   blendDistance: 0
   weight: 1
   sharedProfile: {fileID: 11400000, guid: 10fc4df2da32a41aaa32d77bc913491c, type: 2}
+  m_SceneObjectReference:
+    m_OverrideState: 0
+    m_Value: {fileID: 0}
 --- !u!4 &832575519
 Transform:
   m_ObjectHideFlags: 0
@@ -1267,7 +1273,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ed7e7faeb18911a4e9e48fb8bdd6e8f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::_Project.UI.CoordsHudController
-  PanelSettings: {fileID: 0}
+  PanelSettings: {fileID: 11400000, guid: 6dc88e6b05f69fb40a87bc786522c0b5, type: 2}
 --- !u!114 &2139194832
 MonoBehaviour:
   m_ObjectHideFlags: 0
